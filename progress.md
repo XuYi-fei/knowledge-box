@@ -108,6 +108,7 @@
 - 已修复动态 Tool/MCP 注册的 group 初始化缺陷：
   - `AgentCapabilityAssemblyService` 在注册 builtin/tool/mcp 前显式 `createToolGroup`，避免 `Tool group ... does not exist`。
   - 新增 `AgentCapabilityAssemblyServiceTests`，覆盖 builtin 与动态 tool 的组创建回归。
+- 管理端 Agent 版本“绑定管理”弹窗已合并为单窗口，移除重复渲染的第二个绑定弹窗，避免点击一次同时弹出两层 Tool/Skill/MCP 配置窗口。
 
 ## 已验证无误
 
@@ -156,6 +157,7 @@
 - 后端全量测试通过：`mvn -q -pl backend test`（含 Liquibase 新增 `022` 更新日志变更集回归）。
 - 后端单测通过：`mvn -q -pl backend -Dtest=AgentCapabilityAssemblyServiceTests test`（覆盖动态能力装配的 tool group 创建逻辑）。
 - 后端全量测试通过：`mvn -q -pl backend test`（含 `AgentCapabilityAssemblyService` 修复回归）。
+- 前端构建通过：`npm --prefix frontend run build`（含 Profile Version 绑定管理弹窗去重与单窗口合并回归）。
 
 ## 待继续推进
 

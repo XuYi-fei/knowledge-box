@@ -103,7 +103,7 @@ public class AgentCapabilityAssemblyService {
     private void registerDynamicTools(Long profileVersionId, Toolkit toolkit) {
         List<AgentProfileVersionToolBinding> bindings = toolBindingRepository.findByProfileVersionId(profileVersionId);
         for (AgentProfileVersionToolBinding binding : bindings) {
-            ToolDefinition definition = toolDefinitionRepository.findByCode(binding.getToolCode()).orElse(null);
+            ToolDefinition definition = toolDefinitionRepository.findById(binding.getToolId()).orElse(null);
             if (definition == null || !Boolean.TRUE.equals(definition.getEnabled())) {
                 continue;
             }
@@ -130,7 +130,7 @@ public class AgentCapabilityAssemblyService {
     private void registerDynamicMcpClients(Long profileVersionId, Toolkit toolkit) {
         List<AgentProfileVersionMcpBinding> bindings = mcpBindingRepository.findByProfileVersionId(profileVersionId);
         for (AgentProfileVersionMcpBinding binding : bindings) {
-            McpServerConfig config = mcpServerConfigRepository.findByCode(binding.getMcpCode()).orElse(null);
+            McpServerConfig config = mcpServerConfigRepository.findById(binding.getMcpId()).orElse(null);
             if (config == null || !Boolean.TRUE.equals(config.getEnabled())) {
                 continue;
             }
@@ -177,7 +177,7 @@ public class AgentCapabilityAssemblyService {
         List<AgentProfileVersionSkillBinding> bindings = skillBindingRepository.findByProfileVersionId(profileVersionId);
         List<AgentSkill> skills = new ArrayList<>();
         for (AgentProfileVersionSkillBinding binding : bindings) {
-            SkillBinding skillBinding = skillCatalogRepository.findByCode(binding.getSkillCode()).orElse(null);
+            SkillBinding skillBinding = skillCatalogRepository.findById(binding.getSkillId()).orElse(null);
             if (skillBinding == null || !Boolean.TRUE.equals(skillBinding.getEnabled())) {
                 continue;
             }

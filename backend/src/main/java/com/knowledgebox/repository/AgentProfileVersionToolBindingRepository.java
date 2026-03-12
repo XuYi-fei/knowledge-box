@@ -8,7 +8,7 @@ public interface AgentProfileVersionToolBindingRepository extends JpaRepository<
 
     List<AgentProfileVersionToolBinding> findByProfileVersionId(Long profileVersionId);
 
-    long countByToolCode(String toolCode);
+    long countByToolId(Long toolId);
 
     void deleteByProfileVersionId(Long profileVersionId);
 }

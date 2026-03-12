@@ -41,20 +41,20 @@
             CREATE TABLE IF NOT EXISTS agent_profile_version_tool_binding (
                 id BIGSERIAL PRIMARY KEY,
                 profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
-                tool_code VARCHAR(64) NOT NULL REFERENCES tool_definition(code),
+                tool_id BIGINT NOT NULL REFERENCES tool_definition(id) ON DELETE CASCADE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_tool_binding
-                ON agent_profile_version_tool_binding(profile_version_id, tool_code);
-            CREATE INDEX IF NOT EXISTS idx_profile_tool_binding_tool_code
-                ON agent_profile_version_tool_binding(tool_code);
+                ON agent_profile_version_tool_binding(profile_version_id, tool_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_tool_binding_tool_id
+                ON agent_profile_version_tool_binding(tool_id);
 
             CREATE TABLE IF NOT EXISTS agent_profile_version_mcp_binding (
                 id BIGSERIAL PRIMARY KEY,
                 profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
-                mcp_code VARCHAR(64) NOT NULL REFERENCES mcp_server(code),
+                mcp_id BIGINT NOT NULL REFERENCES mcp_server(id) ON DELETE CASCADE,
                 enable_tools_json TEXT NOT NULL DEFAULT '[]',
                 disable_tools_json TEXT NOT NULL DEFAULT '[]',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -62,50 +62,53 @@
             );
 
             CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_mcp_binding
-                ON agent_profile_version_mcp_binding(profile_version_id, mcp_code);
-            CREATE INDEX IF NOT EXISTS idx_profile_mcp_binding_mcp_code
-                ON agent_profile_version_mcp_binding(mcp_code);
+                ON agent_profile_version_mcp_binding(profile_version_id, mcp_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_mcp_binding_mcp_id
+                ON agent_profile_version_mcp_binding(mcp_id);
 
             CREATE TABLE IF NOT EXISTS agent_profile_version_skill_binding (
                 id BIGSERIAL PRIMARY KEY,
                 profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
-                skill_code VARCHAR(64) NOT NULL REFERENCES skill_binding(code),
+                skill_id BIGINT NOT NULL REFERENCES skill_binding(id) ON DELETE CASCADE,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_skill_binding
-                ON agent_profile_version_skill_binding(profile_version_id, skill_code);
-            CREATE INDEX IF NOT EXISTS idx_profile_skill_binding_skill_code
-                ON agent_profile_version_skill_binding(skill_code);
+                ON agent_profile_version_skill_binding(profile_version_id, skill_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_skill_binding_skill_id
+                ON agent_profile_version_skill_binding(skill_id);
         ]]></sql>
     </changeSet>
 
     <changeSet id="020-003-backfill-profile-version-bindings" author="codex">
         <sql><![CDATA[
-            INSERT INTO agent_profile_version_tool_binding (profile_version_id, tool_code)
-            SELECT version.id, tool_code.value
+            INSERT INTO agent_profile_version_tool_binding (profile_version_id, tool_id)
+            SELECT version.id, definition.id
               FROM agent_profile_version version,
                    LATERAL jsonb_array_elements_text(
                        COALESCE(NULLIF(version.tool_bindings, ''), '[]')::jsonb
                    ) AS tool_code(value)
-            ON CONFLICT (profile_version_id, tool_code) DO NOTHING;
+                   JOIN tool_definition definition ON definition.code = tool_code.value
+            ON CONFLICT (profile_version_id, tool_id) DO NOTHING;
 
-            INSERT INTO agent_profile_version_mcp_binding (profile_version_id, mcp_code, enable_tools_json, disable_tools_json)
-            SELECT version.id, mcp_code.value, '[]', '[]'
+            INSERT INTO agent_profile_version_mcp_binding (profile_version_id, mcp_id, enable_tools_json, disable_tools_json)
+            SELECT version.id, server.id, '[]', '[]'
               FROM agent_profile_version version,
                    LATERAL jsonb_array_elements_text(
                        COALESCE(NULLIF(version.mcp_bindings, ''), '[]')::jsonb
                    ) AS mcp_code(value)
-            ON CONFLICT (profile_version_id, mcp_code) DO NOTHING;
+                   JOIN mcp_server server ON server.code = mcp_code.value
+            ON CONFLICT (profile_version_id, mcp_id) DO NOTHING;
 
-            INSERT INTO agent_profile_version_skill_binding (profile_version_id, skill_code)
-            SELECT version.id, skill_code.value
+            INSERT INTO agent_profile_version_skill_binding (profile_version_id, skill_id)
+            SELECT version.id, skill.id
               FROM agent_profile_version version,
                    LATERAL jsonb_array_elements_text(
                        COALESCE(NULLIF(version.skill_bindings, ''), '[]')::jsonb
                    ) AS skill_code(value)
-            ON CONFLICT (profile_version_id, skill_code) DO NOTHING;
+                   JOIN skill_binding skill ON skill.code = skill_code.value
+            ON CONFLICT (profile_version_id, skill_id) DO NOTHING;
         ]]></sql>
     </changeSet>
 </databaseChangeLog>

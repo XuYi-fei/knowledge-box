@@ -12,8 +12,8 @@ public class AgentProfileVersionMcpBinding extends BaseEntity {
     @Column(name = "profile_version_id", nullable = false)
     private Long profileVersionId;
 
-    @Column(name = "mcp_code", nullable = false, length = 64)
-    private String mcpCode;
+    @Column(name = "mcp_id", nullable = false)
+    private Long mcpId;
 
     @Column(name = "enable_tools_json", nullable = false, columnDefinition = "TEXT")
     private String enableToolsJson = "[]";
@@ -29,12 +29,12 @@ public class AgentProfileVersionMcpBinding extends BaseEntity {
         this.profileVersionId = profileVersionId;
     }
 
-    public String getMcpCode() {
-        return mcpCode;
+    public Long getMcpId() {
+        return mcpId;
     }
 
-    public void setMcpCode(String mcpCode) {
-        this.mcpCode = mcpCode;
+    public void setMcpId(Long mcpId) {
+        this.mcpId = mcpId;
     }
 
     public String getEnableToolsJson() {

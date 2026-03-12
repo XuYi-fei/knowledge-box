@@ -95,6 +95,10 @@
   - 运行时装配改为 `AgentCapabilityAssemblyService`：按发布版本动态注册 Tool/MCP/Skill（AgentScope API），聊天链路与文档分类 Agent 均复用该装配。
   - 管理端已支持 Tool/MCP/Skill 的增改删与 Skill zip 上传；Profile Version 支持绑定管理（toolCodes/skillCodes/mcpBindings）。
   - MCP 密钥更新链路已支持“掩码值保留旧密钥”，避免后台编辑时误清空敏感 header。
+- 动态绑定实现已按“可重建数据库”策略调整为 ID 绑定：
+  - `agent_profile_version_tool_binding/mcp_binding/skill_binding` 改为存储 `tool_id/mcp_id/skill_id` 外键，不再存储 code 字符串。
+  - 保持管理端/API 使用 code 交互，服务层负责 code ↔ id 解析与回显。
+  - 已直接修改历史初始化脚本 `db.changelog-020-agent-integrations-dynamic-binding.xml` 的建表与回填 SQL（未新增迁移文件）。
 - 配置文档同步完成：`application-local.yml.example` 与 README 已补齐 `knowledge-box.integration.*` 相关项（主密钥、Skill 缓存目录、Skill 包分类路径）。
 
 ## 已验证无误
@@ -138,6 +142,7 @@
 - 后端 `mvn -q -pl backend test` 与前端 `npm --prefix frontend run build` 再次通过（含仓库敏感配置治理与 skill 规则更新后的回归）。
 - 后端 `mvn -q -pl backend test` 通过（含 `020/021` 迁移、ChatOrchestrator 测试适配与动态集成链路回归）。
 - 前端 `npm --prefix frontend run build` 通过（含 Integrations 管理页 CRUD/上传与 Profile Version 绑定管理弹窗）。
+- 后端 `mvn -q -pl backend test` 再次通过（含绑定表 `*_id` 外键化与旧初始化脚本直接改造回归）。
 
 ## 待继续推进
 

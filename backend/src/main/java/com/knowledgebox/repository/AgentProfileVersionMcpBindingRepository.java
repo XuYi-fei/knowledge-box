@@ -8,7 +8,7 @@ public interface AgentProfileVersionMcpBindingRepository extends JpaRepository<A
 
     List<AgentProfileVersionMcpBinding> findByProfileVersionId(Long profileVersionId);
 
-    long countByMcpCode(String mcpCode);
+    long countByMcpId(Long mcpId);
 
     void deleteByProfileVersionId(Long profileVersionId);
 }

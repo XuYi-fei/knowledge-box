@@ -12,8 +12,8 @@ public class AgentProfileVersionToolBinding extends BaseEntity {
     @Column(name = "profile_version_id", nullable = false)
     private Long profileVersionId;
 
-    @Column(name = "tool_code", nullable = false, length = 64)
-    private String toolCode;
+    @Column(name = "tool_id", nullable = false)
+    private Long toolId;
 
     public Long getProfileVersionId() {
         return profileVersionId;
@@ -23,11 +23,11 @@ public class AgentProfileVersionToolBinding extends BaseEntity {
         this.profileVersionId = profileVersionId;
     }
 
-    public String getToolCode() {
-        return toolCode;
+    public Long getToolId() {
+        return toolId;
     }
 
-    public void setToolCode(String toolCode) {
-        this.toolCode = toolCode;
+    public void setToolId(Long toolId) {
+        this.toolId = toolId;
     }
 }

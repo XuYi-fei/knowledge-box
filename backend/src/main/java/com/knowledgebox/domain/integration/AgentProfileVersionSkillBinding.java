@@ -12,8 +12,8 @@ public class AgentProfileVersionSkillBinding extends BaseEntity {
     @Column(name = "profile_version_id", nullable = false)
     private Long profileVersionId;
 
-    @Column(name = "skill_code", nullable = false, length = 64)
-    private String skillCode;
+    @Column(name = "skill_id", nullable = false)
+    private Long skillId;
 
     public Long getProfileVersionId() {
         return profileVersionId;
@@ -23,11 +23,11 @@ public class AgentProfileVersionSkillBinding extends BaseEntity {
         this.profileVersionId = profileVersionId;
     }
 
-    public String getSkillCode() {
-        return skillCode;
+    public Long getSkillId() {
+        return skillId;
     }
 
-    public void setSkillCode(String skillCode) {
-        this.skillCode = skillCode;
+    public void setSkillId(Long skillId) {
+        this.skillId = skillId;
     }
 }

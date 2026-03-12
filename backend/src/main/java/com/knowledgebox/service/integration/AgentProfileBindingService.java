@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.api.AgentProfileVersionBindingsView;
 import com.knowledgebox.api.AgentProfileVersionMcpBindingView;
 import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
+import com.knowledgebox.domain.integration.McpServerConfig;
+import com.knowledgebox.domain.integration.SkillBinding;
+import com.knowledgebox.domain.integration.ToolDefinition;
 import com.knowledgebox.domain.integration.AgentProfileVersionMcpBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionSkillBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionToolBinding;
@@ -59,19 +62,32 @@ public class AgentProfileBindingService {
     @Transactional(readOnly = true)
     public AgentProfileVersionBindingsView bindings(Long profileVersionId) {
         ensureProfileVersionExists(profileVersionId);
-        List<String> toolCodes = toolBindingRepository.findByProfileVersionId(profileVersionId).stream()
-                .map(AgentProfileVersionToolBinding::getToolCode)
-                .toList();
-        List<String> skillCodes = skillBindingRepository.findByProfileVersionId(profileVersionId).stream()
-                .map(AgentProfileVersionSkillBinding::getSkillCode)
-                .toList();
-        List<AgentProfileVersionMcpBindingView> mcpBindings = mcpBindingRepository.findByProfileVersionId(profileVersionId).stream()
-                .map(binding -> new AgentProfileVersionMcpBindingView(
-                        binding.getMcpCode(),
-                        readStringList(binding.getEnableToolsJson()),
-                        readStringList(binding.getDisableToolsJson())
-                ))
-                .toList();
+        List<String> toolCodes = new ArrayList<>();
+        for (AgentProfileVersionToolBinding binding : toolBindingRepository.findByProfileVersionId(profileVersionId)) {
+            String code = resolveToolCode(binding.getToolId());
+            if (StringUtils.hasText(code)) {
+                toolCodes.add(code);
+            }
+        }
+        List<String> skillCodes = new ArrayList<>();
+        for (AgentProfileVersionSkillBinding binding : skillBindingRepository.findByProfileVersionId(profileVersionId)) {
+            String code = resolveSkillCode(binding.getSkillId());
+            if (StringUtils.hasText(code)) {
+                skillCodes.add(code);
+            }
+        }
+        List<AgentProfileVersionMcpBindingView> mcpBindings = new ArrayList<>();
+        for (AgentProfileVersionMcpBinding binding : mcpBindingRepository.findByProfileVersionId(profileVersionId)) {
+            String mcpCode = resolveMcpCode(binding.getMcpId());
+            if (!StringUtils.hasText(mcpCode)) {
+                continue;
+            }
+            mcpBindings.add(new AgentProfileVersionMcpBindingView(
+                    mcpCode,
+                    readStringList(binding.getEnableToolsJson()),
+                    readStringList(binding.getDisableToolsJson())
+            ));
+        }
         return new AgentProfileVersionBindingsView(profileVersionId, toolCodes, skillCodes, mcpBindings);
     }
 
@@ -85,16 +101,8 @@ public class AgentProfileBindingService {
                 ? List.of()
                 : request.mcpBindings();
 
-        for (String code : toolCodes) {
-            if (!toolDefinitionRepository.existsByCode(code)) {
-                throw new IllegalArgumentException("Tool not found: " + code);
-            }
-        }
-        for (String code : skillCodes) {
-            if (!skillCatalogRepository.existsByCode(code)) {
-                throw new IllegalArgumentException("Skill not found: " + code);
-            }
-        }
+        List<Long> toolIds = toolCodes.stream().map(this::requireToolId).toList();
+        List<Long> skillIds = skillCodes.stream().map(this::requireSkillId).toList();
 
         List<AgentProfileVersionMcpBindingView> normalizedMcpBindings = new ArrayList<>();
         Set<String> seenMcpCodes = new LinkedHashSet<>();
@@ -103,9 +111,6 @@ public class AgentProfileBindingService {
                 continue;
             }
             String mcpCode = binding.mcpCode().trim().toLowerCase(Locale.ROOT);
-            if (!mcpServerConfigRepository.existsByCode(mcpCode)) {
-                throw new IllegalArgumentException("MCP server not found: " + mcpCode);
-            }
             if (seenMcpCodes.add(mcpCode)) {
                 normalizedMcpBindings.add(new AgentProfileVersionMcpBindingView(
                         mcpCode,
@@ -120,11 +125,11 @@ public class AgentProfileBindingService {
         skillBindingRepository.deleteByProfileVersionId(profileVersionId);
 
         if (!toolCodes.isEmpty()) {
-            toolBindingRepository.saveAll(toolCodes.stream()
-                    .map(code -> {
+            toolBindingRepository.saveAll(toolIds.stream()
+                    .map(toolId -> {
                         AgentProfileVersionToolBinding binding = new AgentProfileVersionToolBinding();
                         binding.setProfileVersionId(profileVersionId);
-                        binding.setToolCode(code);
+                        binding.setToolId(toolId);
                         return binding;
                     })
                     .toList());
@@ -135,7 +140,7 @@ public class AgentProfileBindingService {
                     .map(bindingView -> {
                         AgentProfileVersionMcpBinding binding = new AgentProfileVersionMcpBinding();
                         binding.setProfileVersionId(profileVersionId);
-                        binding.setMcpCode(bindingView.mcpCode());
+                        binding.setMcpId(requireMcpId(bindingView.mcpCode()));
                         binding.setEnableToolsJson(writeJson(bindingView.enableTools()));
                         binding.setDisableToolsJson(writeJson(bindingView.disableTools()));
                         return binding;
@@ -143,12 +148,12 @@ public class AgentProfileBindingService {
                     .toList());
         }
 
-        if (!skillCodes.isEmpty()) {
-            skillBindingRepository.saveAll(skillCodes.stream()
-                    .map(code -> {
+        if (!skillIds.isEmpty()) {
+            skillBindingRepository.saveAll(skillIds.stream()
+                    .map(skillId -> {
                         AgentProfileVersionSkillBinding binding = new AgentProfileVersionSkillBinding();
                         binding.setProfileVersionId(profileVersionId);
-                        binding.setSkillCode(code);
+                        binding.setSkillId(skillId);
                         return binding;
                     })
                     .toList());
@@ -164,6 +169,51 @@ public class AgentProfileBindingService {
         if (!agentProfileVersionRepository.existsById(profileVersionId)) {
             throw new IllegalArgumentException("Agent profile version not found: " + profileVersionId);
         }
+    }
+
+    private Long requireToolId(String code) {
+        return toolDefinitionRepository.findByCode(code)
+                .map(ToolDefinition::getId)
+                .orElseThrow(() -> new IllegalArgumentException("Tool not found: " + code));
+    }
+
+    private Long requireMcpId(String code) {
+        return mcpServerConfigRepository.findByCode(code)
+                .map(McpServerConfig::getId)
+                .orElseThrow(() -> new IllegalArgumentException("MCP server not found: " + code));
+    }
+
+    private Long requireSkillId(String code) {
+        return skillCatalogRepository.findByCode(code)
+                .map(SkillBinding::getId)
+                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + code));
+    }
+
+    private String resolveToolCode(Long toolId) {
+        if (toolId == null) {
+            return null;
+        }
+        return toolDefinitionRepository.findById(toolId)
+                .map(ToolDefinition::getCode)
+                .orElse(null);
+    }
+
+    private String resolveMcpCode(Long mcpId) {
+        if (mcpId == null) {
+            return null;
+        }
+        return mcpServerConfigRepository.findById(mcpId)
+                .map(McpServerConfig::getCode)
+                .orElse(null);
+    }
+
+    private String resolveSkillCode(Long skillId) {
+        if (skillId == null) {
+            return null;
+        }
+        return skillCatalogRepository.findById(skillId)
+                .map(SkillBinding::getCode)
+                .orElse(null);
     }
 
     private List<String> normalizeCodes(List<String> rawCodes) {

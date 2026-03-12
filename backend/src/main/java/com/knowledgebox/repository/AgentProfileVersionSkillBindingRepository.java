@@ -8,7 +8,7 @@ public interface AgentProfileVersionSkillBindingRepository extends JpaRepository
 
     List<AgentProfileVersionSkillBinding> findByProfileVersionId(Long profileVersionId);
 
-    long countBySkillCode(String skillCode);
+    long countBySkillId(Long skillId);
 
     void deleteByProfileVersionId(Long profileVersionId);
 }

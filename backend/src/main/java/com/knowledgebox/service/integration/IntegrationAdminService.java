@@ -123,7 +123,7 @@ public class IntegrationAdminService {
     public void deleteTool(String code) {
         String normalizedCode = normalizeCode(code);
         ToolDefinition definition = requireTool(normalizedCode);
-        long used = toolBindingRepository.countByToolCode(normalizedCode);
+        long used = toolBindingRepository.countByToolId(definition.getId());
         if (used > 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
@@ -184,7 +184,7 @@ public class IntegrationAdminService {
     public void deleteMcpServer(String code) {
         String normalizedCode = normalizeCode(code);
         McpServerConfig config = requireMcp(normalizedCode);
-        long used = mcpBindingRepository.countByMcpCode(normalizedCode);
+        long used = mcpBindingRepository.countByMcpId(config.getId());
         if (used > 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,
@@ -247,7 +247,7 @@ public class IntegrationAdminService {
     public void deleteSkill(String code) {
         String normalizedCode = normalizeCode(code);
         SkillBinding binding = requireSkill(normalizedCode);
-        long used = skillProfileBindingRepository.countBySkillCode(normalizedCode);
+        long used = skillProfileBindingRepository.countBySkillId(binding.getId());
         if (used > 0) {
             throw new ApiException(
                     HttpStatus.CONFLICT,

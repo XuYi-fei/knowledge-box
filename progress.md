@@ -105,6 +105,9 @@
   - 支持按目录批量扫描 seed（默认 `*.json`）并导入审核流，适配跨服务器统一目录部署。
   - `seed-file` 与 `seed-directory` 可同时开启；同一 seed 文件不会重复导入。
 - 新增增量变更集 `db.changelog-022-bootstrap-seed-directory-release-note.xml`，同步“关于”页更新说明。
+- 已修复动态 Tool/MCP 注册的 group 初始化缺陷：
+  - `AgentCapabilityAssemblyService` 在注册 builtin/tool/mcp 前显式 `createToolGroup`，避免 `Tool group ... does not exist`。
+  - 新增 `AgentCapabilityAssemblyServiceTests`，覆盖 builtin 与动态 tool 的组创建回归。
 
 ## 已验证无误
 
@@ -151,6 +154,8 @@
 - 后端单测通过：`mvn -q -pl backend -Dtest=DocumentBootstrapImportRunnerTests test`（覆盖 seed 目录扫描导入与 seed-file/seed-directory 重复去重）。
 - 后端编译通过：`mvn -pl backend -DskipTests compile`（含 bootstrap 新配置与导入器改造回归）。
 - 后端全量测试通过：`mvn -q -pl backend test`（含 Liquibase 新增 `022` 更新日志变更集回归）。
+- 后端单测通过：`mvn -q -pl backend -Dtest=AgentCapabilityAssemblyServiceTests test`（覆盖动态能力装配的 tool group 创建逻辑）。
+- 后端全量测试通过：`mvn -q -pl backend test`（含 `AgentCapabilityAssemblyService` 修复回归）。
 
 ## 待继续推进
 

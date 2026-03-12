@@ -38,6 +38,7 @@
 - AgentScope 1.0.9 的 DashScope 原生端点自动路由对 `qwen3.5-*` 覆盖不完整，相关模型需走 `knowledge-box.chat.dashscope-compatible.*` 兼容端点策略。
 - 已发布 `agent_profile_version.routing_model` 必须指向已启用的 CHAT 模型；启动期会进行强校验，不满足会直接启动失败。
 - AgentScope 1.0.9 下，若 `DashScopeChatModel.enableThinking(false)`，不要在对应 `GenerateOptions` 里设置 `thinkingBudget`（即使为 0），否则会抛 `IllegalStateException`。
+- AgentScope `Toolkit.registration().group(...)` 不会自动建组；动态注册 Tool/MCP 前必须先 `createToolGroup`，否则会抛 `Tool group ... does not exist`。
 - AgentScope 工具执行可能切换线程，`ThreadLocal` 上下文不应作为关键持久化字段（如 `sessionCode`）的唯一来源；落库前需做非空保护或使用显式参数传递。
 - 在事务方法里启动异步线程处理审核/生成任务时，需在 `afterCommit` 后再启动，避免子线程读不到尚未提交的数据导致流程丢失。
 - “关于” tab 的更新日志来自数据库，不是静态前端文案；新增独立功能时应通过增量变更集补充 `about_release_note` 数据。

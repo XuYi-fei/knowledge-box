@@ -39,6 +39,7 @@ import org.springframework.util.StringUtils;
 public class AgentCapabilityAssemblyService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentCapabilityAssemblyService.class);
+    private static final String BUILTIN_KB_GROUP = "builtin-kb";
 
     private final AgentProfileVersionToolBindingRepository toolBindingRepository;
     private final AgentProfileVersionMcpBindingRepository mcpBindingRepository;
@@ -82,9 +83,10 @@ public class AgentCapabilityAssemblyService {
     public AgentRuntimeCapabilities assemble(Long profileVersionId, boolean includeKnowledgeBaseTool) {
         Toolkit toolkit = new Toolkit();
         if (includeKnowledgeBaseTool) {
+            ensureToolGroup(toolkit, BUILTIN_KB_GROUP, "Built-in Knowledge Box tools");
             toolkit.registration()
                     .tool(knowledgeBaseSearchTool)
-                    .group("builtin-kb")
+                    .group(BUILTIN_KB_GROUP)
                     .apply();
         }
         if (profileVersionId == null) {
@@ -112,10 +114,12 @@ public class AgentCapabilityAssemblyService {
                 continue;
             }
             try {
+                String groupName = "tool-" + definition.getCode();
+                ensureToolGroup(toolkit, groupName, "Dynamic tool group for " + definition.getCode());
                 Object toolObject = toolRuntimeFactoryService.createToolObject(definition.getClassName(), definition.getBeanName());
                 Toolkit.ToolRegistration registration = toolkit.registration()
                         .tool(toolObject)
-                        .group("tool-" + definition.getCode());
+                        .group(groupName);
                 Map<String, Map<String, Object>> presetParameters = readPresetParameters(definition.getConfigJson());
                 if (!presetParameters.isEmpty()) {
                     registration.presetParameters(presetParameters);
@@ -155,9 +159,11 @@ public class AgentCapabilityAssemblyService {
                 if (config.getInitializationTimeoutMs() != null && config.getInitializationTimeoutMs() > 0) {
                     builder.initializationTimeout(Duration.ofMillis(config.getInitializationTimeoutMs()));
                 }
+                String groupName = "mcp-" + config.getCode();
+                ensureToolGroup(toolkit, groupName, "Dynamic MCP group for " + config.getCode());
                 Toolkit.ToolRegistration registration = toolkit.registration()
                         .mcpClient(builder.buildSync())
-                        .group("mcp-" + config.getCode());
+                        .group(groupName);
                 List<String> enableTools = readStringList(binding.getEnableToolsJson());
                 List<String> disableTools = readStringList(binding.getDisableToolsJson());
                 if (!enableTools.isEmpty()) {
@@ -271,6 +277,16 @@ public class AgentCapabilityAssemblyService {
         } catch (Exception exception) {
             return List.of();
         }
+    }
+
+    private void ensureToolGroup(Toolkit toolkit, String groupName, String description) {
+        if (!StringUtils.hasText(groupName)) {
+            return;
+        }
+        if (toolkit.getToolGroup(groupName) != null) {
+            return;
+        }
+        toolkit.createToolGroup(groupName, description);
     }
 
     public record AgentRuntimeCapabilities(

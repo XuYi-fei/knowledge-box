@@ -100,6 +100,11 @@
   - 保持管理端/API 使用 code 交互，服务层负责 code ↔ id 解析与回显。
   - 已直接修改历史初始化脚本 `db.changelog-020-agent-integrations-dynamic-binding.xml` 的建表与回填 SQL（未新增迁移文件）。
 - 配置文档同步完成：`application-local.yml.example` 与 README 已补齐 `knowledge-box.integration.*` 相关项（主密钥、Skill 缓存目录、Skill 包分类路径）。
+- 启动期文档导入（bootstrap）已扩展为“单文件 + 目录扫描”双模式：
+  - 新增配置：`knowledge-box.document.bootstrap.seed-directory`、`seed-directory-pattern`、`seed-directory-recursive`。
+  - 支持按目录批量扫描 seed（默认 `*.json`）并导入审核流，适配跨服务器统一目录部署。
+  - `seed-file` 与 `seed-directory` 可同时开启；同一 seed 文件不会重复导入。
+- 新增增量变更集 `db.changelog-022-bootstrap-seed-directory-release-note.xml`，同步“关于”页更新说明。
 
 ## 已验证无误
 
@@ -143,6 +148,9 @@
 - 后端 `mvn -q -pl backend test` 通过（含 `020/021` 迁移、ChatOrchestrator 测试适配与动态集成链路回归）。
 - 前端 `npm --prefix frontend run build` 通过（含 Integrations 管理页 CRUD/上传与 Profile Version 绑定管理弹窗）。
 - 后端 `mvn -q -pl backend test` 再次通过（含绑定表 `*_id` 外键化与旧初始化脚本直接改造回归）。
+- 后端单测通过：`mvn -q -pl backend -Dtest=DocumentBootstrapImportRunnerTests test`（覆盖 seed 目录扫描导入与 seed-file/seed-directory 重复去重）。
+- 后端编译通过：`mvn -pl backend -DskipTests compile`（含 bootstrap 新配置与导入器改造回归）。
+- 后端全量测试通过：`mvn -q -pl backend test`（含 Liquibase 新增 `022` 更新日志变更集回归）。
 
 ## 待继续推进
 

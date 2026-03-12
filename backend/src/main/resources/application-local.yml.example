@@ -101,6 +101,9 @@ knowledge-box:
     bootstrap:
       enabled: ${KB_DOCUMENT_BOOTSTRAP_ENABLED:false}
       seed-file: ${KB_DOCUMENT_BOOTSTRAP_SEED_FILE:}
+      seed-directory: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY:}
+      seed-directory-pattern: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_PATTERN:*.json}
+      seed-directory-recursive: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE:true}
       fail-fast: ${KB_DOCUMENT_BOOTSTRAP_FAIL_FAST:false}
       operator-username: ${KB_DOCUMENT_BOOTSTRAP_OPERATOR_USERNAME:admin}
   integration:

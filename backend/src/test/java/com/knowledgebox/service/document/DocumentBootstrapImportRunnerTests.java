@@ -3,6 +3,7 @@ package com.knowledgebox.service.document;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -177,5 +178,120 @@ class DocumentBootstrapImportRunnerTests {
         ArgumentCaptor<CreateDocumentReviewRequest> requestCaptor = ArgumentCaptor.forClass(CreateDocumentReviewRequest.class);
         verify(documentGovernanceService).createUploadReview(requestCaptor.capture(), eq(1L));
         assertThat(requestCaptor.getValue().sourceMarkdown()).isEqualTo("# Relative markdown");
+    }
+
+    @Test
+    void shouldImportAllSeedFilesFromDirectory(@TempDir Path tempDir) throws Exception {
+        KnowledgeBoxProperties properties = new KnowledgeBoxProperties();
+        KnowledgeBoxProperties.Bootstrap bootstrap = properties.getDocument().getBootstrap();
+        Path seedDir = tempDir.resolve("bootstrap-seeds");
+        Files.createDirectories(seedDir);
+        Path seedFile1 = seedDir.resolve("001-first.json");
+        Path seedFile2 = seedDir.resolve("002-second.json");
+        Files.writeString(
+                seedFile1,
+                """
+                        [
+                          {
+                            "importKey": "yuque:batch:1",
+                            "title": "Batch 1",
+                            "sourceFilename": "batch-1.md",
+                            "visibilityType": "PUBLIC",
+                            "sourceMarkdown": "# Batch 1"
+                          }
+                        ]
+                        """,
+                StandardCharsets.UTF_8
+        );
+        Files.writeString(
+                seedFile2,
+                """
+                        [
+                          {
+                            "importKey": "yuque:batch:2",
+                            "title": "Batch 2",
+                            "sourceFilename": "batch-2.md",
+                            "visibilityType": "PUBLIC",
+                            "sourceMarkdown": "# Batch 2"
+                          }
+                        ]
+                        """,
+                StandardCharsets.UTF_8
+        );
+
+        bootstrap.setSeedDirectory(seedDir.toString());
+        bootstrap.setSeedDirectoryPattern("*.json");
+        bootstrap.setSeedDirectoryRecursive(false);
+        when(adminOperatorService.resolveOperatorId(any())).thenReturn(1L);
+        when(documentReviewRequestRepository.existsByImportKey("yuque:batch:1")).thenReturn(false);
+        when(documentReviewRequestRepository.existsByImportKey("yuque:batch:2")).thenReturn(false);
+        when(knowledgeDocumentRepository.existsByImportKey("yuque:batch:1")).thenReturn(false);
+        when(knowledgeDocumentRepository.existsByImportKey("yuque:batch:2")).thenReturn(false);
+
+        DocumentBootstrapImportRunner runner = new DocumentBootstrapImportRunner(
+                properties,
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                adminOperatorService,
+                documentGovernanceService,
+                documentReviewRequestRepository,
+                knowledgeDocumentRepository
+        );
+
+        DocumentBootstrapImportRunner.BootstrapRunSummary summary = runner.importConfiguredSeeds(bootstrap);
+
+        assertThat(summary.createdCount()).isEqualTo(2);
+        assertThat(summary.skippedCount()).isEqualTo(0);
+        assertThat(summary.failedCount()).isEqualTo(0);
+        verify(documentGovernanceService, times(2)).createUploadReview(any(CreateDocumentReviewRequest.class), eq(1L));
+    }
+
+    @Test
+    void shouldSkipDuplicateSeedFileWhenAlsoConfiguredInDirectory(@TempDir Path tempDir) throws Exception {
+        KnowledgeBoxProperties properties = new KnowledgeBoxProperties();
+        KnowledgeBoxProperties.Bootstrap bootstrap = properties.getDocument().getBootstrap();
+        Path seedDir = tempDir.resolve("bootstrap-seeds");
+        Files.createDirectories(seedDir);
+        Path seedFile = seedDir.resolve("single.json");
+        Files.writeString(
+                seedFile,
+                """
+                        [
+                          {
+                            "importKey": "yuque:single:1",
+                            "title": "Single",
+                            "sourceFilename": "single.md",
+                            "visibilityType": "PUBLIC",
+                            "sourceMarkdown": "# Single"
+                          }
+                        ]
+                        """,
+                StandardCharsets.UTF_8
+        );
+
+        bootstrap.setSeedFile(seedFile.toString());
+        bootstrap.setSeedDirectory(seedDir.toString());
+        bootstrap.setSeedDirectoryPattern("*.json");
+        bootstrap.setSeedDirectoryRecursive(false);
+        when(adminOperatorService.resolveOperatorId(any())).thenReturn(1L);
+        when(documentReviewRequestRepository.existsByImportKey("yuque:single:1")).thenReturn(false);
+        when(knowledgeDocumentRepository.existsByImportKey("yuque:single:1")).thenReturn(false);
+
+        DocumentBootstrapImportRunner runner = new DocumentBootstrapImportRunner(
+                properties,
+                new ObjectMapper(),
+                new DefaultResourceLoader(),
+                adminOperatorService,
+                documentGovernanceService,
+                documentReviewRequestRepository,
+                knowledgeDocumentRepository
+        );
+
+        DocumentBootstrapImportRunner.BootstrapRunSummary summary = runner.importConfiguredSeeds(bootstrap);
+
+        assertThat(summary.createdCount()).isEqualTo(1);
+        assertThat(summary.skippedCount()).isEqualTo(0);
+        assertThat(summary.failedCount()).isEqualTo(0);
+        verify(documentGovernanceService, times(1)).createUploadReview(any(CreateDocumentReviewRequest.class), eq(1L));
     }
 }

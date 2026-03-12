@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="022-001-about-release-note-bootstrap-seed-directory" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.13',
+                '启动导入支持批量扫描 seed 目录',
+                '文档 bootstrap 新增 seed 目录扫描能力，可跨环境按目录批量初始化审核单。',
+                E'## 本次更新\n\n- 启动导入支持 `seed-file` + `seed-directory` 组合导入\n- 新增 `seed-directory-pattern` 与 `seed-directory-recursive` 配置\n- 支持目录批量导入并避免与 `seed-file` 的重复导入\n- 适配跨服务器统一目录挂载场景（例如 `/data/.../bootstrap-seeds`）',
+                TIMESTAMPTZ '2026-03-13 00:45:00+08',
+                -1,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.13'
+                   AND title = '启动导入支持批量扫描 seed 目录'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -9,11 +9,13 @@ import com.knowledgebox.repository.DocumentReviewRequestRepository;
 import com.knowledgebox.repository.KnowledgeDocumentRepository;
 import com.knowledgebox.service.admin.AdminOperatorService;
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,18 +70,55 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
         if (!bootstrap.isEnabled()) {
             return;
         }
-        if (!StringUtils.hasText(bootstrap.getSeedFile())) {
-            log.warn("Document bootstrap is enabled but seed-file is blank, skip import.");
+        if (!StringUtils.hasText(bootstrap.getSeedFile()) && !StringUtils.hasText(bootstrap.getSeedDirectory())) {
+            log.warn("Document bootstrap is enabled but both seed-file and seed-directory are blank, skip import.");
             return;
         }
-        BootstrapRunSummary summary = importFromSeedFile(bootstrap.getSeedFile(), bootstrap.isFailFast());
+        BootstrapRunSummary summary = importConfiguredSeeds(bootstrap);
         log.info(
-                "Document bootstrap import completed. created={}, skipped={}, failed={}, seedFile={}",
+                "Document bootstrap import completed. created={}, skipped={}, failed={}, seedFile={}, seedDirectory={}",
                 summary.createdCount(),
                 summary.skippedCount(),
                 summary.failedCount(),
-                bootstrap.getSeedFile()
+                bootstrap.getSeedFile(),
+                bootstrap.getSeedDirectory()
         );
+    }
+
+    BootstrapRunSummary importConfiguredSeeds(KnowledgeBoxProperties.Bootstrap bootstrap) {
+        int created = 0;
+        int skipped = 0;
+        int failed = 0;
+        List<Map<String, String>> errors = new ArrayList<>();
+        Set<Path> importedSeedPaths = new LinkedHashSet<>();
+
+        if (StringUtils.hasText(bootstrap.getSeedFile())) {
+            BootstrapRunSummary summary = importFromSeedFile(bootstrap.getSeedFile(), bootstrap.isFailFast());
+            created += summary.createdCount();
+            skipped += summary.skippedCount();
+            failed += summary.failedCount();
+            errors.addAll(summary.errors());
+            Path seedFilePath = resolveSeedFilePath(bootstrap.getSeedFile());
+            if (seedFilePath != null) {
+                importedSeedPaths.add(seedFilePath);
+            }
+        }
+
+        if (StringUtils.hasText(bootstrap.getSeedDirectory())) {
+            BootstrapRunSummary summary = importFromSeedDirectory(
+                    bootstrap.getSeedDirectory(),
+                    bootstrap.getSeedDirectoryPattern(),
+                    bootstrap.isSeedDirectoryRecursive(),
+                    bootstrap.isFailFast(),
+                    importedSeedPaths
+            );
+            created += summary.createdCount();
+            skipped += summary.skippedCount();
+            failed += summary.failedCount();
+            errors.addAll(summary.errors());
+        }
+
+        return new BootstrapRunSummary(created, skipped, failed, errors);
     }
 
     BootstrapRunSummary importFromSeedFile(String seedFile, boolean failFast) {
@@ -148,6 +187,50 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
         return new BootstrapRunSummary(created, skipped, failed, errors);
     }
 
+    BootstrapRunSummary importFromSeedDirectory(
+            String seedDirectory,
+            String seedDirectoryPattern,
+            boolean recursive,
+            boolean failFast,
+            Set<Path> ignoredSeedPaths
+    ) {
+        Path directoryPath = resolveSeedDirectoryPath(seedDirectory);
+        if (!Files.exists(directoryPath) || !Files.isDirectory(directoryPath)) {
+            String message = "Document bootstrap seed directory does not exist or is not a directory: " + directoryPath;
+            if (failFast) {
+                throw new IllegalStateException(message);
+            }
+            log.warn(message);
+            return new BootstrapRunSummary(0, 0, 0, List.of());
+        }
+
+        String globPattern = StringUtils.hasText(seedDirectoryPattern) ? seedDirectoryPattern.trim() : "*.json";
+        var pathMatcher = FileSystems.getDefault().getPathMatcher("glob:" + globPattern);
+        int maxDepth = recursive ? Integer.MAX_VALUE : 1;
+        List<Path> seedFiles = listSeedFiles(directoryPath, maxDepth, pathMatcher);
+        if (seedFiles.isEmpty()) {
+            log.info("No seed file matched in seed directory, skip import. seedDirectory={}, pattern={}", directoryPath, globPattern);
+            return new BootstrapRunSummary(0, 0, 0, List.of());
+        }
+
+        int created = 0;
+        int skipped = 0;
+        int failed = 0;
+        List<Map<String, String>> errors = new ArrayList<>();
+        for (Path seedFile : seedFiles) {
+            Path normalized = seedFile.toAbsolutePath().normalize();
+            if (ignoredSeedPaths.contains(normalized)) {
+                continue;
+            }
+            BootstrapRunSummary summary = importFromSeedFile(normalized.toString(), failFast);
+            created += summary.createdCount();
+            skipped += summary.skippedCount();
+            failed += summary.failedCount();
+            errors.addAll(summary.errors());
+        }
+        return new BootstrapRunSummary(created, skipped, failed, errors);
+    }
+
     private boolean alreadyImported(String importKey) {
         return documentReviewRequestRepository.existsByImportKey(importKey)
                 || knowledgeDocumentRepository.existsByImportKey(importKey);
@@ -160,6 +243,40 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
         }
         String absolute = Path.of(trimmed).toAbsolutePath().toString();
         return resourceLoader.getResource("file:" + absolute);
+    }
+
+    private Path resolveSeedFilePath(String seedFile) {
+        try {
+            return resolveSeedResource(seedFile).getFile().toPath().toAbsolutePath().normalize();
+        } catch (IOException exception) {
+            return null;
+        }
+    }
+
+    private Path resolveSeedDirectoryPath(String seedDirectory) {
+        String trimmed = seedDirectory.trim();
+        if (trimmed.startsWith("classpath:")) {
+            throw new IllegalArgumentException("seed-directory does not support classpath resources: " + seedDirectory);
+        }
+        String normalized = trimmed.startsWith("file:") ? trimmed.substring("file:".length()) : trimmed;
+        return Path.of(normalized).toAbsolutePath().normalize();
+    }
+
+    private List<Path> listSeedFiles(Path directoryPath, int maxDepth, java.nio.file.PathMatcher pathMatcher) {
+        try (var stream = Files.walk(directoryPath, maxDepth)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .map(Path::toAbsolutePath)
+                    .map(Path::normalize)
+                    .filter(path -> {
+                        Path relativePath = directoryPath.relativize(path);
+                        return pathMatcher.matches(relativePath) || pathMatcher.matches(path.getFileName());
+                    })
+                    .sorted(Comparator.comparing(Path::toString))
+                    .toList();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to scan seed directory: " + directoryPath, exception);
+        }
     }
 
     private List<BootstrapSeedItem> readSeedItems(Resource seedResource) {

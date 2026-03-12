@@ -572,6 +572,9 @@ public class KnowledgeBoxProperties {
     public static class Bootstrap {
         private boolean enabled = false;
         private String seedFile = "";
+        private String seedDirectory = "";
+        private String seedDirectoryPattern = "*.json";
+        private boolean seedDirectoryRecursive = true;
         private boolean failFast = false;
         private String operatorUsername = "admin";
 
@@ -589,6 +592,30 @@ public class KnowledgeBoxProperties {
 
         public void setSeedFile(String seedFile) {
             this.seedFile = seedFile;
+        }
+
+        public String getSeedDirectory() {
+            return seedDirectory;
+        }
+
+        public void setSeedDirectory(String seedDirectory) {
+            this.seedDirectory = seedDirectory;
+        }
+
+        public String getSeedDirectoryPattern() {
+            return seedDirectoryPattern;
+        }
+
+        public void setSeedDirectoryPattern(String seedDirectoryPattern) {
+            this.seedDirectoryPattern = seedDirectoryPattern;
+        }
+
+        public boolean isSeedDirectoryRecursive() {
+            return seedDirectoryRecursive;
+        }
+
+        public void setSeedDirectoryRecursive(boolean seedDirectoryRecursive) {
+            this.seedDirectoryRecursive = seedDirectoryRecursive;
         }
 
         public boolean isFailFast() {

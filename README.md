@@ -246,6 +246,9 @@ knowledge-box:
 - `knowledge-box.retrieval.embedding-batch-size`: 向量写入分批大小（默认 `10`；当前 DashScope 链路会强制上限 `10`，用于避免 `batch size is invalid`）
 - `knowledge-box.document.bootstrap.enabled`: 是否在应用启动时按 seed 文件初始化文档审核单（默认关闭）
 - `knowledge-box.document.bootstrap.seed-file`: 初始化 seed 文件路径（支持 `file:` 或 `classpath:`）
+- `knowledge-box.document.bootstrap.seed-directory`: 初始化 seed 目录路径（文件系统路径，支持绝对/相对路径）
+- `knowledge-box.document.bootstrap.seed-directory-pattern`: 目录扫描匹配模式（glob，默认 `*.json`）
+- `knowledge-box.document.bootstrap.seed-directory-recursive`: 是否递归扫描子目录（默认 `true`）
 - `knowledge-box.document.bootstrap.fail-fast`: 启动导入失败时是否终止应用启动
 - `knowledge-box.document.bootstrap.operator-username`: 导入审核单使用的管理员用户名（会自动解析/创建 admin_operator）
 - `knowledge-box.integration.crypto.master-key`: Tool/MCP 集成敏感信息（如 MCP Header）加密主密钥，生产环境必须设置强随机值
@@ -521,8 +524,26 @@ python3 scripts/yuque_kb_migrate.py init-review \
 
 - `knowledge-box.document.bootstrap.enabled`
 - `knowledge-box.document.bootstrap.seed-file`
+- `knowledge-box.document.bootstrap.seed-directory`
+- `knowledge-box.document.bootstrap.seed-directory-pattern`
+- `knowledge-box.document.bootstrap.seed-directory-recursive`
 - `knowledge-box.document.bootstrap.fail-fast`
 - `knowledge-box.document.bootstrap.operator-username`
+
+推荐的跨服务器用法（不依赖本机 `tmp`）：
+
+```bash
+KB_DOCUMENT_BOOTSTRAP_ENABLED=true
+KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY=/data/knowledge-box/bootstrap-seeds
+KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_PATTERN=*.json
+KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE=true
+KB_DOCUMENT_BOOTSTRAP_FAIL_FAST=true
+```
+
+说明：
+
+- `seed-file` 和 `seed-directory` 可同时配置；系统会先导入 `seed-file`，再扫描目录。
+- 若目录里包含与 `seed-file` 同一文件，不会重复导入该 seed 文件。
 
 对应位置：
 

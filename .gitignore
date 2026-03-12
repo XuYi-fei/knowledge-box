@@ -1,0 +1,16 @@
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+dist/
+build/
+target/
+.env
+backend/src/main/resources/application-local.yml
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+backend/data/
+backend/logs/
+tmp/yuque-exports/
+tmp/yuque-batch/

@@ -110,6 +110,10 @@
   - 新增 `AgentCapabilityAssemblyServiceTests`，覆盖 builtin 与动态 tool 的组创建回归。
 - 管理端 Agent 版本“绑定管理”弹窗已合并为单窗口，移除重复渲染的第二个绑定弹窗，避免点击一次同时弹出两层 Tool/Skill/MCP 配置窗口。
 - 管理端 Agent 版本“绑定管理”已修复 MCP 空项回填：打开弹窗时会清洗 `mcpCode` 为空的脏数据并重置表单状态，避免在“无 MCP 绑定”场景下默认出现一张全空 MCP 编辑卡片。
+- 已修复 Agent 版本绑定管理的两处问题：
+  - 初始化脚本不再给默认 `agent_profile_version` 预绑定 `local-mcp`（`mcp_bindings` 改为 `[]`），新库默认无 MCP 绑定。
+  - `AgentProfileBindingService.updateBindings` 的删旧逻辑改为 JPQL bulk delete，避免同事务“删旧+插新”触发 `uk_profile_tool_binding` 唯一键冲突。
+- 新增 `AgentProfileBindingServiceTests`，覆盖绑定去重与“先删后建”更新路径回归。
 
 ## 已验证无误
 
@@ -160,6 +164,8 @@
 - 后端全量测试通过：`mvn -q -pl backend test`（含 `AgentCapabilityAssemblyService` 修复回归）。
 - 前端构建通过：`npm --prefix frontend run build`（含 Profile Version 绑定管理弹窗去重与单窗口合并回归）。
 - 前端构建通过：`npm --prefix frontend run build`（含绑定管理中 MCP 空项清洗与无绑定场景回归）。
+- 后端单测通过：`mvn -q -pl backend -Dtest=AgentProfileBindingServiceTests test`（覆盖 Agent Profile 绑定去重与删旧重建回归）。
+- 后端全量测试通过：`mvn -q -pl backend test`（含默认 MCP 绑定修正与绑定保存唯一键冲突修复回归）。
 
 ## 待继续推进
 

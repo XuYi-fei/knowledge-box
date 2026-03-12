@@ -51,3 +51,4 @@
 - 启动期文档初始化导入（bootstrap）必须使用稳定 `importKey` 做幂等去重，避免每次重启重复创建审核单。
 - DashScope embedding 接口存在严格单次输入文本条数上限（当前实测上限 10）；向量写入需分批 `add` 且批次不得超过 10，避免审核通过/全量重建时报 `batch size is invalid`。
 - 语雀文档迁移/粘贴图片链路若包含大图，需显式配置 `spring.servlet.multipart.max-file-size` 与 `max-request-size`；Spring 默认 1MB 会导致 `/api/admin/documents/paste-image` 抛 `MaxUploadSizeExceededException`。
+- 对带唯一键的“绑定表”执行同事务“删除旧绑定+插入新绑定”时，优先使用 JPQL bulk delete（`@Modifying @Query`）或显式 flush，避免 Hibernate 写入顺序触发唯一键冲突。

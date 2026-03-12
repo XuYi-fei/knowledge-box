@@ -40,6 +40,24 @@ type ProfileBindingsFormValues = {
   }[];
 };
 
+function normalizeMcpBindingsForForm(bindings: AgentProfileVersionBindings['mcpBindings']): ProfileBindingsFormValues['mcpBindings'] {
+  const normalized = new Map<string, ProfileBindingsFormValues['mcpBindings'][number]>();
+  for (const binding of bindings ?? []) {
+    const mcpCode = binding?.mcpCode?.trim();
+    if (!mcpCode) {
+      continue;
+    }
+    if (!normalized.has(mcpCode)) {
+      normalized.set(mcpCode, {
+        mcpCode,
+        enableTools: binding.enableTools ?? [],
+        disableTools: binding.disableTools ?? [],
+      });
+    }
+  }
+  return Array.from(normalized.values());
+}
+
 export function ProfileVersionsPage() {
   const { modal, message } = App.useApp();
   const queryClient = useQueryClient();
@@ -112,11 +130,7 @@ export function ProfileVersionsPage() {
     bindingsForm.setFieldsValue({
       toolCodes: profileBindings.toolCodes ?? [],
       skillCodes: profileBindings.skillCodes ?? [],
-      mcpBindings: (profileBindings.mcpBindings ?? []).map((binding) => ({
-        mcpCode: binding.mcpCode,
-        enableTools: binding.enableTools ?? [],
-        disableTools: binding.disableTools ?? [],
-      })),
+      mcpBindings: normalizeMcpBindingsForForm(profileBindings.mcpBindings),
     });
   }, [bindingsModalOpen, profileBindings, bindingsForm]);
 
@@ -278,6 +292,7 @@ export function ProfileVersionsPage() {
           <Button
             type="link"
             onClick={() => {
+              bindingsForm.resetFields();
               setBindingProfile(record);
               setBindingsModalOpen(true);
               bindingsForm.setFieldsValue({

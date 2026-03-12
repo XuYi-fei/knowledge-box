@@ -109,6 +109,7 @@
   - `AgentCapabilityAssemblyService` 在注册 builtin/tool/mcp 前显式 `createToolGroup`，避免 `Tool group ... does not exist`。
   - 新增 `AgentCapabilityAssemblyServiceTests`，覆盖 builtin 与动态 tool 的组创建回归。
 - 管理端 Agent 版本“绑定管理”弹窗已合并为单窗口，移除重复渲染的第二个绑定弹窗，避免点击一次同时弹出两层 Tool/Skill/MCP 配置窗口。
+- 管理端 Agent 版本“绑定管理”已修复 MCP 空项回填：打开弹窗时会清洗 `mcpCode` 为空的脏数据并重置表单状态，避免在“无 MCP 绑定”场景下默认出现一张全空 MCP 编辑卡片。
 
 ## 已验证无误
 
@@ -158,6 +159,7 @@
 - 后端单测通过：`mvn -q -pl backend -Dtest=AgentCapabilityAssemblyServiceTests test`（覆盖动态能力装配的 tool group 创建逻辑）。
 - 后端全量测试通过：`mvn -q -pl backend test`（含 `AgentCapabilityAssemblyService` 修复回归）。
 - 前端构建通过：`npm --prefix frontend run build`（含 Profile Version 绑定管理弹窗去重与单窗口合并回归）。
+- 前端构建通过：`npm --prefix frontend run build`（含绑定管理中 MCP 空项清洗与无绑定场景回归）。
 
 ## 待继续推进
 

@@ -3,12 +3,15 @@ package com.knowledgebox.service.chat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.knowledgebox.api.ChatStreamEvent;
 import com.knowledgebox.config.KnowledgeBoxProperties;
@@ -23,6 +26,7 @@ import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.message.ToolResultBlock;
 import io.agentscope.core.model.GenerateOptions;
+import io.agentscope.core.tool.Toolkit;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -61,7 +65,7 @@ class ChatOrchestratorTests {
                 conversationMemoryService,
                 mock(AgentTraceService.class),
                 mock(KnowledgeBaseRetrievalService.class),
-                mock(KnowledgeBaseSearchTool.class),
+                emptyCapabilitiesAssembler(),
                 chatStreamBroker,
                 "fake-api-key",
                 ""
@@ -341,6 +345,13 @@ class ChatOrchestratorTests {
         return new Event(EventType.ALL, message, false);
     }
 
+    private AgentCapabilityAssemblyService emptyCapabilitiesAssembler() {
+        AgentCapabilityAssemblyService assemblyService = mock(AgentCapabilityAssemblyService.class);
+        when(assemblyService.assemble(nullable(Long.class), anyBoolean()))
+                .thenReturn(new AgentCapabilityAssemblyService.AgentRuntimeCapabilities(new Toolkit(), null, List.of()));
+        return assemblyService;
+    }
+
     private static final class ProbeChatOrchestrator extends ChatOrchestrator {
         private String routingModelOutput = NEED_KB;
         private int invokeRoutingModelCalls = 0;
@@ -352,7 +363,7 @@ class ChatOrchestratorTests {
                 ConversationMemoryService conversationMemoryService,
                 AgentTraceService agentTraceService,
                 KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
-                KnowledgeBaseSearchTool knowledgeBaseSearchTool,
+                AgentCapabilityAssemblyService agentCapabilityAssemblyService,
                 ChatStreamBroker chatStreamBroker,
                 String dashScopeApiKey,
                 String dashScopeBaseUrl
@@ -364,7 +375,7 @@ class ChatOrchestratorTests {
                     conversationMemoryService,
                     agentTraceService,
                     knowledgeBaseRetrievalService,
-                    knowledgeBaseSearchTool,
+                    agentCapabilityAssemblyService,
                     chatStreamBroker,
                     dashScopeApiKey,
                     dashScopeBaseUrl

@@ -4,10 +4,12 @@ import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
 import io.agentscope.core.ReActAgent;
+import io.agentscope.core.hook.Hook;
 import io.agentscope.core.model.DashScopeChatModel;
 import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.model.Model;
 import io.agentscope.core.model.OpenAIChatModel;
+import io.agentscope.core.skill.SkillBox;
 import io.agentscope.core.tool.Toolkit;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -34,20 +36,24 @@ final class ChatModelFactory {
             AgentProfileVersion profile,
             String chatModelCode,
             boolean enableKnowledgeBaseTool,
-            KnowledgeBaseSearchTool knowledgeBaseSearchTool
+            Toolkit toolkit,
+            SkillBox skillBox,
+            List<Hook> hooks
     ) {
-        Toolkit toolkit = new Toolkit();
-        if (enableKnowledgeBaseTool) {
-            toolkit.registerTool(knowledgeBaseSearchTool);
-        }
-        return ReActAgent.builder()
+        ReActAgent.Builder builder = ReActAgent.builder()
                 .name("knowledge-box-react-agent")
                 .description("Knowledge Box public chat agent")
                 .sysPrompt(buildSystemPrompt(profile, enableKnowledgeBaseTool))
                 .model(buildChatModel(profile, chatModelCode))
-                .toolkit(toolkit)
-                .maxIters(8)
-                .build();
+                .toolkit(toolkit == null ? new Toolkit() : toolkit)
+                .maxIters(8);
+        if (skillBox != null) {
+            builder.skillBox(skillBox);
+        }
+        if (hooks != null && !hooks.isEmpty()) {
+            builder.hooks(hooks);
+        }
+        return builder.build();
     }
 
     Model buildRoutingClassifierModel(String routingModelCode) {

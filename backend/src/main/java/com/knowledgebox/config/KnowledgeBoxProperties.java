@@ -16,6 +16,7 @@ public class KnowledgeBoxProperties {
     private final Chat chat = new Chat();
     private final Retrieval retrieval = new Retrieval();
     private final Document document = new Document();
+    private final Integration integration = new Integration();
     private final Web web = new Web();
 
     public Admin getAdmin() {
@@ -48,6 +49,10 @@ public class KnowledgeBoxProperties {
 
     public Document getDocument() {
         return document;
+    }
+
+    public Integration getIntegration() {
+        return integration;
     }
 
     public Web getWeb() {
@@ -612,6 +617,44 @@ public class KnowledgeBoxProperties {
 
         public void setAllowedOrigins(List<String> allowedOrigins) {
             this.allowedOrigins = allowedOrigins;
+        }
+    }
+
+    public static class Integration {
+        private final Crypto crypto = new Crypto();
+        private String skillCacheDir = "backend/uploads/skills/cache";
+        private String skillPackageCategory = "agent-skills";
+
+        public Crypto getCrypto() {
+            return crypto;
+        }
+
+        public String getSkillCacheDir() {
+            return skillCacheDir;
+        }
+
+        public void setSkillCacheDir(String skillCacheDir) {
+            this.skillCacheDir = skillCacheDir;
+        }
+
+        public String getSkillPackageCategory() {
+            return skillPackageCategory;
+        }
+
+        public void setSkillPackageCategory(String skillPackageCategory) {
+            this.skillPackageCategory = skillPackageCategory;
+        }
+    }
+
+    public static class Crypto {
+        private String masterKey = "";
+
+        public String getMasterKey() {
+            return masterKey;
+        }
+
+        public void setMasterKey(String masterKey) {
+            this.masterKey = masterKey;
         }
     }
 }

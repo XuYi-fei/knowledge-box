@@ -89,6 +89,13 @@
   - `backend/src/main/resources/application-local.yml` 已加入 `.gitignore`，避免本地账号、密钥等敏感值被追踪。
   - 已核对 `application-local.yml.example` 覆盖本地配置项且不包含真实敏感值，可作为安全模板提交。
 - `knowledge-box-project` skill 已更新：功能/bugfix 完成且测试通过后，要求在同一轮执行 git 提交。
+- Agent 集成能力已升级为“动态配置 + 版本级绑定”：
+  - Tool/MCP/Skill 元数据扩展（Tool class/bean/config、MCP 加密 header/query/超时、Skill 来源/对象Key/MD5）。
+  - 新增 `agent_profile_version_*_binding` 三张绑定表，并完成旧 JSON 字段回填迁移。
+  - 运行时装配改为 `AgentCapabilityAssemblyService`：按发布版本动态注册 Tool/MCP/Skill（AgentScope API），聊天链路与文档分类 Agent 均复用该装配。
+  - 管理端已支持 Tool/MCP/Skill 的增改删与 Skill zip 上传；Profile Version 支持绑定管理（toolCodes/skillCodes/mcpBindings）。
+  - MCP 密钥更新链路已支持“掩码值保留旧密钥”，避免后台编辑时误清空敏感 header。
+- 配置文档同步完成：`application-local.yml.example` 与 README 已补齐 `knowledge-box.integration.*` 相关项（主密钥、Skill 缓存目录、Skill 包分类路径）。
 
 ## 已验证无误
 
@@ -129,6 +136,8 @@
 - 后端 `mvn -q -pl backend test` 通过（含管理员改密接口、Liquibase `018/019` 迁移与集成测试回归）。
 - 前端 `npm --prefix frontend run build` 通过（含管理端改密弹窗与 token 更新逻辑）。
 - 后端 `mvn -q -pl backend test` 与前端 `npm --prefix frontend run build` 再次通过（含仓库敏感配置治理与 skill 规则更新后的回归）。
+- 后端 `mvn -q -pl backend test` 通过（含 `020/021` 迁移、ChatOrchestrator 测试适配与动态集成链路回归）。
+- 前端 `npm --prefix frontend run build` 通过（含 Integrations 管理页 CRUD/上传与 Profile Version 绑定管理弹窗）。
 
 ## 待继续推进
 

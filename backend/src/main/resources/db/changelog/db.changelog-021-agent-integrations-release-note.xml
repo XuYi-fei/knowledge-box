@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="021-001-about-release-note-agent-integrations" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.13',
+                'Agent 集成能力支持动态配置与绑定',
+                '管理端可配置 Tool / Skill / MCP，并按 Agent Profile Version 动态绑定，改动在下次请求生效。',
+                E'## 本次更新\n\n- Tool / Skill / MCP 全面接入 AgentScope API 运行时装配\n- 新增按 `agent_profile_version` 的绑定机制，支持动态生效\n- 管理端支持 Tool / Skill / MCP 配置与编辑\n- MCP 仅支持远程 SSE，并支持敏感 Header 的加密存储\n- Skill 支持 zip / 文件夹上传并做 `SKILL.md` 规范校验',
+                TIMESTAMPTZ '2026-03-13 00:30:00+08',
+                -1,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.13'
+                   AND title = 'Agent 集成能力支持动态配置与绑定'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

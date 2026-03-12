@@ -19,6 +19,7 @@ import com.knowledgebox.repository.AgentTraceRepository;
 import com.knowledgebox.repository.KnowledgeDocumentRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import com.knowledgebox.service.document.DocumentGovernanceService;
+import com.knowledgebox.service.integration.IntegrationAdminService;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -30,19 +31,22 @@ public class AdminQueryService {
     private final KnowledgeDocumentRepository knowledgeDocumentRepository;
     private final AgentTraceRepository agentTraceRepository;
     private final DocumentGovernanceService documentGovernanceService;
+    private final IntegrationAdminService integrationAdminService;
 
     public AdminQueryService(
             AgentProfileVersionRepository agentProfileVersionRepository,
             ModelCatalogRepository modelCatalogRepository,
             KnowledgeDocumentRepository knowledgeDocumentRepository,
             AgentTraceRepository agentTraceRepository,
-            DocumentGovernanceService documentGovernanceService
+            DocumentGovernanceService documentGovernanceService,
+            IntegrationAdminService integrationAdminService
     ) {
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.modelCatalogRepository = modelCatalogRepository;
         this.knowledgeDocumentRepository = knowledgeDocumentRepository;
         this.agentTraceRepository = agentTraceRepository;
         this.documentGovernanceService = documentGovernanceService;
+        this.integrationAdminService = integrationAdminService;
     }
 
     public AdminDashboardView dashboard() {
@@ -78,21 +82,15 @@ public class AdminQueryService {
     }
 
     public List<ToolDefinitionView> tools() {
-        return List.of(
-                new ToolDefinitionView(1L, "http-search", "HTTP Search", "https://example.com/tool/search", true)
-        );
+        return integrationAdminService.tools();
     }
 
     public List<McpServerView> mcpServers() {
-        return List.of(
-                new McpServerView(1L, "local-mcp", "sse", "http://localhost:8123/sse", true)
-        );
+        return integrationAdminService.mcpServers();
     }
 
     public List<SkillBindingView> skills() {
-        return List.of(
-                new SkillBindingView(1L, "retrieval-critic", "Retrieval Critic", true)
-        );
+        return integrationAdminService.skills();
     }
 
     public List<WebhookSubscriptionView> hooks() {

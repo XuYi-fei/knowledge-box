@@ -5,7 +5,10 @@ public record McpServerView(
         String code,
         String transportType,
         String target,
+        String headersMaskedJson,
+        String queryParamsJson,
+        Long timeoutMs,
+        Long initializationTimeoutMs,
         boolean enabled
 ) {
 }
-

@@ -44,6 +44,7 @@
 - 文档治理链路已切到“审核后发布”：`document_review_request` 未到 `APPROVED` 前，不应直接改写 `knowledge_document` 正式数据。
 - 文档分类标签 Agent 依赖外部模型服务；网络/模型失败时应回退兜底分类标签，避免把审核单卡死在 `FAILED`。
 - 当 `knowledge-box.storage.provider=oss` 时，`knowledge-box.storage.oss.endpoint/bucket/access-key-id/access-key-secret` 必须显式配置，否则上传链路会直接失败。
+- MCP 管理页回显的 Header 为掩码值；后端更新时若收到 `********` 应保留原密文，避免后台编辑非密钥字段时误覆盖密钥。
 - 文档标签在落库绑定前需要按大小写无关去重，避免触发 `uk_document_tag_binding_doc_tag` 唯一键冲突。
 - 手动 `new PgVectorStore(...).build()` 不会自动触发 Spring 生命周期；若依赖 `initializeSchema`，必须显式调用 `afterPropertiesSet()`。
 - 启动期文档初始化导入（bootstrap）必须使用稳定 `importKey` 做幂等去重，避免每次重启重复创建审核单。

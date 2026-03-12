@@ -18,6 +18,18 @@ public class SkillBinding extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String promptTemplate;
 
+    @Column(length = 1000)
+    private String description;
+
+    @Column(nullable = false, length = 32)
+    private String sourceType = "UPLOAD";
+
+    @Column(length = 512)
+    private String ossObjectKey;
+
+    @Column(length = 64)
+    private String checksumMd5;
+
     @Column(nullable = false)
     private Boolean enabled = Boolean.TRUE;
 
@@ -45,6 +57,38 @@ public class SkillBinding extends BaseEntity {
         this.promptTemplate = promptTemplate;
     }
 
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getSourceType() {
+        return sourceType;
+    }
+
+    public void setSourceType(String sourceType) {
+        this.sourceType = sourceType;
+    }
+
+    public String getOssObjectKey() {
+        return ossObjectKey;
+    }
+
+    public void setOssObjectKey(String ossObjectKey) {
+        this.ossObjectKey = ossObjectKey;
+    }
+
+    public String getChecksumMd5() {
+        return checksumMd5;
+    }
+
+    public void setChecksumMd5(String checksumMd5) {
+        this.checksumMd5 = checksumMd5;
+    }
+
     public Boolean getEnabled() {
         return enabled;
     }
@@ -53,4 +97,3 @@ public class SkillBinding extends BaseEntity {
         this.enabled = enabled;
     }
 }
-

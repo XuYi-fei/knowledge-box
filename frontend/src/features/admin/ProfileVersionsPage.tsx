@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import { AgentProfileVersion, ModelCatalog, ModelType } from '../../lib/types';
+import { AgentProfileVersion, AgentProfileVersionBindings, ModelCatalog, ModelType } from '../../lib/types';
 
 const columns: ColumnsType<AgentProfileVersion> = [
   { title: 'Profile', dataIndex: 'profileCode' },
@@ -30,6 +30,16 @@ const columns: ColumnsType<AgentProfileVersion> = [
   },
 ];
 
+type ProfileBindingsFormValues = {
+  toolCodes: string[];
+  skillCodes: string[];
+  mcpBindings: {
+    mcpCode: string;
+    enableTools: string[];
+    disableTools: string[];
+  }[];
+};
+
 export function ProfileVersionsPage() {
   const { modal, message } = App.useApp();
   const queryClient = useQueryClient();
@@ -52,10 +62,13 @@ export function ProfileVersionsPage() {
     publicSelectable: boolean;
     defaultForPublic: boolean;
   }>();
+  const [bindingsForm] = Form.useForm<ProfileBindingsFormValues>();
   const [editingProfile, setEditingProfile] = useState<AgentProfileVersion | null>(null);
   const [editingModel, setEditingModel] = useState<ModelCatalog | null>(null);
+  const [bindingProfile, setBindingProfile] = useState<AgentProfileVersion | null>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [modelModalOpen, setModelModalOpen] = useState(false);
+  const [bindingsModalOpen, setBindingsModalOpen] = useState(false);
   const selectedModelType = Form.useWatch('modelType', modelForm);
 
   const { data = [] } = useQuery({
@@ -66,6 +79,46 @@ export function ProfileVersionsPage() {
     queryKey: ['modelCatalogs'],
     queryFn: api.modelCatalogs,
   });
+  const { data: tools = [] } = useQuery({
+    queryKey: ['tools'],
+    queryFn: api.tools,
+  });
+  const { data: mcpServers = [] } = useQuery({
+    queryKey: ['mcpServers'],
+    queryFn: api.mcpServers,
+  });
+  const { data: skills = [] } = useQuery({
+    queryKey: ['skills'],
+    queryFn: api.skills,
+  });
+  const { data: profileBindings, isFetching: profileBindingsLoading } = useQuery({
+    queryKey: ['profileVersionBindings', bindingProfile?.id],
+    queryFn: () => api.getProfileVersionBindings(bindingProfile!.id),
+    enabled: bindingsModalOpen && bindingProfile != null,
+  });
+
+  useEffect(() => {
+    if (!bindingsModalOpen) {
+      return;
+    }
+    if (!profileBindings) {
+      bindingsForm.setFieldsValue({
+        toolCodes: [],
+        skillCodes: [],
+        mcpBindings: [],
+      });
+      return;
+    }
+    bindingsForm.setFieldsValue({
+      toolCodes: profileBindings.toolCodes ?? [],
+      skillCodes: profileBindings.skillCodes ?? [],
+      mcpBindings: (profileBindings.mcpBindings ?? []).map((binding) => ({
+        mcpCode: binding.mcpCode,
+        enableTools: binding.enableTools ?? [],
+        disableTools: binding.disableTools ?? [],
+      })),
+    });
+  }, [bindingsModalOpen, profileBindings, bindingsForm]);
 
   const updateProfileMutation = useMutation({
     mutationFn: (values: {
@@ -143,9 +196,58 @@ export function ProfileVersionsPage() {
     },
   });
 
+  const saveBindingsMutation = useMutation({
+    mutationFn: async (values: ProfileBindingsFormValues) => {
+      if (!bindingProfile) {
+        throw new Error('未选中配置版本');
+      }
+      const payload: Omit<AgentProfileVersionBindings, 'profileVersionId'> = {
+        toolCodes: values.toolCodes ?? [],
+        skillCodes: values.skillCodes ?? [],
+        mcpBindings: (values.mcpBindings ?? [])
+          .filter((binding) => binding && binding.mcpCode?.trim())
+          .map((binding) => ({
+            mcpCode: binding.mcpCode.trim(),
+            enableTools: (binding.enableTools ?? []).filter((code) => Boolean(code && code.trim())),
+            disableTools: (binding.disableTools ?? []).filter((code) => Boolean(code && code.trim())),
+          })),
+      };
+      return api.updateProfileVersionBindings(bindingProfile.id, payload);
+    },
+    onSuccess: () => {
+      message.success('版本绑定已保存');
+      const bindingProfileId = bindingProfile?.id;
+      setBindingsModalOpen(false);
+      setBindingProfile(null);
+      bindingsForm.resetFields();
+      if (bindingProfileId != null) {
+        queryClient.invalidateQueries({ queryKey: ['profileVersionBindings', bindingProfileId] });
+      }
+    },
+    onError: (error) => {
+      modal.error({
+        title: '保存绑定失败',
+        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查绑定配置后重试')}</pre>,
+        okText: '知道了',
+      });
+    },
+  });
+
   const chatOptions = modelCatalogs.filter((item) => item.modelType === 'CHAT' && item.enabled);
   const embeddingOptions = modelCatalogs.filter((item) => item.modelType === 'EMBEDDING' && item.enabled);
   const rerankOptions = modelCatalogs.filter((item) => item.modelType === 'RERANK' && item.enabled);
+  const toolCodeOptions = tools.map((item) => ({
+    label: `${item.name} (${item.code})`,
+    value: item.code,
+  }));
+  const skillCodeOptions = skills.map((item) => ({
+    label: `${item.name} (${item.code})`,
+    value: item.code,
+  }));
+  const mcpCodeOptions = mcpServers.map((item) => ({
+    label: `${item.code} (${item.transportType})`,
+    value: item.code,
+  }));
 
   const profileColumns: ColumnsType<AgentProfileVersion> = columns.map((column) => {
     if (column.title !== '操作') {
@@ -154,24 +256,40 @@ export function ProfileVersionsPage() {
     return {
       ...column,
       render: (_, record) => (
-        <Button
-          type="link"
-          onClick={() => {
-            setEditingProfile(record);
-            profileForm.setFieldsValue({
-              chatModel: record.chatModel,
-              routingModel: record.routingModel ?? record.chatModel,
-              embeddingModel: record.embeddingModel,
-              rerankModel: record.rerankModel ?? undefined,
-              temperature: record.temperature,
-              retrievalTopK: record.retrievalTopK,
-              reasoningBudget: record.reasoningBudget,
-            });
-            setProfileModalOpen(true);
-          }}
-        >
-          编辑
-        </Button>
+        <Space size="small">
+          <Button
+            type="link"
+            onClick={() => {
+              setEditingProfile(record);
+              profileForm.setFieldsValue({
+                chatModel: record.chatModel,
+                routingModel: record.routingModel ?? record.chatModel,
+                embeddingModel: record.embeddingModel,
+                rerankModel: record.rerankModel ?? undefined,
+                temperature: record.temperature,
+                retrievalTopK: record.retrievalTopK,
+                reasoningBudget: record.reasoningBudget,
+              });
+              setProfileModalOpen(true);
+            }}
+          >
+            编辑
+          </Button>
+          <Button
+            type="link"
+            onClick={() => {
+              setBindingProfile(record);
+              setBindingsModalOpen(true);
+              bindingsForm.setFieldsValue({
+                toolCodes: [],
+                skillCodes: [],
+                mcpBindings: [],
+              });
+            }}
+          >
+            绑定管理
+          </Button>
+        </Space>
       ),
     };
   });
@@ -331,6 +449,83 @@ export function ProfileVersionsPage() {
       </Modal>
 
       <Modal
+        open={bindingsModalOpen}
+        title={
+          bindingProfile
+            ? `绑定管理 · ${bindingProfile.profileCode} v${bindingProfile.versionNumber}`
+            : '绑定管理'
+        }
+        onCancel={() => {
+          setBindingsModalOpen(false);
+          setBindingProfile(null);
+          bindingsForm.resetFields();
+        }}
+        onOk={() => bindingsForm.submit()}
+        confirmLoading={saveBindingsMutation.isPending || profileBindingsLoading}
+        width={1000}
+        destroyOnHidden
+      >
+        <Form
+          layout="vertical"
+          form={bindingsForm}
+          onFinish={(values) => saveBindingsMutation.mutate(values)}
+          initialValues={{ toolCodes: [], skillCodes: [], mcpBindings: [] }}
+        >
+          <Form.Item label="工具绑定" name="toolCodes" extra="该版本默认可用的 Tool 编码集合。">
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              options={toolCodeOptions}
+              placeholder="选择 toolCodes"
+            />
+          </Form.Item>
+          <Form.Item label="技能绑定" name="skillCodes" extra="该版本默认可用的 Skill 编码集合。">
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              options={skillCodeOptions}
+              placeholder="选择 skillCodes"
+            />
+          </Form.Item>
+          <Form.List name="mcpBindings">
+            {(fields, { add, remove }) => (
+              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <Typography.Text strong>MCP 绑定（mcpCode + enableTools + disableTools）</Typography.Text>
+                {fields.map((field) => (
+                  <Card key={field.key} size="small">
+                    <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                      <Form.Item
+                        {...field}
+                        label="MCP 编码"
+                        name={[field.name, 'mcpCode']}
+                        rules={[{ required: true, message: '请选择 MCP 编码' }]}
+                      >
+                        <Select showSearch options={mcpCodeOptions} placeholder="选择 mcpCode" />
+                      </Form.Item>
+                      <Form.Item {...field} label="启用 Tool 列表" name={[field.name, 'enableTools']}>
+                        <Select mode="multiple" allowClear showSearch options={toolCodeOptions} placeholder="选择 enableTools" />
+                      </Form.Item>
+                      <Form.Item {...field} label="禁用 Tool 列表" name={[field.name, 'disableTools']}>
+                        <Select mode="multiple" allowClear showSearch options={toolCodeOptions} placeholder="选择 disableTools" />
+                      </Form.Item>
+                      <Button type="link" danger onClick={() => remove(field.name)}>
+                        删除此 MCP 绑定
+                      </Button>
+                    </Space>
+                  </Card>
+                ))}
+                <Button type="dashed" onClick={() => add({ mcpCode: '', enableTools: [], disableTools: [] })}>
+                  新增 MCP 绑定
+                </Button>
+              </Space>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+
+      <Modal
         open={modelModalOpen}
         title={editingModel ? `编辑模型 ${editingModel.code}` : '新增模型'}
         onCancel={() => {
@@ -386,6 +581,120 @@ export function ProfileVersionsPage() {
           >
             <Switch disabled={selectedModelType !== 'CHAT'} checkedChildren="默认" unCheckedChildren="否" />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={bindingsModalOpen}
+        title={bindingProfile ? `绑定管理：${bindingProfile.profileCode} v${bindingProfile.versionNumber}` : '绑定管理'}
+        onCancel={() => {
+          setBindingsModalOpen(false);
+          setBindingProfile(null);
+          bindingsForm.resetFields();
+        }}
+        onOk={() => bindingsForm.submit()}
+        confirmLoading={saveBindingsMutation.isPending}
+        destroyOnHidden
+      >
+        <Form
+          layout="vertical"
+          form={bindingsForm}
+          onFinish={(values) => saveBindingsMutation.mutate(values)}
+        >
+          <Form.Item
+            label="绑定 Tool"
+            name="toolCodes"
+            extra="用于该 Profile Version 的动态 Java Tool。"
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              options={toolCodeOptions}
+              loading={profileBindingsLoading}
+              placeholder="选择 Tool 编码"
+            />
+          </Form.Item>
+          <Form.Item
+            label="绑定 Skill"
+            name="skillCodes"
+            extra="仅绑定已上传且启用的 Skill。"
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              options={skillCodeOptions}
+              loading={profileBindingsLoading}
+              placeholder="选择 Skill 编码"
+            />
+          </Form.Item>
+
+          <Form.List name="mcpBindings">
+            {(fields, { add, remove }) => (
+              <>
+                <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography.Text strong>MCP 绑定</Typography.Text>
+                  <Button
+                    type="dashed"
+                    onClick={() =>
+                      add({
+                        mcpCode: undefined,
+                        enableTools: [],
+                        disableTools: [],
+                      })
+                    }
+                  >
+                    新增 MCP 绑定
+                  </Button>
+                </Space>
+                {fields.map((field) => (
+                  <Card
+                    key={field.key}
+                    size="small"
+                    style={{ marginTop: 12 }}
+                    extra={
+                      <Button type="link" danger onClick={() => remove(field.name)}>
+                        删除
+                      </Button>
+                    }
+                  >
+                    <Form.Item
+                      label="MCP Server"
+                      name={[field.name, 'mcpCode']}
+                      rules={[{ required: true, message: '请选择 MCP Server' }]}
+                    >
+                      <Select
+                        allowClear
+                        options={mcpCodeOptions}
+                        placeholder="选择 MCP 编码"
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      label="启用 MCP 工具名单（可选）"
+                      name={[field.name, 'enableTools']}
+                    >
+                      <Select
+                        mode="multiple"
+                        allowClear
+                        options={toolCodeOptions}
+                        placeholder="留空表示不限制"
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      label="禁用 MCP 工具名单（可选）"
+                      name={[field.name, 'disableTools']}
+                    >
+                      <Select
+                        mode="multiple"
+                        allowClear
+                        options={toolCodeOptions}
+                        placeholder="可配置需禁用的 MCP tool 名称"
+                      />
+                    </Form.Item>
+                  </Card>
+                ))}
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
     </div>

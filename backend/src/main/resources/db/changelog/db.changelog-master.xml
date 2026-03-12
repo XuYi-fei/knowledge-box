@@ -24,4 +24,6 @@
     <include file="db/changelog/db.changelog-017-bootstrap-seed-import-release-note.xml"/>
     <include file="db/changelog/db.changelog-018-admin-password-management.xml"/>
     <include file="db/changelog/db.changelog-019-admin-password-management-release-note.xml"/>
+    <include file="db/changelog/db.changelog-020-agent-integrations-dynamic-binding.xml"/>
+    <include file="db/changelog/db.changelog-021-agent-integrations-release-note.xml"/>
 </databaseChangeLog>

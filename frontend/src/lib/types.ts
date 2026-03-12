@@ -172,7 +172,9 @@ export type ToolDefinition = {
   id: number;
   code: string;
   name: string;
-  endpoint: string;
+  className: string;
+  beanName: string | null;
+  configJson: string;
   enabled: boolean;
 };
 
@@ -181,6 +183,11 @@ export type McpServer = {
   code: string;
   transportType: string;
   target: string;
+  headersJson?: string;
+  headersMaskedJson: string;
+  queryParamsJson: string;
+  timeoutMs: number | null;
+  initializationTimeoutMs: number | null;
   enabled: boolean;
 };
 
@@ -188,7 +195,24 @@ export type SkillBinding = {
   id: number;
   code: string;
   name: string;
+  description: string | null;
+  sourceType: string | null;
+  ossObjectKey: string | null;
+  checksumMd5: string | null;
   enabled: boolean;
+};
+
+export type AgentProfileVersionMcpBinding = {
+  mcpCode: string;
+  enableTools: string[];
+  disableTools: string[];
+};
+
+export type AgentProfileVersionBindings = {
+  profileVersionId: number;
+  toolCodes: string[];
+  skillCodes: string[];
+  mcpBindings: AgentProfileVersionMcpBinding[];
 };
 
 export type WebhookSubscription = {

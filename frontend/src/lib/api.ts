@@ -1,5 +1,7 @@
 import {
   AboutReleaseNote,
+  AgentProfileVersionBindings,
+  AgentProfileVersionMcpBinding,
   AgentProfileVersion,
   AgentTrace,
   ChatMessageStatus,
@@ -47,6 +49,53 @@ type UpdateProfileVersionPayload = {
   temperature: number;
   retrievalTopK: number;
   reasoningBudget: number;
+};
+
+type UpdateProfileVersionBindingsPayload = {
+  toolCodes: string[];
+  skillCodes: string[];
+  mcpBindings: AgentProfileVersionMcpBinding[];
+};
+
+type CreateToolPayload = {
+  code: string;
+  name: string;
+  className: string;
+  beanName?: string | null;
+  configJson?: string;
+  enabled: boolean;
+};
+
+type UpdateToolPayload = Omit<CreateToolPayload, 'code'>;
+
+type CreateMcpServerPayload = {
+  code: string;
+  transportType: string;
+  target: string;
+  headers?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  timeoutMs?: number | null;
+  initializationTimeoutMs?: number | null;
+  enabled: boolean;
+};
+
+type UpdateMcpServerPayload = Omit<CreateMcpServerPayload, 'code'>;
+
+type UploadSkillPayload = {
+  code?: string;
+  name?: string;
+  description?: string;
+  enabled?: boolean;
+  zip?: File;
+  files?: File[];
+  paths?: string[];
+  replace?: boolean;
+};
+
+type UpdateSkillPayload = {
+  name: string;
+  description?: string;
+  enabled: boolean;
 };
 
 type AuthMode = 'admin' | 'user' | 'none';
@@ -269,6 +318,19 @@ export const api = {
       'admin',
     );
   },
+  async getProfileVersionBindings(id: number) {
+    return requestJson<AgentProfileVersionBindings>(`/api/admin/profile-versions/${id}/bindings`, undefined, 'admin');
+  },
+  async updateProfileVersionBindings(id: number, payload: UpdateProfileVersionBindingsPayload) {
+    return requestJson<AgentProfileVersionBindings>(
+      `/api/admin/profile-versions/${id}/bindings`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
   async modelCatalogs() {
     return requestJson<ModelCatalog[]>('/api/admin/model-catalogs', undefined, 'admin');
   },
@@ -422,11 +484,123 @@ export const api = {
   async tools() {
     return requestJson<ToolDefinition[]>('/api/admin/tools', undefined, 'admin');
   },
+  async createTool(payload: CreateToolPayload) {
+    return requestJson<ToolDefinition>(
+      '/api/admin/tools',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async updateTool(code: string, payload: UpdateToolPayload) {
+    return requestJson<ToolDefinition>(
+      `/api/admin/tools/${encodeURIComponent(code)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async deleteTool(code: string) {
+    return requestJson<{ message: string }>(
+      `/api/admin/tools/${encodeURIComponent(code)}`,
+      {
+        method: 'DELETE',
+      },
+      'admin',
+    );
+  },
   async mcpServers() {
     return requestJson<McpServer[]>('/api/admin/mcp-servers', undefined, 'admin');
   },
+  async createMcpServer(payload: CreateMcpServerPayload) {
+    return requestJson<McpServer>(
+      '/api/admin/mcp-servers',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async updateMcpServer(code: string, payload: UpdateMcpServerPayload) {
+    return requestJson<McpServer>(
+      `/api/admin/mcp-servers/${encodeURIComponent(code)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async deleteMcpServer(code: string) {
+    return requestJson<{ message: string }>(
+      `/api/admin/mcp-servers/${encodeURIComponent(code)}`,
+      {
+        method: 'DELETE',
+      },
+      'admin',
+    );
+  },
   async skills() {
     return requestJson<SkillBinding[]>('/api/admin/skills', undefined, 'admin');
+  },
+  async uploadSkill(payload: UploadSkillPayload) {
+    const formData = new FormData();
+    if (payload.code) {
+      formData.append('code', payload.code);
+    }
+    if (payload.name) {
+      formData.append('name', payload.name);
+    }
+    if (payload.description) {
+      formData.append('description', payload.description);
+    }
+    if (typeof payload.enabled === 'boolean') {
+      formData.append('enabled', String(payload.enabled));
+    }
+    if (typeof payload.replace === 'boolean') {
+      formData.append('replace', String(payload.replace));
+    }
+    if (payload.zip) {
+      formData.append('zip', payload.zip);
+    }
+    if (payload.files?.length) {
+      payload.files.forEach((file) => formData.append('files', file));
+    }
+    if (payload.paths?.length) {
+      payload.paths.forEach((path) => formData.append('paths', path));
+    }
+    return requestJson<SkillBinding>(
+      '/api/admin/skills/upload',
+      {
+        method: 'POST',
+        body: formData,
+      },
+      'admin',
+    );
+  },
+  async updateSkill(code: string, payload: UpdateSkillPayload) {
+    return requestJson<SkillBinding>(
+      `/api/admin/skills/${encodeURIComponent(code)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async deleteSkill(code: string) {
+    return requestJson<{ message: string }>(
+      `/api/admin/skills/${encodeURIComponent(code)}`,
+      {
+        method: 'DELETE',
+      },
+      'admin',
+    );
   },
   async hooks() {
     return requestJson<WebhookSubscription[]>('/api/admin/hooks', undefined, 'admin');

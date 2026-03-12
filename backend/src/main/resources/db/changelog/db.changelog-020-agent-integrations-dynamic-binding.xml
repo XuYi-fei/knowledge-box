@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="020-001-extend-integration-tables" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE tool_definition
+                ADD COLUMN IF NOT EXISTS class_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS bean_name VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS config_json TEXT;
+
+            UPDATE tool_definition
+               SET class_name = COALESCE(NULLIF(class_name, ''), 'com.knowledgebox.service.chat.KnowledgeBaseSearchTool'),
+                   bean_name = COALESCE(NULLIF(bean_name, ''), 'knowledgeBaseSearchTool'),
+                   config_json = COALESCE(config_json, '{}')
+             WHERE code = 'http-search';
+
+            ALTER TABLE mcp_server
+                ADD COLUMN IF NOT EXISTS headers_encrypted_json TEXT NOT NULL DEFAULT '{}',
+                ADD COLUMN IF NOT EXISTS query_params_json TEXT NOT NULL DEFAULT '{}',
+                ADD COLUMN IF NOT EXISTS timeout_ms BIGINT,
+                ADD COLUMN IF NOT EXISTS initialization_timeout_ms BIGINT;
+
+            ALTER TABLE skill_binding
+                ADD COLUMN IF NOT EXISTS description VARCHAR(1000),
+                ADD COLUMN IF NOT EXISTS source_type VARCHAR(32) NOT NULL DEFAULT 'UPLOAD',
+                ADD COLUMN IF NOT EXISTS oss_object_key VARCHAR(512),
+                ADD COLUMN IF NOT EXISTS checksum_md5 VARCHAR(64);
+
+            UPDATE skill_binding
+               SET description = COALESCE(description, NULLIF(prompt_template, ''))
+             WHERE description IS NULL;
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="020-002-create-profile-version-binding-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS agent_profile_version_tool_binding (
+                id BIGSERIAL PRIMARY KEY,
+                profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
+                tool_code VARCHAR(64) NOT NULL REFERENCES tool_definition(code),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_tool_binding
+                ON agent_profile_version_tool_binding(profile_version_id, tool_code);
+            CREATE INDEX IF NOT EXISTS idx_profile_tool_binding_tool_code
+                ON agent_profile_version_tool_binding(tool_code);
+
+            CREATE TABLE IF NOT EXISTS agent_profile_version_mcp_binding (
+                id BIGSERIAL PRIMARY KEY,
+                profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
+                mcp_code VARCHAR(64) NOT NULL REFERENCES mcp_server(code),
+                enable_tools_json TEXT NOT NULL DEFAULT '[]',
+                disable_tools_json TEXT NOT NULL DEFAULT '[]',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_mcp_binding
+                ON agent_profile_version_mcp_binding(profile_version_id, mcp_code);
+            CREATE INDEX IF NOT EXISTS idx_profile_mcp_binding_mcp_code
+                ON agent_profile_version_mcp_binding(mcp_code);
+
+            CREATE TABLE IF NOT EXISTS agent_profile_version_skill_binding (
+                id BIGSERIAL PRIMARY KEY,
+                profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
+                skill_code VARCHAR(64) NOT NULL REFERENCES skill_binding(code),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_skill_binding
+                ON agent_profile_version_skill_binding(profile_version_id, skill_code);
+            CREATE INDEX IF NOT EXISTS idx_profile_skill_binding_skill_code
+                ON agent_profile_version_skill_binding(skill_code);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="020-003-backfill-profile-version-bindings" author="codex">
+        <sql><![CDATA[
+            INSERT INTO agent_profile_version_tool_binding (profile_version_id, tool_code)
+            SELECT version.id, tool_code.value
+              FROM agent_profile_version version,
+                   LATERAL jsonb_array_elements_text(
+                       COALESCE(NULLIF(version.tool_bindings, ''), '[]')::jsonb
+                   ) AS tool_code(value)
+            ON CONFLICT (profile_version_id, tool_code) DO NOTHING;
+
+            INSERT INTO agent_profile_version_mcp_binding (profile_version_id, mcp_code, enable_tools_json, disable_tools_json)
+            SELECT version.id, mcp_code.value, '[]', '[]'
+              FROM agent_profile_version version,
+                   LATERAL jsonb_array_elements_text(
+                       COALESCE(NULLIF(version.mcp_bindings, ''), '[]')::jsonb
+                   ) AS mcp_code(value)
+            ON CONFLICT (profile_version_id, mcp_code) DO NOTHING;
+
+            INSERT INTO agent_profile_version_skill_binding (profile_version_id, skill_code)
+            SELECT version.id, skill_code.value
+              FROM agent_profile_version version,
+                   LATERAL jsonb_array_elements_text(
+                       COALESCE(NULLIF(version.skill_bindings, ''), '[]')::jsonb
+                   ) AS skill_code(value)
+            ON CONFLICT (profile_version_id, skill_code) DO NOTHING;
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -47,7 +47,7 @@ public class ChatOrchestrator {
     private final ConversationMemoryService conversationMemoryService;
     private final AgentTraceService agentTraceService;
     private final KnowledgeBaseRetrievalService knowledgeBaseRetrievalService;
-    private final KnowledgeBaseSearchTool knowledgeBaseSearchTool;
+    private final AgentCapabilityAssemblyService agentCapabilityAssemblyService;
     private final ChatStreamBroker chatStreamBroker;
     private final ChatModelFactory chatModelFactory;
     private final KnowledgeBaseRoutingService routingService;
@@ -64,7 +64,7 @@ public class ChatOrchestrator {
             ConversationMemoryService conversationMemoryService,
             AgentTraceService agentTraceService,
             KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
-            KnowledgeBaseSearchTool knowledgeBaseSearchTool,
+            AgentCapabilityAssemblyService agentCapabilityAssemblyService,
             ChatStreamBroker chatStreamBroker,
             @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
             @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
@@ -75,7 +75,7 @@ public class ChatOrchestrator {
         this.conversationMemoryService = conversationMemoryService;
         this.agentTraceService = agentTraceService;
         this.knowledgeBaseRetrievalService = knowledgeBaseRetrievalService;
-        this.knowledgeBaseSearchTool = knowledgeBaseSearchTool;
+        this.agentCapabilityAssemblyService = agentCapabilityAssemblyService;
         this.chatStreamBroker = chatStreamBroker;
         this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
         this.routingService = new KnowledgeBaseRoutingService(properties, chatModelFactory);
@@ -721,11 +721,17 @@ public class ChatOrchestrator {
     }
 
     private ReActAgent createReActAgent(AgentProfileVersion profile, String chatModelCode, boolean enableKnowledgeBaseTool) {
+        AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(
+                profile.getId(),
+                enableKnowledgeBaseTool
+        );
         return chatModelFactory.createReActAgent(
                 profile,
                 chatModelCode,
                 enableKnowledgeBaseTool,
-                knowledgeBaseSearchTool
+                capabilities.toolkit(),
+                capabilities.skillBox(),
+                capabilities.hooks()
         );
     }
 

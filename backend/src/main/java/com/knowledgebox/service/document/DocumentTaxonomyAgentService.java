@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
+import com.knowledgebox.repository.AgentProfileVersionRepository;
+import com.knowledgebox.service.chat.AgentCapabilityAssemblyService;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.agent.Event;
 import io.agentscope.core.agent.EventType;
@@ -43,15 +45,21 @@ public class DocumentTaxonomyAgentService {
     private final ObjectMapper objectMapper;
     private final String dashScopeApiKey;
     private final String dashScopeBaseUrl;
+    private final AgentProfileVersionRepository agentProfileVersionRepository;
+    private final AgentCapabilityAssemblyService agentCapabilityAssemblyService;
 
     public DocumentTaxonomyAgentService(
             KnowledgeBoxProperties properties,
             ObjectMapper objectMapper,
+            AgentProfileVersionRepository agentProfileVersionRepository,
+            AgentCapabilityAssemblyService agentCapabilityAssemblyService,
             @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
             @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
     ) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.agentProfileVersionRepository = agentProfileVersionRepository;
+        this.agentCapabilityAssemblyService = agentCapabilityAssemblyService;
         this.dashScopeApiKey = dashScopeApiKey;
         this.dashScopeBaseUrl = dashScopeBaseUrl;
     }
@@ -80,13 +88,27 @@ public class DocumentTaxonomyAgentService {
     }
 
     private String invokeAgent(String modelCode, String userPrompt) {
-        ReActAgent agent = ReActAgent.builder()
+        Long profileVersionId = agentProfileVersionRepository.findFirstByPublishedTrueOrderByUpdatedAtDesc()
+                .map(version -> version.getId())
+                .orElse(null);
+        AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(
+                profileVersionId,
+                false
+        );
+        ReActAgent.Builder builder = ReActAgent.builder()
                 .name("document-taxonomy-agent")
                 .description("Suggest one category and multiple tags for a document")
                 .sysPrompt(TAXONOMY_SYSTEM_PROMPT)
                 .model(buildModel(modelCode))
-                .maxIters(2)
-                .build();
+                .toolkit(capabilities.toolkit())
+                .maxIters(2);
+        if (capabilities.skillBox() != null) {
+            builder.skillBox(capabilities.skillBox());
+        }
+        if (!capabilities.hooks().isEmpty()) {
+            builder.hooks(capabilities.hooks());
+        }
+        ReActAgent agent = builder.build();
 
         List<Event> events = agent.stream(
                         List.of(
@@ -104,20 +126,20 @@ public class DocumentTaxonomyAgentService {
         if (events == null || events.isEmpty()) {
             return "";
         }
-        StringBuilder builder = new StringBuilder();
+        StringBuilder output = new StringBuilder();
         for (Event event : events) {
             if (event.getMessage() == null) {
                 continue;
             }
             String text = event.getMessage().getTextContent();
             if (StringUtils.hasText(text)) {
-                if (builder.length() > 0) {
-                    builder.append('\n');
+                if (output.length() > 0) {
+                    output.append('\n');
                 }
-                builder.append(text.strip());
+                output.append(text.strip());
             }
         }
-        return builder.toString().trim();
+        return output.toString().trim();
     }
 
     private Model buildModel(String modelCode) {

@@ -205,6 +205,11 @@ knowledge-box:
       base-url: ${KB_DASHSCOPE_COMPATIBLE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
       force-model-regexes:
         - "(?i)^qwen3\\.5-.*$"
+  integration:
+    crypto:
+      master-key: ${KB_INTEGRATION_CRYPTO_MASTER_KEY:replace-with-a-long-random-master-key}
+    skill-cache-dir: ${KB_INTEGRATION_SKILL_CACHE_DIR:backend/uploads/skills/cache}
+    skill-package-category: ${KB_INTEGRATION_SKILL_PACKAGE_CATEGORY:agent-skills}
 ```
 
 关键配置项说明：
@@ -243,6 +248,9 @@ knowledge-box:
 - `knowledge-box.document.bootstrap.seed-file`: 初始化 seed 文件路径（支持 `file:` 或 `classpath:`）
 - `knowledge-box.document.bootstrap.fail-fast`: 启动导入失败时是否终止应用启动
 - `knowledge-box.document.bootstrap.operator-username`: 导入审核单使用的管理员用户名（会自动解析/创建 admin_operator）
+- `knowledge-box.integration.crypto.master-key`: Tool/MCP 集成敏感信息（如 MCP Header）加密主密钥，生产环境必须设置强随机值
+- `knowledge-box.integration.skill-cache-dir`: Skill 包运行时缓存目录（当前实现默认以内存缓存为主，可保留默认值）
+- `knowledge-box.integration.skill-package-category`: Skill 包在 OSS 中的对象分类路径前缀
 
 ### 前端配置
 

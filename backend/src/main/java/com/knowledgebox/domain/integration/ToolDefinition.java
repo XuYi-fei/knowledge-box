@@ -21,6 +21,15 @@ public class ToolDefinition extends BaseEntity {
     @Column(nullable = false, length = 256)
     private String endpoint;
 
+    @Column(length = 255)
+    private String className;
+
+    @Column(length = 255)
+    private String beanName;
+
+    @Column(columnDefinition = "TEXT")
+    private String configJson = "{}";
+
     @Column(nullable = false)
     private Boolean enabled = Boolean.TRUE;
 
@@ -56,6 +65,30 @@ public class ToolDefinition extends BaseEntity {
         this.endpoint = endpoint;
     }
 
+    public String getClassName() {
+        return className;
+    }
+
+    public void setClassName(String className) {
+        this.className = className;
+    }
+
+    public String getBeanName() {
+        return beanName;
+    }
+
+    public void setBeanName(String beanName) {
+        this.beanName = beanName;
+    }
+
+    public String getConfigJson() {
+        return configJson;
+    }
+
+    public void setConfigJson(String configJson) {
+        this.configJson = configJson;
+    }
+
     public Boolean getEnabled() {
         return enabled;
     }
@@ -64,4 +97,3 @@ public class ToolDefinition extends BaseEntity {
         this.enabled = enabled;
     }
 }
-

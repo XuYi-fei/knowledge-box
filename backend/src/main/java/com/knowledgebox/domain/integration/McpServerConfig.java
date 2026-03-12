@@ -21,6 +21,18 @@ public class McpServerConfig extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String capabilitiesJson = "[]";
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String headersEncryptedJson = "{}";
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String queryParamsJson = "{}";
+
+    @Column
+    private Long timeoutMs;
+
+    @Column
+    private Long initializationTimeoutMs;
+
     @Column(nullable = false)
     private Boolean enabled = Boolean.TRUE;
 
@@ -56,6 +68,38 @@ public class McpServerConfig extends BaseEntity {
         this.capabilitiesJson = capabilitiesJson;
     }
 
+    public String getHeadersEncryptedJson() {
+        return headersEncryptedJson;
+    }
+
+    public void setHeadersEncryptedJson(String headersEncryptedJson) {
+        this.headersEncryptedJson = headersEncryptedJson;
+    }
+
+    public String getQueryParamsJson() {
+        return queryParamsJson;
+    }
+
+    public void setQueryParamsJson(String queryParamsJson) {
+        this.queryParamsJson = queryParamsJson;
+    }
+
+    public Long getTimeoutMs() {
+        return timeoutMs;
+    }
+
+    public void setTimeoutMs(Long timeoutMs) {
+        this.timeoutMs = timeoutMs;
+    }
+
+    public Long getInitializationTimeoutMs() {
+        return initializationTimeoutMs;
+    }
+
+    public void setInitializationTimeoutMs(Long initializationTimeoutMs) {
+        this.initializationTimeoutMs = initializationTimeoutMs;
+    }
+
     public Boolean getEnabled() {
         return enabled;
     }
@@ -64,4 +108,3 @@ public class McpServerConfig extends BaseEntity {
         this.enabled = enabled;
     }
 }
-

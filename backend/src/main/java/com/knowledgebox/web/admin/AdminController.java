@@ -2,20 +2,29 @@ package com.knowledgebox.web.admin;
 
 import com.knowledgebox.api.AdminDashboardView;
 import com.knowledgebox.api.AgentProfileVersionView;
+import com.knowledgebox.api.AgentProfileVersionBindingsView;
 import com.knowledgebox.api.AgentTraceView;
 import com.knowledgebox.api.ChangeAdminPasswordRequest;
+import com.knowledgebox.api.CreateMcpServerRequest;
 import com.knowledgebox.api.CreateModelCatalogRequest;
+import com.knowledgebox.api.CreateToolDefinitionRequest;
 import com.knowledgebox.api.IngestionJobView;
 import com.knowledgebox.api.KnowledgeDocumentView;
 import com.knowledgebox.api.McpServerView;
 import com.knowledgebox.api.ModelCatalogView;
 import com.knowledgebox.api.SkillBindingView;
 import com.knowledgebox.api.ToolDefinitionView;
+import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
 import com.knowledgebox.api.UpdateAgentProfileVersionRequest;
+import com.knowledgebox.api.UpdateMcpServerRequest;
 import com.knowledgebox.api.UpdateModelCatalogRequest;
+import com.knowledgebox.api.UpdateSkillBindingRequest;
+import com.knowledgebox.api.UpdateToolDefinitionRequest;
 import com.knowledgebox.api.WebhookSubscriptionView;
 import com.knowledgebox.service.admin.AdminCommandService;
 import com.knowledgebox.service.admin.AdminQueryService;
+import com.knowledgebox.service.integration.AgentProfileBindingService;
+import com.knowledgebox.service.integration.IntegrationAdminService;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.util.List;
@@ -26,7 +35,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -34,10 +47,19 @@ public class AdminController {
 
     private final AdminQueryService adminQueryService;
     private final AdminCommandService adminCommandService;
+    private final IntegrationAdminService integrationAdminService;
+    private final AgentProfileBindingService agentProfileBindingService;
 
-    public AdminController(AdminQueryService adminQueryService, AdminCommandService adminCommandService) {
+    public AdminController(
+            AdminQueryService adminQueryService,
+            AdminCommandService adminCommandService,
+            IntegrationAdminService integrationAdminService,
+            AgentProfileBindingService agentProfileBindingService
+    ) {
         this.adminQueryService = adminQueryService;
         this.adminCommandService = adminCommandService;
+        this.integrationAdminService = integrationAdminService;
+        this.agentProfileBindingService = agentProfileBindingService;
     }
 
     @GetMapping("/me")
@@ -76,6 +98,19 @@ public class AdminController {
         return adminCommandService.updateProfileVersion(id, request);
     }
 
+    @GetMapping("/profile-versions/{id}/bindings")
+    public AgentProfileVersionBindingsView profileVersionBindings(@PathVariable Long id) {
+        return agentProfileBindingService.bindings(id);
+    }
+
+    @PutMapping("/profile-versions/{id}/bindings")
+    public AgentProfileVersionBindingsView updateProfileVersionBindings(
+            @PathVariable Long id,
+            @RequestBody UpdateAgentProfileVersionBindingsRequest request
+    ) {
+        return agentProfileBindingService.updateBindings(id, request);
+    }
+
     @GetMapping("/model-catalogs")
     public List<ModelCatalogView> modelCatalogs() {
         return adminQueryService.modelCatalogs();
@@ -109,14 +144,80 @@ public class AdminController {
         return adminQueryService.tools();
     }
 
+    @PostMapping("/tools")
+    public ToolDefinitionView createTool(@Valid @RequestBody CreateToolDefinitionRequest request) {
+        return integrationAdminService.createTool(request);
+    }
+
+    @PutMapping("/tools/{code}")
+    public ToolDefinitionView updateTool(
+            @PathVariable String code,
+            @Valid @RequestBody UpdateToolDefinitionRequest request
+    ) {
+        return integrationAdminService.updateTool(code, request);
+    }
+
+    @DeleteMapping("/tools/{code}")
+    public Map<String, String> deleteTool(@PathVariable String code) {
+        integrationAdminService.deleteTool(code);
+        return Map.of("message", "Tool deleted");
+    }
+
     @GetMapping("/mcp-servers")
     public List<McpServerView> mcpServers() {
         return adminQueryService.mcpServers();
     }
 
+    @PostMapping("/mcp-servers")
+    public McpServerView createMcpServer(@Valid @RequestBody CreateMcpServerRequest request) {
+        return integrationAdminService.createMcpServer(request);
+    }
+
+    @PutMapping("/mcp-servers/{code}")
+    public McpServerView updateMcpServer(
+            @PathVariable String code,
+            @Valid @RequestBody UpdateMcpServerRequest request
+    ) {
+        return integrationAdminService.updateMcpServer(code, request);
+    }
+
+    @DeleteMapping("/mcp-servers/{code}")
+    public Map<String, String> deleteMcpServer(@PathVariable String code) {
+        integrationAdminService.deleteMcpServer(code);
+        return Map.of("message", "MCP server deleted");
+    }
+
     @GetMapping("/skills")
     public List<SkillBindingView> skills() {
         return adminQueryService.skills();
+    }
+
+    @PostMapping(path = "/skills/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public SkillBindingView uploadSkill(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false) Boolean enabled,
+            @RequestParam(required = false) MultipartFile zip,
+            @RequestParam(required = false) List<MultipartFile> files,
+            @RequestParam(required = false) List<String> paths,
+            @RequestParam(defaultValue = "false") boolean replace
+    ) {
+        return integrationAdminService.uploadSkill(code, name, description, enabled, zip, files, paths, replace);
+    }
+
+    @PutMapping("/skills/{code}")
+    public SkillBindingView updateSkill(
+            @PathVariable String code,
+            @Valid @RequestBody UpdateSkillBindingRequest request
+    ) {
+        return integrationAdminService.updateSkill(code, request);
+    }
+
+    @DeleteMapping("/skills/{code}")
+    public Map<String, String> deleteSkill(@PathVariable String code) {
+        integrationAdminService.deleteSkill(code);
+        return Map.of("message", "Skill deleted");
     }
 
     @GetMapping("/hooks")

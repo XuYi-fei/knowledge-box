@@ -90,3 +90,8 @@ knowledge-box:
       seed-file: ${KB_DOCUMENT_BOOTSTRAP_SEED_FILE:}
       fail-fast: ${KB_DOCUMENT_BOOTSTRAP_FAIL_FAST:false}
       operator-username: ${KB_DOCUMENT_BOOTSTRAP_OPERATOR_USERNAME:admin}
+  integration:
+    crypto:
+      master-key: ${KB_INTEGRATION_CRYPTO_MASTER_KEY:}
+    skill-cache-dir: ${KB_INTEGRATION_SKILL_CACHE_DIR:backend/uploads/skills/cache}
+    skill-package-category: ${KB_INTEGRATION_SKILL_PACKAGE_CATEGORY:agent-skills}

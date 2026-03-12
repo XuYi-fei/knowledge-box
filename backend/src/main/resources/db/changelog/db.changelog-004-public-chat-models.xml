@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="013-add-public-chat-model-flags" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE model_catalog
+                ADD COLUMN public_selectable BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN default_for_public BOOLEAN NOT NULL DEFAULT FALSE;
+
+            CREATE INDEX idx_model_catalog_public_chat
+                ON model_catalog(model_type, enabled, public_selectable, default_for_public);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="014-seed-public-chat-model-flags" author="codex">
+        <sql><![CDATA[
+            UPDATE model_catalog
+            SET public_selectable = TRUE,
+                default_for_public = CASE WHEN code = 'qwen-max' THEN TRUE ELSE FALSE END
+            WHERE model_type = 'CHAT'
+              AND code IN ('qwen-max', 'qwen-plus');
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="017-001-about-release-note-bootstrap-seed-import" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.12',
+                '新增文档初始化 seed 导入机制（启动可开关）',
+                '支持通过脚本生成 seed 并在 Spring 启动时写入审核流，避免用 Liquibase 维护频繁变化的初始化文档内容。',
+                E'## 本次更新\n\n- 新增离线 OSS 图片转存脚本 `oss_rehost_markdown_images.py`\n- 新增 seed 生成脚本 `prepare_bootstrap_seed.py`\n- 后端新增 `knowledge-box.document.bootstrap.*` 配置与启动导入器\n- 通过 `importKey` 做幂等去重，重复重启不会重复创建审核单',
+                TIMESTAMPTZ '2026-03-12 22:30:00+08',
+                -2,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM about_release_note
+                WHERE version_label = '2026.03.12'
+                  AND title = '新增文档初始化 seed 导入机制（启动可开关）'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

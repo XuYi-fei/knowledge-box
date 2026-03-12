@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="008-001-create-about-release-note" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS about_release_note (
+                id BIGSERIAL PRIMARY KEY,
+                version_label VARCHAR(64) NOT NULL,
+                title VARCHAR(128) NOT NULL,
+                summary VARCHAR(512) NOT NULL,
+                content_markdown TEXT NOT NULL,
+                published_at TIMESTAMPTZ NOT NULL,
+                display_order INTEGER NOT NULL DEFAULT 0,
+                highlighted BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_about_release_note_published
+                ON about_release_note(published_at DESC, display_order ASC);
+
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03',
+                'AgentScope 编排与流式恢复升级',
+                '问答主链路完成 ReActAgent、流式恢复、查询路由与引用回溯的收口。',
+                E'## 本次更新\n\n- 对话主链路已切换到 AgentScope Java `ReActAgent`\n- 新增流式恢复与中断后自动续跑能力\n- 查询路由升级为“规则优先 + 轻量模型判定”\n- SSE 事件协议继续向后兼容，前端可展示思考、工具与引用信息',
+                TIMESTAMPTZ '2026-03-11 10:00:00+08',
+                0,
+                TRUE
+            WHERE NOT EXISTS (
+                SELECT 1 FROM about_release_note WHERE version_label = '2026.03' AND title = 'AgentScope 编排与流式恢复升级'
+            );
+
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.02',
+                '用户登录态与会话持久化增强',
+                '邮箱登录、JWT 登录态、历史会话恢复与删除链路已打通。',
+                E'## 本次更新\n\n- 支持邮箱验证码登录、密码登录与自动注册\n- 历史会话可恢复并支持流式中的删除\n- `pending` 状态语义已收紧，仅表示仍在生成中',
+                TIMESTAMPTZ '2026-02-26 12:00:00+08',
+                1,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1 FROM about_release_note WHERE version_label = '2026.02' AND title = '用户登录态与会话持久化增强'
+            );
+
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.01',
+                '知识库导入与向量检索打底',
+                'Markdown 上传、图片转存、chunk 切分和 pgvector 检索能力完成基础接入。',
+                E'## 本次更新\n\n- Markdown 文档支持上传、规范化与资源重写\n- 文档可切分为 chunk 并写入数据库\n- 检索链路支持向量检索、文本检索与关键词回退',
+                TIMESTAMPTZ '2026-01-18 09:00:00+08',
+                2,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1 FROM about_release_note WHERE version_label = '2026.01' AND title = '知识库导入与向量检索打底'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="010-create-model-catalog" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE model_catalog (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                display_name VARCHAR(128) NOT NULL,
+                provider VARCHAR(32) NOT NULL,
+                model_type VARCHAR(16) NOT NULL,
+                description VARCHAR(1000),
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_model_catalog_type_enabled ON model_catalog(model_type, enabled);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="011-seed-model-catalog" author="codex">
+        <sql><![CDATA[
+            INSERT INTO model_catalog (id, code, display_name, provider, model_type, description, enabled)
+            VALUES
+                (1, 'qwen-max', 'Qwen Max', 'dashscope', 'CHAT', 'Default chat model for grounded public QA.', TRUE),
+                (2, 'qwen-plus', 'Qwen Plus', 'dashscope', 'CHAT', 'Lower-cost chat model for draft or fallback use.', TRUE),
+                (3, 'text-embedding-v3', 'Text Embedding V3', 'dashscope', 'EMBEDDING', 'Default embedding model used by vector indexing.', TRUE),
+                (4, 'gte-rerank', 'GTE Rerank', 'dashscope', 'RERANK', 'Optional rerank model for retrieval quality improvement.', TRUE);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="012-reset-model-catalog-sequence" author="codex">
+        <sql><![CDATA[
+            SELECT setval('model_catalog_id_seq', COALESCE((SELECT MAX(id) FROM model_catalog), 1), true);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

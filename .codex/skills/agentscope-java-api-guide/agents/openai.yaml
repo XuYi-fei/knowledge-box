@@ -1,0 +1,7 @@
+interface:
+  display_name: "AgentScope Java API Guide"
+  short_description: "Explain AgentScope Java 1.0.9 APIs by topic with cautions"
+  default_prompt: "Use $agentscope-java-api-guide to explain AgentScope Java 1.0.9 APIs such as ReActAgent, tool calling, RAG, HITL, memory, planning, state or session management, structured output, agent skill, and A2A."
+
+policy:
+  allow_implicit_invocation: true

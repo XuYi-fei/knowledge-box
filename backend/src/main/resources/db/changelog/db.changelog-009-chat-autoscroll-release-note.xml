@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="009-001-add-chat-autoscroll-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.11',
+                '问答页自动贴底体验优化',
+                '进入历史会话会自动滚动到底部，流式回答期间保持实时贴底。',
+                E'## 本次更新\n\n- 进入历史对话时自动滚动到消息底部\n- 流式输出过程中持续保持视图贴底\n- 减少历史较长会话中的手动滚动成本',
+                TIMESTAMPTZ '2026-03-11 18:45:00+08',
+                0,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM about_release_note
+                WHERE version_label = '2026.03.11' AND title = '问答页自动贴底体验优化'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

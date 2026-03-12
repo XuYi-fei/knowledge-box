@@ -1,0 +1,7 @@
+interface:
+  display_name: "Yuque OpenAPI Guide"
+  short_description: "Explain and use Yuque OpenAPI for reading repos, docs, TOC, and search"
+  default_prompt: "Use $yuque-openapi-guide to explain which Yuque OpenAPI endpoints should be used to read personal or team knowledge bases, fetch docs, search, inspect TOC, or manage repos/docs."
+
+policy:
+  allow_implicit_invocation: true

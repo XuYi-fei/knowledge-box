@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="014-001-about-release-note-yuque-openapi-skill" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.12',
+                '新增语雀 OpenAPI 项目级 Skill',
+                '基于本地 yuque_openapi HTML 文档整理语雀接口，便于后续读取个人语雀文档与知识库。',
+                E'## 本次更新\n\n- 新增项目级 `yuque-openapi-guide` skill\n- 按鉴权、读取链路、知识库、文档、目录、团队统计分拆 references，减少无关上下文加载\n- 总结语雀 OpenAPI 的 repo/doc/toc/search/version 等接口，便于后续接入个人语雀知识库',
+                TIMESTAMPTZ '2026-03-12 11:30:00+08',
+                -3,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM about_release_note
+                WHERE version_label = '2026.03.12'
+                  AND title = '新增语雀 OpenAPI 项目级 Skill'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

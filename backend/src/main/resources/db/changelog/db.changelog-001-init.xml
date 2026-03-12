@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-enable-vector" author="codex">
+        <sql>CREATE EXTENSION IF NOT EXISTS vector;</sql>
+    </changeSet>
+
+    <changeSet id="002-create-agent-profile" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE agent_profile (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128) NOT NULL,
+                description VARCHAR(1000),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE agent_profile_version (
+                id BIGSERIAL PRIMARY KEY,
+                profile_id BIGINT NOT NULL REFERENCES agent_profile(id),
+                version_number INTEGER NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                chat_model VARCHAR(64) NOT NULL,
+                embedding_model VARCHAR(64) NOT NULL,
+                rerank_model VARCHAR(64),
+                temperature DOUBLE PRECISION NOT NULL,
+                retrieval_top_k INTEGER NOT NULL,
+                reasoning_budget INTEGER NOT NULL,
+                published BOOLEAN NOT NULL DEFAULT FALSE,
+                system_prompt TEXT NOT NULL,
+                tool_bindings TEXT NOT NULL,
+                mcp_bindings TEXT NOT NULL,
+                skill_bindings TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_agent_profile_version_profile ON agent_profile_version(profile_id);
+            CREATE INDEX idx_agent_profile_version_published ON agent_profile_version(published);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="003-create-document-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE knowledge_document (
+                id BIGSERIAL PRIMARY KEY,
+                title VARCHAR(128) NOT NULL,
+                source_filename VARCHAR(256) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                normalized_markdown_path VARCHAR(256) NOT NULL,
+                tags TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE document_asset (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id),
+                original_path VARCHAR(512) NOT NULL,
+                stored_url VARCHAR(512) NOT NULL,
+                content_type VARCHAR(128),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE document_chunk (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id),
+                chunk_index INTEGER NOT NULL,
+                heading_path VARCHAR(512) NOT NULL,
+                anchor VARCHAR(128) NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                embedding vector(1024),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE ingestion_job (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id),
+                status VARCHAR(16) NOT NULL,
+                job_type VARCHAR(64) NOT NULL,
+                detail TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_document_chunk_document ON document_chunk(document_id);
+            CREATE INDEX idx_document_chunk_anchor ON document_chunk(anchor);
+            CREATE INDEX idx_document_chunk_tsv ON document_chunk USING GIN (to_tsvector('simple', content));
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="004-create-integration-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE tool_definition (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128) NOT NULL,
+                input_schema TEXT NOT NULL,
+                endpoint VARCHAR(256) NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE mcp_server (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                transport_type VARCHAR(32) NOT NULL,
+                target VARCHAR(256) NOT NULL,
+                capabilities_json TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE skill_binding (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128) NOT NULL,
+                prompt_template TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="005-create-hook-and-trace-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE webhook_subscription (
+                id BIGSERIAL PRIMARY KEY,
+                event_type VARCHAR(32) NOT NULL,
+                target_url VARCHAR(256) NOT NULL,
+                secret_masked VARCHAR(128) NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE hook_delivery (
+                id BIGSERIAL PRIMARY KEY,
+                event_type VARCHAR(32) NOT NULL,
+                target_url VARCHAR(256) NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE chat_session (
+                id BIGSERIAL PRIMARY KEY,
+                session_code VARCHAR(64) NOT NULL UNIQUE,
+                active_profile_code VARCHAR(32) NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE agent_trace (
+                id BIGSERIAL PRIMARY KEY,
+                trace_code VARCHAR(64) NOT NULL,
+                session_code VARCHAR(64) NOT NULL,
+                stage VARCHAR(64) NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_agent_trace_session ON agent_trace(session_code);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="006-seed-demo-data" author="codex">
+        <sql><![CDATA[
+            INSERT INTO agent_profile (id, code, name, description)
+            VALUES (1, 'default-qa', 'Default QA', 'Public knowledge base agent');
+
+            INSERT INTO agent_profile_version (
+                id, profile_id, version_number, status, chat_model, embedding_model, rerank_model,
+                temperature, retrieval_top_k, reasoning_budget, published, system_prompt,
+                tool_bindings, mcp_bindings, skill_bindings
+            ) VALUES (
+                1, 1, 1, 'PUBLISHED', 'qwen-max', 'text-embedding-v3', 'gte-rerank',
+                0.2, 6, 1, TRUE, 'You are the public supervisor agent for the knowledge base.',
+                '["http-search"]', '["local-mcp"]', '["retrieval-critic"]'
+            );
+
+            INSERT INTO knowledge_document (id, title, source_filename, status, normalized_markdown_path, tags)
+            VALUES
+                (1, '系统设计说明', 'design.md', 'READY', '/uploads/docs/design.normalized.md', '["architecture"]'),
+                (2, '上传规范', 'upload-guide.md', 'PROCESSING', '/uploads/docs/upload-guide.normalized.md', '["ingestion"]');
+
+            INSERT INTO ingestion_job (id, document_id, status, job_type, detail)
+            VALUES
+                (1, 1, 'COMPLETED', 'MARKDOWN_INGESTION', '{"chunks": 12}'),
+                (2, 2, 'RUNNING', 'MARKDOWN_INGESTION', '{"stage": "rewrite-assets"}');
+
+            INSERT INTO tool_definition (id, code, name, input_schema, endpoint, enabled)
+            VALUES (1, 'http-search', 'HTTP Search', '{"type":"object","properties":{"query":{"type":"string"}}}', 'https://example.com/tool/search', TRUE);
+
+            INSERT INTO mcp_server (id, code, transport_type, target, capabilities_json, enabled)
+            VALUES (1, 'local-mcp', 'sse', 'http://localhost:8123/sse', '["tools","resources"]', TRUE);
+
+            INSERT INTO skill_binding (id, code, name, prompt_template, enabled)
+            VALUES (1, 'retrieval-critic', 'Retrieval Critic', 'Review retrieval quality before final answer.', TRUE);
+
+            INSERT INTO webhook_subscription (id, event_type, target_url, secret_masked, enabled)
+            VALUES (1, 'ANSWER_COMPLETED', 'https://example.com/hooks/answer', 'kb_****_signed', TRUE);
+
+            INSERT INTO chat_session (id, session_code, active_profile_code)
+            VALUES (1, 'session-001', 'default-qa');
+
+            INSERT INTO agent_trace (id, trace_code, session_code, stage, payload_json)
+            VALUES
+                (1, 'trace-1001', 'session-001', 'SUPERVISOR_THOUGHT', '{"reasoning": "query needs retrieval"}'),
+                (2, 'trace-1002', 'session-001', 'RETRIEVAL_FINISHED', '{"hits": 2}');
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="005-001-create-user-account" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE user_account (
+                id BIGSERIAL PRIMARY KEY,
+                email VARCHAR(256) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                last_login_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="005-002-alter-chat-session" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE chat_session ADD COLUMN IF NOT EXISTS user_id BIGINT;
+            ALTER TABLE chat_session ADD COLUMN IF NOT EXISTS title VARCHAR(128);
+            ALTER TABLE chat_session ADD COLUMN IF NOT EXISTS selected_chat_model VARCHAR(64);
+            ALTER TABLE chat_session ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE';
+            ALTER TABLE chat_session ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_chat_session_user_session
+                ON chat_session(user_id, session_code);
+            CREATE INDEX IF NOT EXISTS idx_chat_session_user_updated
+                ON chat_session(user_id, updated_at DESC);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="005-003-alter-chat-turn" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS user_id BIGINT;
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS message_code VARCHAR(64);
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS client_message_id VARCHAR(64);
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED';
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS citations_json TEXT;
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS tool_calls_json TEXT;
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS reasoning_steps_json TEXT;
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS model_code VARCHAR(64);
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS error_message TEXT;
+            ALTER TABLE chat_turn ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+
+            UPDATE chat_turn
+            SET message_code = CONCAT('legacy-', id)
+            WHERE message_code IS NULL;
+
+            ALTER TABLE chat_turn ALTER COLUMN message_code SET NOT NULL;
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_chat_turn_message_code
+                ON chat_turn(message_code);
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_chat_turn_user_session_client_message
+                ON chat_turn(user_id, session_code, client_message_id)
+                WHERE client_message_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_chat_turn_user_session_created
+                ON chat_turn(user_id, session_code, created_at);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

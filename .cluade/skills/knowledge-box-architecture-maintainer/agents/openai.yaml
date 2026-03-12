@@ -1,0 +1,7 @@
+interface:
+  display_name: "Knowledge Box Architecture Maintainer"
+  short_description: "Refresh architecture.md from the current codebase for debugging and maintenance"
+  default_prompt: "Use $knowledge-box-architecture-maintainer to read architecture.md, scan the current Knowledge Box codebase, and update architecture.md with frontend, backend, config, LLM chain, and project architecture details."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="012-001-fix-seeded-document-status" author="codex">
+        <sql><![CDATA[
+            UPDATE knowledge_document
+            SET status = 'READY'
+            WHERE status = 'PROCESSING'
+              AND source_filename IN (
+                'knowledge-box-project-definition.md',
+                'knowledge-box-agent-definition.md'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="007-create-chat-turn-table" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE chat_turn (
+                id BIGSERIAL PRIMARY KEY,
+                session_code VARCHAR(64) NOT NULL,
+                role VARCHAR(16) NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_chat_turn_session_created ON chat_turn(session_code, created_at);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="008-seed-document-chunks" author="codex">
+        <sql><![CDATA[
+            INSERT INTO document_chunk (document_id, chunk_index, heading_path, anchor, content, metadata_json)
+            VALUES
+                (
+                    1,
+                    0,
+                    '系统概览 / 问答入口',
+                    'chat-entry',
+                    '游客通过公共问答页访问知识库，并查看命中的引用来源。系统以 ReAct 代理方式协同检索、工具调用和最终答案生成。',
+                    '{"documentTitle":"系统设计说明","headingPath":"系统概览 / 问答入口","chunkIndex":0}'
+                ),
+                (
+                    1,
+                    1,
+                    '系统概览 / 管理后台',
+                    'admin-console',
+                    '管理员可以配置 agent 模型版本、推理预算、检索 topK、工具绑定、MCP 与技能挂载，并以发布版本驱动公开问答入口。',
+                    '{"documentTitle":"系统设计说明","headingPath":"系统概览 / 管理后台","chunkIndex":1}'
+                ),
+                (
+                    2,
+                    0,
+                    'Markdown 上传 / 图片转存',
+                    'md-upload',
+                    '管理员上传 Markdown 后，本地图片资源会被转存到对象存储并回写链接，随后文档会按标题和段落切片并进入向量索引。',
+                    '{"documentTitle":"上传规范","headingPath":"Markdown 上传 / 图片转存","chunkIndex":0}'
+                );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="009-reset-sequences" author="codex">
+        <sql><![CDATA[
+            SELECT setval('agent_profile_id_seq', COALESCE((SELECT MAX(id) FROM agent_profile), 1), true);
+            SELECT setval('agent_profile_version_id_seq', COALESCE((SELECT MAX(id) FROM agent_profile_version), 1), true);
+            SELECT setval('knowledge_document_id_seq', COALESCE((SELECT MAX(id) FROM knowledge_document), 1), true);
+            SELECT setval('document_chunk_id_seq', COALESCE((SELECT MAX(id) FROM document_chunk), 1), true);
+            SELECT setval('ingestion_job_id_seq', COALESCE((SELECT MAX(id) FROM ingestion_job), 1), true);
+            SELECT setval('tool_definition_id_seq', COALESCE((SELECT MAX(id) FROM tool_definition), 1), true);
+            SELECT setval('mcp_server_id_seq', COALESCE((SELECT MAX(id) FROM mcp_server), 1), true);
+            SELECT setval('skill_binding_id_seq', COALESCE((SELECT MAX(id) FROM skill_binding), 1), true);
+            SELECT setval('webhook_subscription_id_seq', COALESCE((SELECT MAX(id) FROM webhook_subscription), 1), true);
+            SELECT setval('chat_session_id_seq', COALESCE((SELECT MAX(id) FROM chat_session), 1), true);
+            SELECT setval('agent_trace_id_seq', COALESCE((SELECT MAX(id) FROM agent_trace), 1), true);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

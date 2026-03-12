@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="013-001-about-release-note-fill-upload-and-paste-image" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.11',
+                '文档填写式提交与粘贴图片去重上传',
+                '管理端新增 JSON 提交审核与粘贴图片 MD5 去重上传能力。',
+                E'## 本次更新\n\n- 新增“填写式上传文档”接口：直接提交 title/sourceFilename/sourceMarkdown 等字段创建审核单\n- 新增“粘贴图片上传”接口：服务端按 MD5+扩展名生成对象名，重复粘贴复用同一资源\n- 保持原有 Markdown 文件上传接口兼容，支持平滑迁移',
+                TIMESTAMPTZ '2026-03-11 23:40:00+08',
+                -2,
+                TRUE
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM about_release_note
+                WHERE version_label = '2026.03.11'
+                  AND title = '文档填写式提交与粘贴图片去重上传'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="010-001-upgrade-knowledge-document" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE knowledge_document
+                ADD COLUMN IF NOT EXISTS uploader_type VARCHAR(32) NOT NULL DEFAULT 'ADMIN',
+                ADD COLUMN IF NOT EXISTS uploader_user_id BIGINT,
+                ADD COLUMN IF NOT EXISTS visibility_type VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
+                ADD COLUMN IF NOT EXISTS extension_json TEXT NOT NULL DEFAULT '{}',
+                ADD COLUMN IF NOT EXISTS source_markdown TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS vector_config_json TEXT NOT NULL DEFAULT '{}',
+                ADD COLUMN IF NOT EXISTS category_id BIGINT;
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_document_visibility_type
+                ON knowledge_document(visibility_type);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="010-002-create-admin-and-taxonomy" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS admin_operator (
+                id BIGSERIAL PRIMARY KEY,
+                username VARCHAR(128) NOT NULL UNIQUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_category (
+                id BIGSERIAL PRIMARY KEY,
+                name VARCHAR(128) NOT NULL UNIQUE,
+                source VARCHAR(32) NOT NULL DEFAULT 'SYSTEM',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_tag (
+                id BIGSERIAL PRIMARY KEY,
+                name VARCHAR(128) NOT NULL UNIQUE,
+                source VARCHAR(32) NOT NULL DEFAULT 'SYSTEM',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_tag_binding (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id) ON DELETE CASCADE,
+                tag_id BIGINT NOT NULL REFERENCES document_tag(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_document_tag_binding_doc_tag
+                ON document_tag_binding(document_id, tag_id);
+
+            ALTER TABLE knowledge_document
+                ADD CONSTRAINT fk_knowledge_document_category
+                FOREIGN KEY (category_id) REFERENCES document_category(id);
+
+            ALTER TABLE document_asset
+                ADD COLUMN IF NOT EXISTS provider VARCHAR(32) NOT NULL DEFAULT 'local',
+                ADD COLUMN IF NOT EXISTS object_key VARCHAR(512),
+                ADD COLUMN IF NOT EXISTS content_length BIGINT;
+
+            CREATE INDEX IF NOT EXISTS idx_document_asset_document_id
+                ON document_asset(document_id);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="010-003-create-review-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS document_review_request (
+                id BIGSERIAL PRIMARY KEY,
+                request_code VARCHAR(64) NOT NULL UNIQUE,
+                source_document_id BIGINT REFERENCES knowledge_document(id),
+                title VARCHAR(128) NOT NULL,
+                source_filename VARCHAR(256) NOT NULL,
+                uploader_type VARCHAR(32) NOT NULL DEFAULT 'ADMIN',
+                uploader_user_id BIGINT,
+                visibility_type VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
+                status VARCHAR(24) NOT NULL,
+                stage VARCHAR(64) NOT NULL DEFAULT 'CREATED',
+                progress_percent INTEGER NOT NULL DEFAULT 0,
+                source_markdown TEXT NOT NULL DEFAULT '',
+                normalized_markdown_path VARCHAR(512),
+                extension_json TEXT NOT NULL DEFAULT '{}',
+                vector_config_json TEXT NOT NULL DEFAULT '{}',
+                suggested_category_name VARCHAR(128),
+                suggested_tags_json TEXT NOT NULL DEFAULT '[]',
+                selected_category_name VARCHAR(128),
+                selected_tags_json TEXT NOT NULL DEFAULT '[]',
+                taxonomy_reasoning TEXT,
+                review_reason TEXT,
+                reviewed_by_user_id BIGINT,
+                reviewed_at TIMESTAMPTZ,
+                error_message TEXT,
+                published_document_id BIGINT REFERENCES knowledge_document(id),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_document_review_request_status_updated
+                ON document_review_request(status, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_document_review_request_source_document_id
+                ON document_review_request(source_document_id);
+
+            CREATE TABLE IF NOT EXISTS document_review_asset (
+                id BIGSERIAL PRIMARY KEY,
+                review_request_id BIGINT NOT NULL REFERENCES document_review_request(id) ON DELETE CASCADE,
+                original_path VARCHAR(512) NOT NULL,
+                stored_url VARCHAR(512) NOT NULL,
+                provider VARCHAR(32) NOT NULL DEFAULT 'local',
+                object_key VARCHAR(512),
+                content_type VARCHAR(128),
+                content_length BIGINT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_document_review_asset_request_id
+                ON document_review_asset(review_request_id);
+
+            CREATE TABLE IF NOT EXISTS document_review_chunk (
+                id BIGSERIAL PRIMARY KEY,
+                review_request_id BIGINT NOT NULL REFERENCES document_review_request(id) ON DELETE CASCADE,
+                chunk_index INTEGER NOT NULL,
+                heading_path VARCHAR(512) NOT NULL,
+                anchor VARCHAR(128) NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_document_review_chunk_request_id
+                ON document_review_chunk(review_request_id, chunk_index);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="010-004-create-index-rebuild-job" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS document_index_rebuild_job (
+                id BIGSERIAL PRIMARY KEY,
+                job_code VARCHAR(64) NOT NULL UNIQUE,
+                status VARCHAR(24) NOT NULL,
+                triggered_by_user_id BIGINT,
+                source_vector_table VARCHAR(128) NOT NULL,
+                target_vector_table VARCHAR(128) NOT NULL,
+                detail_json TEXT NOT NULL DEFAULT '{}',
+                started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                finished_at TIMESTAMPTZ,
+                error_message TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_document_index_rebuild_job_started_at
+                ON document_index_rebuild_job(started_at DESC);
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_document_index_rebuild_running
+                ON document_index_rebuild_job(status)
+                WHERE status = 'RUNNING';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="010-005-seed-document-governance" author="codex">
+        <sql><![CDATA[
+            INSERT INTO admin_operator (username)
+            SELECT 'admin'
+            WHERE NOT EXISTS (SELECT 1 FROM admin_operator WHERE username = 'admin');
+
+            INSERT INTO document_category (name, source)
+            SELECT '项目定义', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_category WHERE name = '项目定义');
+
+            INSERT INTO document_category (name, source)
+            SELECT 'Agent定义', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_category WHERE name = 'Agent定义');
+
+            INSERT INTO document_tag (name, source)
+            SELECT 'knowledge-box', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_tag WHERE name = 'knowledge-box');
+
+            INSERT INTO document_tag (name, source)
+            SELECT 'agent', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_tag WHERE name = 'agent');
+
+            UPDATE knowledge_document
+            SET title = 'Knowledge Box 项目定义',
+                source_filename = 'knowledge-box-project-definition.md',
+                visibility_type = 'PUBLIC',
+                uploader_type = 'ADMIN',
+                uploader_user_id = (SELECT id FROM admin_operator WHERE username = 'admin'),
+                source_markdown = E'# Knowledge Box 项目定义\n\nKnowledge Box 是一个面向知识库问答和管理闭环的工程项目。\n\n- 后端：Spring Boot + PostgreSQL + Redis + AgentScope\n- 前端：React + Ant Design + TanStack Query\n- 核心能力：会话持久化、流式输出、知识检索与管理端配置\n',
+                extension_json = '{}',
+                vector_config_json = '{"embeddingModel":"text-embedding-v3","chunkSize":900}',
+                category_id = (SELECT id FROM document_category WHERE name = '项目定义'),
+                tags = '["knowledge-box"]'
+            WHERE id = 1;
+
+            UPDATE knowledge_document
+            SET title = 'Knowledge Box Agent 定义',
+                source_filename = 'knowledge-box-agent-definition.md',
+                visibility_type = 'AGENT_ONLY',
+                uploader_type = 'ADMIN',
+                uploader_user_id = (SELECT id FROM admin_operator WHERE username = 'admin'),
+                source_markdown = E'# Knowledge Box Agent 定义\n\n系统默认使用 ReActAgent 执行问答编排。\n\n- 主模型负责最终回答\n- routing 模型负责知识库启停判定\n- embedding 模型负责向量索引与检索\n- 支持工具调用与思考过程事件流\n',
+                extension_json = '{}',
+                vector_config_json = '{"embeddingModel":"text-embedding-v3","chunkSize":900}',
+                category_id = (SELECT id FROM document_category WHERE name = 'Agent定义'),
+                tags = '["agent"]'
+            WHERE id = 2;
+
+            INSERT INTO document_tag_binding (document_id, tag_id)
+            SELECT 1, id FROM document_tag WHERE name = 'knowledge-box'
+            ON CONFLICT (document_id, tag_id) DO NOTHING;
+
+            INSERT INTO document_tag_binding (document_id, tag_id)
+            SELECT 2, id FROM document_tag WHERE name = 'agent'
+            ON CONFLICT (document_id, tag_id) DO NOTHING;
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="010-006-reset-sequences" author="codex">
+        <sql><![CDATA[
+            SELECT setval('admin_operator_id_seq', COALESCE((SELECT MAX(id) FROM admin_operator), 1), true);
+            SELECT setval('document_category_id_seq', COALESCE((SELECT MAX(id) FROM document_category), 1), true);
+            SELECT setval('document_tag_id_seq', COALESCE((SELECT MAX(id) FROM document_tag), 1), true);
+            SELECT setval('document_tag_binding_id_seq', COALESCE((SELECT MAX(id) FROM document_tag_binding), 1), true);
+            SELECT setval('document_review_request_id_seq', COALESCE((SELECT MAX(id) FROM document_review_request), 1), true);
+            SELECT setval('document_review_asset_id_seq', COALESCE((SELECT MAX(id) FROM document_review_asset), 1), true);
+            SELECT setval('document_review_chunk_id_seq', COALESCE((SELECT MAX(id) FROM document_review_chunk), 1), true);
+            SELECT setval('document_index_rebuild_job_id_seq', COALESCE((SELECT MAX(id) FROM document_index_rebuild_job), 1), true);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

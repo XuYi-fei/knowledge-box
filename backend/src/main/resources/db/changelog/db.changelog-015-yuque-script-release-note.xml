@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="015-001-about-release-note-yuque-script" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.12',
+                '语雀 Skill 补充可执行访问脚本',
+                '为 yuque-openapi-guide 增加标准库脚本，便于后续直接访问个人语雀知识库与文档。',
+                E'## 本次更新\n\n- 为 `yuque-openapi-guide` 新增 `scripts/yuque_api.py`\n- 支持 `me/repos/docs/doc/toc/search/versions` 等常用只读访问\n- 提供 `request` 通用子命令兜底，但 token 仍要求通过环境变量或临时参数注入，不写入仓库',
+                TIMESTAMPTZ '2026-03-12 12:10:00+08',
+                -4,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM about_release_note
+                WHERE version_label = '2026.03.12'
+                  AND title = '语雀 Skill 补充可执行访问脚本'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

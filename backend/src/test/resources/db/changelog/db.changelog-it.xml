@@ -1,0 +1,541 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="it-000-enable-vector" author="codex">
+        <sql>CREATE EXTENSION IF NOT EXISTS vector;</sql>
+    </changeSet>
+
+    <changeSet id="it-001-create-agent-profile" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE agent_profile (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128) NOT NULL,
+                description VARCHAR(1000),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE agent_profile_version (
+                id BIGSERIAL PRIMARY KEY,
+                profile_id BIGINT NOT NULL REFERENCES agent_profile(id),
+                version_number INTEGER NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                chat_model VARCHAR(64) NOT NULL,
+                embedding_model VARCHAR(64) NOT NULL,
+                rerank_model VARCHAR(64),
+                temperature DOUBLE PRECISION NOT NULL,
+                retrieval_top_k INTEGER NOT NULL,
+                reasoning_budget INTEGER NOT NULL,
+                published BOOLEAN NOT NULL DEFAULT FALSE,
+                system_prompt TEXT NOT NULL,
+                tool_bindings TEXT NOT NULL,
+                mcp_bindings TEXT NOT NULL,
+                skill_bindings TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_agent_profile_version_profile ON agent_profile_version(profile_id);
+            CREATE INDEX idx_agent_profile_version_published ON agent_profile_version(published);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-002-create-document-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE knowledge_document (
+                id BIGSERIAL PRIMARY KEY,
+                title VARCHAR(128) NOT NULL,
+                source_filename VARCHAR(256) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                normalized_markdown_path VARCHAR(256) NOT NULL,
+                tags TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE document_asset (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id),
+                original_path VARCHAR(512) NOT NULL,
+                stored_url VARCHAR(512) NOT NULL,
+                content_type VARCHAR(128),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE document_chunk (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id),
+                chunk_index INTEGER NOT NULL,
+                heading_path VARCHAR(512) NOT NULL,
+                anchor VARCHAR(128) NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                embedding vector(1024),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE ingestion_job (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id),
+                status VARCHAR(16) NOT NULL,
+                job_type VARCHAR(64) NOT NULL,
+                detail TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_document_chunk_document ON document_chunk(document_id);
+            CREATE INDEX idx_document_chunk_anchor ON document_chunk(anchor);
+            CREATE INDEX idx_document_chunk_tsv ON document_chunk USING GIN (to_tsvector('simple', content));
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-003-create-integration-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE tool_definition (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128) NOT NULL,
+                input_schema TEXT NOT NULL,
+                endpoint VARCHAR(256) NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                public_selectable BOOLEAN NOT NULL DEFAULT FALSE,
+                default_for_public BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE mcp_server (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                transport_type VARCHAR(32) NOT NULL,
+                target VARCHAR(256) NOT NULL,
+                capabilities_json TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE skill_binding (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128) NOT NULL,
+                prompt_template TEXT NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-004-create-hook-and-trace-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE webhook_subscription (
+                id BIGSERIAL PRIMARY KEY,
+                event_type VARCHAR(32) NOT NULL,
+                target_url VARCHAR(256) NOT NULL,
+                secret_masked VARCHAR(128) NOT NULL,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE hook_delivery (
+                id BIGSERIAL PRIMARY KEY,
+                event_type VARCHAR(32) NOT NULL,
+                target_url VARCHAR(256) NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                status VARCHAR(16) NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE chat_session (
+                id BIGSERIAL PRIMARY KEY,
+                session_code VARCHAR(64) NOT NULL UNIQUE,
+                active_profile_code VARCHAR(32) NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE chat_turn (
+                id BIGSERIAL PRIMARY KEY,
+                session_code VARCHAR(64) NOT NULL,
+                role VARCHAR(16) NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE agent_trace (
+                id BIGSERIAL PRIMARY KEY,
+                trace_code VARCHAR(64) NOT NULL,
+                session_code VARCHAR(64) NOT NULL,
+                stage VARCHAR(64) NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_agent_trace_session ON agent_trace(session_code);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-004b-create-model-catalog" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE model_catalog (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                display_name VARCHAR(128) NOT NULL,
+                provider VARCHAR(32) NOT NULL,
+                model_type VARCHAR(16) NOT NULL,
+                description VARCHAR(1000),
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                public_selectable BOOLEAN NOT NULL DEFAULT FALSE,
+                default_for_public BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_model_catalog_type_enabled ON model_catalog(model_type, enabled);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-005-seed-demo-data" author="codex">
+        <sql><![CDATA[
+            INSERT INTO agent_profile (id, code, name, description)
+            VALUES (1, 'default-qa', 'Default QA', 'Public knowledge base agent');
+
+            INSERT INTO agent_profile_version (
+                id, profile_id, version_number, status, chat_model, embedding_model, rerank_model,
+                temperature, retrieval_top_k, reasoning_budget, published, system_prompt,
+                tool_bindings, mcp_bindings, skill_bindings
+            ) VALUES (
+                1, 1, 1, 'PUBLISHED', 'qwen-max', 'text-embedding-v3', 'gte-rerank',
+                0.2, 6, 1, TRUE, 'You are the public supervisor agent for the knowledge base.',
+                '["http-search"]', '["local-mcp"]', '["retrieval-critic"]'
+            );
+
+            INSERT INTO model_catalog (
+                id, code, display_name, provider, model_type, description, enabled, public_selectable, default_for_public
+            )
+            VALUES
+                (1, 'qwen-max', 'Qwen Max', 'dashscope', 'CHAT', 'Default chat model for grounded public QA.', TRUE, TRUE, TRUE),
+                (2, 'qwen-plus', 'Qwen Plus', 'dashscope', 'CHAT', 'Lower-cost chat model for draft or fallback use.', TRUE, TRUE, FALSE),
+                (3, 'text-embedding-v3', 'Text Embedding V3', 'dashscope', 'EMBEDDING', 'Default embedding model used by vector indexing.', TRUE, FALSE, FALSE),
+                (4, 'gte-rerank', 'GTE Rerank', 'dashscope', 'RERANK', 'Optional rerank model for retrieval quality improvement.', TRUE, FALSE, FALSE);
+
+            INSERT INTO knowledge_document (id, title, source_filename, status, normalized_markdown_path, tags)
+            VALUES
+                (1, '系统设计说明', 'design.md', 'READY', '/uploads/docs/design.normalized.md', '["architecture"]'),
+                (2, '上传规范', 'upload-guide.md', 'PROCESSING', '/uploads/docs/upload-guide.normalized.md', '["ingestion"]');
+
+            INSERT INTO document_chunk (id, document_id, chunk_index, heading_path, anchor, content, metadata_json)
+            VALUES
+                (1, 1, 0, '系统概览 / 问答入口', 'chat-entry', '游客通过公共问答页访问知识库，并查看命中的引用来源。系统以 ReAct 代理方式协同检索、工具调用和最终答案生成。', '{"documentTitle":"系统设计说明","headingPath":"系统概览 / 问答入口","chunkIndex":0}'),
+                (2, 1, 1, '系统概览 / 管理后台', 'admin-console', '管理员可以配置 agent 模型版本、推理预算、检索 topK、工具绑定、MCP 与技能挂载，并以发布版本驱动公开问答入口。', '{"documentTitle":"系统设计说明","headingPath":"系统概览 / 管理后台","chunkIndex":1}'),
+                (3, 2, 0, 'Markdown 上传 / 图片转存', 'md-upload', '管理员上传 Markdown 后，本地图片资源会被转存到对象存储并回写链接，随后文档会按标题和段落切片并进入向量索引。', '{"documentTitle":"上传规范","headingPath":"Markdown 上传 / 图片转存","chunkIndex":0}');
+
+            INSERT INTO ingestion_job (id, document_id, status, job_type, detail)
+            VALUES
+                (1, 1, 'COMPLETED', 'MARKDOWN_INGESTION', '{"chunks": 12}'),
+                (2, 2, 'RUNNING', 'MARKDOWN_INGESTION', '{"stage": "rewrite-assets"}');
+
+            INSERT INTO tool_definition (id, code, name, input_schema, endpoint, enabled)
+            VALUES (1, 'http-search', 'HTTP Search', '{"type":"object","properties":{"query":{"type":"string"}}}', 'https://example.com/tool/search', TRUE);
+
+            INSERT INTO mcp_server (id, code, transport_type, target, capabilities_json, enabled)
+            VALUES (1, 'local-mcp', 'sse', 'http://localhost:8123/sse', '["tools","resources"]', TRUE);
+
+            INSERT INTO skill_binding (id, code, name, prompt_template, enabled)
+            VALUES (1, 'retrieval-critic', 'Retrieval Critic', 'Review retrieval quality before final answer.', TRUE);
+
+            INSERT INTO webhook_subscription (id, event_type, target_url, secret_masked, enabled)
+            VALUES (1, 'ANSWER_COMPLETED', 'https://example.com/hooks/answer', 'kb_****_signed', TRUE);
+
+            INSERT INTO chat_session (id, session_code, active_profile_code)
+            VALUES (1, 'session-001', 'default-qa');
+
+            INSERT INTO agent_trace (id, trace_code, session_code, stage, payload_json)
+            VALUES
+                (1, 'trace-1001', 'session-001', 'SUPERVISOR_THOUGHT', '{"reasoning": "query needs retrieval"}'),
+                (2, 'trace-1002', 'session-001', 'RETRIEVAL_FINISHED', '{"hits": 2}');
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-006-reset-sequences" author="codex">
+        <sql><![CDATA[
+            SELECT setval('agent_profile_id_seq', COALESCE((SELECT MAX(id) FROM agent_profile), 1), true);
+            SELECT setval('agent_profile_version_id_seq', COALESCE((SELECT MAX(id) FROM agent_profile_version), 1), true);
+            SELECT setval('model_catalog_id_seq', COALESCE((SELECT MAX(id) FROM model_catalog), 1), true);
+            SELECT setval('knowledge_document_id_seq', COALESCE((SELECT MAX(id) FROM knowledge_document), 1), true);
+            SELECT setval('document_chunk_id_seq', COALESCE((SELECT MAX(id) FROM document_chunk), 1), true);
+            SELECT setval('ingestion_job_id_seq', COALESCE((SELECT MAX(id) FROM ingestion_job), 1), true);
+            SELECT setval('tool_definition_id_seq', COALESCE((SELECT MAX(id) FROM tool_definition), 1), true);
+            SELECT setval('mcp_server_id_seq', COALESCE((SELECT MAX(id) FROM mcp_server), 1), true);
+            SELECT setval('skill_binding_id_seq', COALESCE((SELECT MAX(id) FROM skill_binding), 1), true);
+            SELECT setval('webhook_subscription_id_seq', COALESCE((SELECT MAX(id) FROM webhook_subscription), 1), true);
+            SELECT setval('chat_session_id_seq', COALESCE((SELECT MAX(id) FROM chat_session), 1), true);
+            SELECT setval('chat_turn_id_seq', COALESCE((SELECT MAX(id) FROM chat_turn), 1), true);
+            SELECT setval('agent_trace_id_seq', COALESCE((SELECT MAX(id) FROM agent_trace), 1), true);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-007-create-user-account-and-chat-auth-columns" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE user_account (
+                id BIGSERIAL PRIMARY KEY,
+                email VARCHAR(256) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                password_login_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                last_login_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            ALTER TABLE chat_session ADD COLUMN user_id BIGINT;
+            ALTER TABLE chat_session ADD COLUMN title VARCHAR(128);
+            ALTER TABLE chat_session ADD COLUMN selected_chat_model VARCHAR(64);
+            ALTER TABLE chat_session ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE';
+            ALTER TABLE chat_session ADD COLUMN last_message_at TIMESTAMPTZ;
+            CREATE UNIQUE INDEX uk_chat_session_user_session ON chat_session(user_id, session_code);
+
+            ALTER TABLE chat_turn ADD COLUMN user_id BIGINT;
+            ALTER TABLE chat_turn ADD COLUMN message_code VARCHAR(64);
+            ALTER TABLE chat_turn ADD COLUMN client_message_id VARCHAR(64);
+            ALTER TABLE chat_turn ADD COLUMN status VARCHAR(16) NOT NULL DEFAULT 'COMPLETED';
+            ALTER TABLE chat_turn ADD COLUMN citations_json TEXT;
+            ALTER TABLE chat_turn ADD COLUMN tool_calls_json TEXT;
+            ALTER TABLE chat_turn ADD COLUMN reasoning_steps_json TEXT;
+            ALTER TABLE chat_turn ADD COLUMN model_code VARCHAR(64);
+            ALTER TABLE chat_turn ADD COLUMN error_message TEXT;
+            ALTER TABLE chat_turn ADD COLUMN completed_at TIMESTAMPTZ;
+            UPDATE chat_turn SET message_code = CONCAT('legacy-', id) WHERE message_code IS NULL;
+            ALTER TABLE chat_turn ALTER COLUMN message_code SET NOT NULL;
+
+            CREATE UNIQUE INDEX uk_chat_turn_message_code ON chat_turn(message_code);
+            CREATE UNIQUE INDEX uk_chat_turn_user_session_client_message
+                ON chat_turn(user_id, session_code, client_message_id)
+                WHERE client_message_id IS NOT NULL;
+            CREATE INDEX idx_chat_turn_user_session_created ON chat_turn(user_id, session_code, created_at);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-008-add-agent-profile-routing-model" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS routing_model VARCHAR(64);
+
+            UPDATE agent_profile_version
+            SET routing_model = COALESCE(NULLIF(TRIM(chat_model), ''), 'qwen-plus')
+            WHERE routing_model IS NULL OR TRIM(routing_model) = '';
+
+            ALTER TABLE agent_profile_version
+                ALTER COLUMN routing_model SET NOT NULL;
+
+            ALTER TABLE agent_profile_version
+                ALTER COLUMN routing_model SET DEFAULT 'qwen-plus';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-009-document-governance" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE knowledge_document
+                ADD COLUMN IF NOT EXISTS uploader_type VARCHAR(32) NOT NULL DEFAULT 'ADMIN',
+                ADD COLUMN IF NOT EXISTS uploader_user_id BIGINT,
+                ADD COLUMN IF NOT EXISTS visibility_type VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
+                ADD COLUMN IF NOT EXISTS extension_json TEXT NOT NULL DEFAULT '{}',
+                ADD COLUMN IF NOT EXISTS source_markdown TEXT NOT NULL DEFAULT '',
+                ADD COLUMN IF NOT EXISTS vector_config_json TEXT NOT NULL DEFAULT '{}',
+                ADD COLUMN IF NOT EXISTS category_id BIGINT;
+
+            ALTER TABLE document_asset
+                ADD COLUMN IF NOT EXISTS provider VARCHAR(32) NOT NULL DEFAULT 'local',
+                ADD COLUMN IF NOT EXISTS object_key VARCHAR(512),
+                ADD COLUMN IF NOT EXISTS content_length BIGINT;
+
+            CREATE TABLE IF NOT EXISTS admin_operator (
+                id BIGSERIAL PRIMARY KEY,
+                username VARCHAR(128) NOT NULL UNIQUE,
+                password_hash VARCHAR(255),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_category (
+                id BIGSERIAL PRIMARY KEY,
+                name VARCHAR(128) NOT NULL UNIQUE,
+                source VARCHAR(32) NOT NULL DEFAULT 'SYSTEM',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_tag (
+                id BIGSERIAL PRIMARY KEY,
+                name VARCHAR(128) NOT NULL UNIQUE,
+                source VARCHAR(32) NOT NULL DEFAULT 'SYSTEM',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_tag_binding (
+                id BIGSERIAL PRIMARY KEY,
+                document_id BIGINT NOT NULL REFERENCES knowledge_document(id) ON DELETE CASCADE,
+                tag_id BIGINT NOT NULL REFERENCES document_tag(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_document_tag_binding_doc_tag ON document_tag_binding(document_id, tag_id);
+
+            CREATE TABLE IF NOT EXISTS document_review_request (
+                id BIGSERIAL PRIMARY KEY,
+                request_code VARCHAR(64) NOT NULL UNIQUE,
+                source_document_id BIGINT REFERENCES knowledge_document(id),
+                title VARCHAR(128) NOT NULL,
+                source_filename VARCHAR(256) NOT NULL,
+                uploader_type VARCHAR(32) NOT NULL DEFAULT 'ADMIN',
+                uploader_user_id BIGINT,
+                visibility_type VARCHAR(16) NOT NULL DEFAULT 'PUBLIC',
+                status VARCHAR(24) NOT NULL,
+                stage VARCHAR(64) NOT NULL DEFAULT 'CREATED',
+                progress_percent INTEGER NOT NULL DEFAULT 0,
+                source_markdown TEXT NOT NULL DEFAULT '',
+                normalized_markdown_path VARCHAR(512),
+                extension_json TEXT NOT NULL DEFAULT '{}',
+                vector_config_json TEXT NOT NULL DEFAULT '{}',
+                suggested_category_name VARCHAR(128),
+                suggested_tags_json TEXT NOT NULL DEFAULT '[]',
+                selected_category_name VARCHAR(128),
+                selected_tags_json TEXT NOT NULL DEFAULT '[]',
+                taxonomy_reasoning TEXT,
+                review_reason TEXT,
+                reviewed_by_user_id BIGINT,
+                reviewed_at TIMESTAMPTZ,
+                error_message TEXT,
+                published_document_id BIGINT REFERENCES knowledge_document(id),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_review_asset (
+                id BIGSERIAL PRIMARY KEY,
+                review_request_id BIGINT NOT NULL REFERENCES document_review_request(id) ON DELETE CASCADE,
+                original_path VARCHAR(512) NOT NULL,
+                stored_url VARCHAR(512) NOT NULL,
+                provider VARCHAR(32) NOT NULL DEFAULT 'local',
+                object_key VARCHAR(512),
+                content_type VARCHAR(128),
+                content_length BIGINT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_review_chunk (
+                id BIGSERIAL PRIMARY KEY,
+                review_request_id BIGINT NOT NULL REFERENCES document_review_request(id) ON DELETE CASCADE,
+                chunk_index INTEGER NOT NULL,
+                heading_path VARCHAR(512) NOT NULL,
+                anchor VARCHAR(128) NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS document_index_rebuild_job (
+                id BIGSERIAL PRIMARY KEY,
+                job_code VARCHAR(64) NOT NULL UNIQUE,
+                status VARCHAR(24) NOT NULL,
+                triggered_by_user_id BIGINT,
+                source_vector_table VARCHAR(128) NOT NULL,
+                target_vector_table VARCHAR(128) NOT NULL,
+                detail_json TEXT NOT NULL DEFAULT '{}',
+                started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                finished_at TIMESTAMPTZ,
+                error_message TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_document_index_rebuild_running
+                ON document_index_rebuild_job(status)
+                WHERE status = 'RUNNING';
+
+            INSERT INTO admin_operator (username)
+            SELECT 'admin' WHERE NOT EXISTS (SELECT 1 FROM admin_operator WHERE username = 'admin');
+
+            INSERT INTO document_category (name, source)
+            SELECT '项目定义', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_category WHERE name = '项目定义');
+
+            INSERT INTO document_category (name, source)
+            SELECT 'Agent定义', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_category WHERE name = 'Agent定义');
+
+            INSERT INTO document_tag (name, source)
+            SELECT 'knowledge-box', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_tag WHERE name = 'knowledge-box');
+
+            INSERT INTO document_tag (name, source)
+            SELECT 'agent', 'SYSTEM'
+            WHERE NOT EXISTS (SELECT 1 FROM document_tag WHERE name = 'agent');
+
+            UPDATE knowledge_document
+            SET title = 'Knowledge Box 项目定义',
+                source_filename = 'knowledge-box-project-definition.md',
+                visibility_type = 'PUBLIC',
+                uploader_type = 'ADMIN',
+                uploader_user_id = (SELECT id FROM admin_operator WHERE username = 'admin'),
+                source_markdown = E'# Knowledge Box 项目定义\n\nKnowledge Box 是一个面向知识库问答和管理闭环的工程项目。\n',
+                extension_json = '{}',
+                vector_config_json = '{"embeddingModel":"text-embedding-v3","chunkSize":900}',
+                tags = '["knowledge-box"]'
+            WHERE id = 1;
+
+            UPDATE knowledge_document
+            SET title = 'Knowledge Box Agent 定义',
+                source_filename = 'knowledge-box-agent-definition.md',
+                visibility_type = 'AGENT_ONLY',
+                uploader_type = 'ADMIN',
+                uploader_user_id = (SELECT id FROM admin_operator WHERE username = 'admin'),
+                source_markdown = E'# Knowledge Box Agent 定义\n\n系统默认使用 ReActAgent 执行问答编排。\n',
+                extension_json = '{}',
+                vector_config_json = '{"embeddingModel":"text-embedding-v3","chunkSize":900}',
+                tags = '["agent"]'
+            WHERE id = 2;
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-010-reset-document-governance-sequences" author="codex">
+        <sql><![CDATA[
+            SELECT setval('admin_operator_id_seq', COALESCE((SELECT MAX(id) FROM admin_operator), 1), true);
+            SELECT setval('document_category_id_seq', COALESCE((SELECT MAX(id) FROM document_category), 1), true);
+            SELECT setval('document_tag_id_seq', COALESCE((SELECT MAX(id) FROM document_tag), 1), true);
+            SELECT setval('document_tag_binding_id_seq', COALESCE((SELECT MAX(id) FROM document_tag_binding), 1), true);
+            SELECT setval('document_review_request_id_seq', COALESCE((SELECT MAX(id) FROM document_review_request), 1), true);
+            SELECT setval('document_review_asset_id_seq', COALESCE((SELECT MAX(id) FROM document_review_asset), 1), true);
+            SELECT setval('document_review_chunk_id_seq', COALESCE((SELECT MAX(id) FROM document_review_chunk), 1), true);
+            SELECT setval('document_index_rebuild_job_id_seq', COALESCE((SELECT MAX(id) FROM document_index_rebuild_job), 1), true);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-011-fix-seeded-document-status" author="codex">
+        <sql><![CDATA[
+            UPDATE knowledge_document
+            SET status = 'READY'
+            WHERE status = 'PROCESSING'
+              AND source_filename IN (
+                'knowledge-box-project-definition.md',
+                'knowledge-box-agent-definition.md'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

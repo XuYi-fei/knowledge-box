@@ -1,0 +1,862 @@
+package com.knowledgebox.service.chat;
+
+import com.knowledgebox.api.*;
+import com.knowledgebox.common.ApiException;
+import com.knowledgebox.config.KnowledgeBoxProperties;
+import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.ModelCatalog;
+import com.knowledgebox.domain.agent.ModelType;
+import com.knowledgebox.domain.chat.ChatMessageStatus;
+import com.knowledgebox.domain.chat.ChatTurn;
+import com.knowledgebox.repository.AgentProfileVersionRepository;
+import com.knowledgebox.repository.ModelCatalogRepository;
+import io.agentscope.core.ReActAgent;
+import io.agentscope.core.agent.EventType;
+import io.agentscope.core.agent.StreamOptions;
+import io.agentscope.core.message.Msg;
+import io.agentscope.core.message.MsgRole;
+import io.agentscope.core.message.ThinkingBlock;
+import io.agentscope.core.message.ToolUseBlock;
+import io.agentscope.core.model.GenerateOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.IOException;
+import java.net.SocketException;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+@Service
+public class ChatOrchestrator {
+
+    private static final Logger log = LoggerFactory.getLogger(ChatOrchestrator.class);
+
+    private final KnowledgeBoxProperties properties;
+    private final AgentProfileVersionRepository agentProfileVersionRepository;
+    private final ModelCatalogRepository modelCatalogRepository;
+    private final ConversationMemoryService conversationMemoryService;
+    private final AgentTraceService agentTraceService;
+    private final KnowledgeBaseRetrievalService knowledgeBaseRetrievalService;
+    private final KnowledgeBaseSearchTool knowledgeBaseSearchTool;
+    private final ChatStreamBroker chatStreamBroker;
+    private final ChatModelFactory chatModelFactory;
+    private final KnowledgeBaseRoutingService routingService;
+    private final ChatStreamDeltaService chatStreamDeltaService;
+    private final AgentEventStreamService agentEventStreamService;
+    private final AssistantTurnAwaitService assistantTurnAwaitService;
+    private final ChatMessagePayloadService chatMessagePayloadService;
+    private final Map<String, RunningTaskControl> runningTasks = new ConcurrentHashMap<>();
+
+    public ChatOrchestrator(
+            KnowledgeBoxProperties properties,
+            AgentProfileVersionRepository agentProfileVersionRepository,
+            ModelCatalogRepository modelCatalogRepository,
+            ConversationMemoryService conversationMemoryService,
+            AgentTraceService agentTraceService,
+            KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
+            KnowledgeBaseSearchTool knowledgeBaseSearchTool,
+            ChatStreamBroker chatStreamBroker,
+            @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
+            @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
+    ) {
+        this.properties = properties;
+        this.agentProfileVersionRepository = agentProfileVersionRepository;
+        this.modelCatalogRepository = modelCatalogRepository;
+        this.conversationMemoryService = conversationMemoryService;
+        this.agentTraceService = agentTraceService;
+        this.knowledgeBaseRetrievalService = knowledgeBaseRetrievalService;
+        this.knowledgeBaseSearchTool = knowledgeBaseSearchTool;
+        this.chatStreamBroker = chatStreamBroker;
+        this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
+        this.routingService = new KnowledgeBaseRoutingService(properties, chatModelFactory);
+        this.chatStreamDeltaService = new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker);
+        this.agentEventStreamService = new AgentEventStreamService(chatStreamDeltaService);
+        this.assistantTurnAwaitService = new AssistantTurnAwaitService(conversationMemoryService);
+        this.chatMessagePayloadService = new ChatMessagePayloadService(conversationMemoryService);
+    }
+
+    public PublicChatOptionsView options() {
+        AgentProfileVersion profile = publishedProfile();
+        List<ModelCatalog> publicChatModels = modelCatalogRepository
+                .findAllByModelTypeAndEnabledTrueAndPublicSelectableTrueOrderByDisplayNameAsc(ModelType.CHAT);
+        String defaultChatModel = publicChatModels.stream()
+                .filter(modelCatalog -> Boolean.TRUE.equals(modelCatalog.getDefaultForPublic()))
+                .map(ModelCatalog::getCode)
+                .findFirst()
+                .orElse(null);
+
+        return new PublicChatOptionsView(
+                profile.getChatModel(),
+                defaultChatModel,
+                publicChatModels.stream()
+                        .map(modelCatalog -> new PublicChatModelOptionView(
+                                modelCatalog.getCode(),
+                                modelCatalog.getDisplayName(),
+                                modelCatalog.getProvider(),
+                                modelCatalog.getDescription()
+                        ))
+                        .toList()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserChatSessionSummaryView> sessions(Long userId) {
+        return conversationMemoryService.listSessions(userId);
+    }
+
+    @Transactional(readOnly = true)
+    public UserChatSessionDetailView sessionDetail(Long userId, String sessionId) {
+        return conversationMemoryService.sessionDetail(userId, sessionId);
+    }
+
+    @Transactional
+    public SseEmitter stream(Long userId, ChatMessageRequest request) {
+        AgentProfileVersion profile = publishedProfile();
+        String profileCode = profile.getProfile().getCode();
+        String chatModelCode = resolveChatModel(request.chatModel(), profile);
+        conversationMemoryService.ensureSession(
+                userId,
+                request.sessionId(),
+                profileCode,
+                chatModelCode,
+                request.query()
+        );
+        conversationMemoryService.appendUserMessage(userId, request.sessionId(), request.clientMessageId(), request.query());
+
+        ChatTurn assistantTurn = findAssistantTurn(userId, request.sessionId(), request.clientMessageId(), chatModelCode);
+        SseEmitter emitter = subscribe(userId, request.sessionId(), assistantTurn.getMessageCode());
+        startGenerationIfNeeded(new StreamTask(
+                userId,
+                request.sessionId(),
+                request.clientMessageId(),
+                request.query(),
+                assistantTurn.getMessageCode(),
+                profileCode,
+                profile,
+                chatModelCode
+        ));
+        return emitter;
+    }
+
+    public SseEmitter resume(Long userId, String sessionId, String messageId) {
+        ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
+        SseEmitter emitter = subscribe(sessionId, assistantTurn);
+        restartGenerationIfNeeded(userId, assistantTurn);
+        return emitter;
+    }
+
+    @Transactional
+    public void deleteSession(Long userId, String sessionId) {
+        cancelSessionTasks(userId, sessionId);
+        conversationMemoryService.deleteSession(userId, sessionId);
+    }
+
+    public ChatResponse answerLegacy(Long userId, com.knowledgebox.api.ChatRequest request) {
+        String sessionId = request.sessionId() == null || request.sessionId().isBlank()
+                ? java.util.UUID.randomUUID().toString()
+                : request.sessionId();
+        ChatMessageRequest messageRequest = new ChatMessageRequest(
+                sessionId,
+                request.clientTraceId() == null || request.clientTraceId().isBlank() ? java.util.UUID.randomUUID().toString() : request.clientTraceId(),
+                request.query(),
+                request.chatModel()
+        );
+        stream(userId, messageRequest);
+        ChatTurn assistantTurn = assistantTurnAwaitService.awaitTerminalAssistantTurn(
+                userId,
+                sessionId,
+                messageRequest.clientMessageId(),
+                this::sleep
+        );
+        return chatMessagePayloadService.toLegacyResponse(sessionId, assistantTurn);
+    }
+
+    private SseEmitter subscribe(Long userId, String sessionId, String messageId) {
+        ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
+        return subscribe(sessionId, assistantTurn);
+    }
+
+    private SseEmitter subscribe(String sessionId, ChatTurn assistantTurn) {
+        SseEmitter emitter = chatStreamBroker.subscribe(assistantTurn.getMessageCode());
+        if (shouldSendSnapshot(assistantTurn)) {
+            sendDirect(emitter, "snapshot", snapshotEvent("snapshot", sessionId, assistantTurn, ""));
+        }
+        if (assistantTurn.getStatus() == ChatMessageStatus.COMPLETED) {
+            sendDirect(emitter, "done", snapshotEvent("done", sessionId, assistantTurn, ""));
+            emitter.complete();
+        } else if (assistantTurn.getStatus() == ChatMessageStatus.FAILED) {
+            sendDirect(emitter, "error", snapshotEvent("error", sessionId, assistantTurn, ""));
+            emitter.complete();
+        }
+        return emitter;
+    }
+
+    private ChatTurn findAssistantTurn(Long userId, String sessionId, String clientMessageId, String chatModelCode) {
+        ChatTurn existingAssistantTurn = conversationMemoryService.findAssistantByClientMessageId(userId, sessionId, clientMessageId);
+        return existingAssistantTurn != null
+                ? existingAssistantTurn
+                : conversationMemoryService.createAssistantPlaceholder(userId, sessionId, chatModelCode);
+    }
+
+    private void startGenerationIfNeeded(StreamTask task) {
+        ChatTurn turn = conversationMemoryService.loadMessage(task.userId(), task.sessionId(), task.assistantMessageId());
+        if (turn.getStatus() == ChatMessageStatus.COMPLETED || turn.getStatus() == ChatMessageStatus.FAILED) {
+            return;
+        }
+        RunningTaskControl control = new RunningTaskControl(task.userId(), task.sessionId());
+        RunningTaskControl existing = runningTasks.putIfAbsent(task.assistantMessageId(), control);
+        if (existing != null) {
+            return;
+        }
+        Thread worker = Thread.ofVirtual()
+                .name("kb-chat-" + task.assistantMessageId())
+                .unstarted(() -> generate(task, control));
+        control.bind(worker);
+        worker.start();
+    }
+
+    private void generate(StreamTask task, RunningTaskControl control) {
+        List<String> reasoningSteps = new ArrayList<>();
+        StringBuilder answerBuilder = new StringBuilder();
+        try {
+            throwIfCancelled(control);
+            ChatExchangeContext.clear();
+            ChatExchangeContext.sessionCode(task.sessionId());
+            reasoningSteps.add("已接收用户问题，正在分析检索意图");
+            updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
+
+            List<ChatTurn> history = conversationMemoryService.history(task.userId(), task.sessionId(), properties.getChat().getHistoryTurns());
+            agentTraceService.trace(task.sessionId(), "REQUEST_RECEIVED", Map.of(
+                    "query", task.query(),
+                    "historyTurns", history.size(),
+                    "profile", task.profileCode(),
+                    "chatModel", task.chatModelCode()
+            ));
+
+            if (properties.getChat().isStubResponses()) {
+                ChatResponse stubbed = stubbedAnswer(task.sessionId(), task.profile(), task.query(), task.chatModelCode());
+                reasoningSteps.add("测试桩模式已完成检索，正在按流式方式输出答案");
+                chatStreamDeltaService.streamTextDelta(
+                        task,
+                        reasoningSteps,
+                        answerBuilder,
+                        stubbed.answer(),
+                        properties.getChat().getStreamDelay(),
+                        () -> throwIfCancelled(control)
+                );
+                throwIfCancelled(control);
+                finishSuccessfully(
+                        task,
+                        answerBuilder.toString(),
+                        reasoningSteps,
+                        stubbed.citations(),
+                        stubbed.toolCalls(),
+                        new java.util.EnumMap<>(EventType.class),
+                        new QueryRoutingDecision(
+                                true,
+                                "stub-mode",
+                                "stub-responses-enabled",
+                                "stub",
+                                resolveRoutingModel(task.profile()),
+                                null
+                        )
+                );
+                return;
+            }
+
+            reasoningSteps.add("已装载历史上下文，准备执行 ReAct Agent");
+            updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
+
+            QueryRoutingDecision routingDecision = routeQuery(task.query(), task.profile());
+            reasoningSteps.add("查询路由[" + routingDecision.source() + "]："
+                    + (routingDecision.enableKnowledgeBase() ? "启用知识库工具" : "跳过知识库工具"));
+            updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
+            agentTraceService.trace(task.sessionId(), "QUERY_ROUTED", Map.of(
+                    "query", task.query(),
+                    "enableKnowledgeBase", routingDecision.enableKnowledgeBase(),
+                    "matchedRule", routingDecision.matchedRule(),
+                    "reason", routingDecision.reason(),
+                    "source", routingDecision.source(),
+                    "routingModel", routingDecision.routingModel(),
+                    "routingModelOutput", routingDecision.routingModelOutput() == null ? "" : routingDecision.routingModelOutput()
+            ));
+
+            ReActAgent agent = createReActAgent(task.profile(), task.chatModelCode(), routingDecision.enableKnowledgeBase());
+            AgentStreamState streamState = new AgentStreamState();
+            agent.stream(toAgentScopeHistory(history), buildStreamOptions())
+                    .doOnNext(event -> {
+                        throwIfCancelled(control);
+                        agentEventStreamService.consumeAgentEvent(
+                                task,
+                                reasoningSteps,
+                                answerBuilder,
+                                streamState,
+                                event,
+                                this::updateProgress
+                        );
+                    })
+                    .blockLast();
+            throwIfCancelled(control);
+
+            if (answerBuilder.isEmpty() && streamState.finalMessage != null) {
+                String fallbackAnswer = streamState.finalMessage.getTextContent();
+                if (fallbackAnswer != null && !fallbackAnswer.isBlank()) {
+                    chatStreamDeltaService.streamTextDelta(
+                            task,
+                            reasoningSteps,
+                            answerBuilder,
+                            fallbackAnswer,
+                            Duration.ofMillis(12),
+                            () -> throwIfCancelled(control)
+                    );
+                }
+            }
+
+            List<String> toolCalls = ChatExchangeContext.toolCalls();
+            if (toolCalls.isEmpty()) {
+                toolCalls = !streamState.toolCalls.isEmpty()
+                        ? new ArrayList<>(streamState.toolCalls)
+                        : extractToolCalls(streamState.finalMessage);
+            }
+            List<RetrievedChunk> retrievedChunks = ChatExchangeContext.retrievals();
+            if (shouldRunFallbackRetrieval(routingDecision.enableKnowledgeBase(), retrievedChunks)) {
+                retrievedChunks = knowledgeBaseRetrievalService.search(task.query(), task.profile().getRetrievalTopK());
+            }
+            List<String> completedReasoningSteps = buildReasoningSteps(streamState.finalMessage, toolCalls, retrievedChunks);
+            reasoningSteps.clear();
+            reasoningSteps.addAll(completedReasoningSteps);
+            throwIfCancelled(control);
+            finishSuccessfully(
+                    task,
+                    answerBuilder.toString(),
+                    reasoningSteps,
+                    toCitations(retrievedChunks),
+                    toolCalls,
+                    streamState.eventTypeCounts,
+                    routingDecision
+            );
+        } catch (ChatGenerationCancelledException exception) {
+            log.info(
+                    "Chat generation was cancelled or message removed. userId={}, sessionId={}, assistantMessageId={}",
+                    task.userId(),
+                    task.sessionId(),
+                    task.assistantMessageId()
+            );
+            chatStreamBroker.complete(task.assistantMessageId());
+        } catch (Exception exception) {
+            if (isCancellationException(exception)) {
+                log.info(
+                        "Chat generation interrupted by cancellation. userId={}, sessionId={}, assistantMessageId={}",
+                        task.userId(),
+                        task.sessionId(),
+                        task.assistantMessageId()
+                );
+                chatStreamBroker.complete(task.assistantMessageId());
+                return;
+            }
+            if (isMessageMissing(exception)) {
+                log.info(
+                        "Chat generation stopped because target message/session no longer exists. userId={}, sessionId={}, assistantMessageId={}",
+                        task.userId(),
+                        task.sessionId(),
+                        task.assistantMessageId()
+                );
+                chatStreamBroker.complete(task.assistantMessageId());
+                return;
+            }
+            log.error(
+                    "Chat generation failed. userId={}, sessionId={}, assistantMessageId={}, chatModel={}",
+                    task.userId(),
+                    task.sessionId(),
+                    task.assistantMessageId(),
+                    task.chatModelCode(),
+                    exception
+            );
+            try {
+                conversationMemoryService.failAssistantMessage(
+                        task.userId(),
+                        task.sessionId(),
+                        task.assistantMessageId(),
+                        answerBuilder.toString(),
+                        reasoningSteps,
+                        "回答生成失败，请稍后重试"
+                );
+                chatStreamBroker.publish(
+                        task.assistantMessageId(),
+                        "error",
+                        new ChatStreamEvent(
+                                "error",
+                                task.sessionId(),
+                                task.assistantMessageId(),
+                                "",
+                                answerBuilder.toString(),
+                                List.copyOf(reasoningSteps),
+                                List.of(),
+                                List.of(),
+                                ChatMessageStatus.FAILED.name(),
+                                task.chatModelCode(),
+                                "回答生成失败，请稍后重试"
+                        )
+                );
+            } catch (Exception updateException) {
+                if (!isMessageMissing(updateException) && !isCancellationException(updateException)) {
+                    throw updateException;
+                }
+            }
+            chatStreamBroker.complete(task.assistantMessageId());
+        } finally {
+            runningTasks.remove(task.assistantMessageId());
+            ChatExchangeContext.clear();
+        }
+    }
+
+    private void finishSuccessfully(
+            StreamTask task,
+            String answer,
+            List<String> reasoningSteps,
+            List<ChatCitationView> citations,
+            List<String> toolCalls,
+            Map<EventType, Integer> eventTypeCounts,
+            QueryRoutingDecision routingDecision
+    ) {
+        conversationMemoryService.completeAssistantMessage(
+                task.userId(),
+                task.sessionId(),
+                task.assistantMessageId(),
+                answer,
+                reasoningSteps,
+                citations,
+                toolCalls
+        );
+        Map<String, Object> answerTracePayload = new LinkedHashMap<>();
+        answerTracePayload.put("toolCalls", toolCalls);
+        answerTracePayload.put("citations", citations.size());
+        answerTracePayload.put("routing", Map.of(
+                "enableKnowledgeBase", routingDecision.enableKnowledgeBase(),
+                "matchedRule", routingDecision.matchedRule(),
+                "reason", routingDecision.reason(),
+                "source", routingDecision.source(),
+                "routingModel", routingDecision.routingModel(),
+                "routingModelOutput", routingDecision.routingModelOutput() == null ? "" : routingDecision.routingModelOutput()
+        ));
+        answerTracePayload.put("eventTypeCounts", toEventTypeCountPayload(eventTypeCounts));
+        agentTraceService.trace(task.sessionId(), "ANSWER_COMPLETED", answerTracePayload);
+        chatStreamBroker.publish(
+                task.assistantMessageId(),
+                "done",
+                new ChatStreamEvent(
+                        "done",
+                        task.sessionId(),
+                        task.assistantMessageId(),
+                        "",
+                        answer,
+                        reasoningSteps,
+                        citations,
+                        toolCalls,
+                        ChatMessageStatus.COMPLETED.name(),
+                        task.chatModelCode(),
+                        null
+                )
+        );
+        chatStreamBroker.complete(task.assistantMessageId());
+    }
+
+    private void updateProgress(
+            StreamTask task,
+            List<String> reasoningSteps,
+            String fullContent,
+            String delta
+    ) {
+        conversationMemoryService.markAssistantStreaming(
+                task.userId(),
+                task.sessionId(),
+                task.assistantMessageId(),
+                fullContent,
+                reasoningSteps
+        );
+        chatStreamBroker.publish(
+                task.assistantMessageId(),
+                "message",
+                new ChatStreamEvent(
+                        "thinking",
+                        task.sessionId(),
+                        task.assistantMessageId(),
+                        delta,
+                        fullContent,
+                        List.copyOf(reasoningSteps),
+                        List.of(),
+                        List.of(),
+                        ChatMessageStatus.STREAMING.name(),
+                        task.chatModelCode(),
+                        null
+                )
+        );
+    }
+
+    private ChatStreamEvent snapshotEvent(String type, String sessionId, ChatTurn assistantTurn, String delta) {
+        ChatMessagePayload payload = chatMessagePayloadService.resolvePayload(assistantTurn);
+        return new ChatStreamEvent(
+                type,
+                sessionId,
+                assistantTurn.getMessageCode(),
+                delta,
+                assistantTurn.getContent(),
+                payload.reasoningSteps(),
+                payload.citations(),
+                payload.toolCalls(),
+                assistantTurn.getStatus().name(),
+                assistantTurn.getModelCode(),
+                assistantTurn.getErrorMessage()
+        );
+    }
+
+    private void sendDirect(SseEmitter emitter, String eventName, ChatStreamEvent event) {
+        try {
+            emitter.send(SseEmitter.event().name(eventName).data(event));
+        } catch (IOException exception) {
+            emitter.complete();
+        }
+    }
+
+    private boolean shouldSendSnapshot(ChatTurn assistantTurn) {
+        return assistantTurn.getStatus() != ChatMessageStatus.PENDING
+                || (assistantTurn.getContent() != null && !assistantTurn.getContent().isBlank())
+                || (assistantTurn.getReasoningStepsJson() != null && !assistantTurn.getReasoningStepsJson().isBlank())
+                || (assistantTurn.getErrorMessage() != null && !assistantTurn.getErrorMessage().isBlank());
+    }
+
+    private void restartGenerationIfNeeded(Long userId, ChatTurn assistantTurn) {
+        if (assistantTurn.getStatus() != ChatMessageStatus.PENDING && assistantTurn.getStatus() != ChatMessageStatus.STREAMING) {
+            return;
+        }
+        AgentProfileVersion profile = publishedProfile();
+        String query = conversationMemoryService.findUserQueryForAssistantMessage(
+                userId,
+                assistantTurn.getSessionCode(),
+                assistantTurn.getMessageCode()
+        );
+        if (query == null || query.isBlank()) {
+            log.warn(
+                    "Skip restarting assistant stream because user query cannot be found. userId={}, sessionId={}, assistantMessageId={}",
+                    userId,
+                    assistantTurn.getSessionCode(),
+                    assistantTurn.getMessageCode()
+            );
+            return;
+        }
+        String chatModelCode = assistantTurn.getModelCode() == null || assistantTurn.getModelCode().isBlank()
+                ? profile.getChatModel()
+                : assistantTurn.getModelCode();
+        startGenerationIfNeeded(new StreamTask(
+                userId,
+                assistantTurn.getSessionCode(),
+                "resume-" + assistantTurn.getMessageCode(),
+                query,
+                assistantTurn.getMessageCode(),
+                profile.getProfile().getCode(),
+                profile,
+                chatModelCode
+        ));
+    }
+
+    private void cancelSessionTasks(Long userId, String sessionId) {
+        conversationMemoryService.listActiveAssistantMessageCodes(userId, sessionId)
+                .forEach(this::cancelMessageTask);
+        runningTasks.entrySet().stream()
+                .filter(entry -> userId.equals(entry.getValue().userId()) && sessionId.equals(entry.getValue().sessionId()))
+                .map(Map.Entry::getKey)
+                .toList()
+                .forEach(this::cancelMessageTask);
+    }
+
+    private void cancelMessageTask(String messageId) {
+        RunningTaskControl control = runningTasks.get(messageId);
+        if (control == null) {
+            chatStreamBroker.complete(messageId);
+            return;
+        }
+        control.cancel();
+        Thread worker = control.worker();
+        if (worker != null) {
+            worker.interrupt();
+        }
+        chatStreamBroker.complete(messageId);
+    }
+
+    private void throwIfCancelled(RunningTaskControl control) {
+        if (control.isCancelled() || Thread.currentThread().isInterrupted()) {
+            throw new ChatGenerationCancelledException();
+        }
+    }
+
+    private boolean isMessageMissing(Throwable throwable) {
+        if (!(throwable instanceof ApiException apiException)) {
+            return false;
+        }
+        return "MESSAGE_NOT_FOUND".equals(apiException.getCode()) || "SESSION_NOT_FOUND".equals(apiException.getCode());
+    }
+
+    private boolean isCancellationException(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ChatGenerationCancelledException
+                    || current instanceof InterruptedException
+                    || current instanceof CancellationException) {
+                return true;
+            }
+            if (current instanceof SocketException socketException) {
+                String message = socketException.getMessage();
+                if (message != null && message.toLowerCase().contains("interrupt")) {
+                    return true;
+                }
+            }
+            if (current == current.getCause()) {
+                break;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private List<String> buildReasoningSteps(Msg response, List<String> toolCalls, List<RetrievedChunk> retrievedChunks) {
+        List<String> reasoningSteps = new ArrayList<>();
+        reasoningSteps.add("已分析问题并构建回答计划");
+        String thinkingSummary = extractThinkingSummary(response);
+        if (!thinkingSummary.isBlank()) {
+            reasoningSteps.add("模型思考摘要：" + thinkingSummary);
+        }
+        if (!toolCalls.isEmpty()) {
+            reasoningSteps.add("已调用工具：" + String.join("、", toolCalls));
+        }
+        if (!retrievedChunks.isEmpty()) {
+            reasoningSteps.add("已检索到 " + retrievedChunks.size() + " 条知识片段并用于生成答案");
+        } else {
+            reasoningSteps.add("未命中知识片段，答案基于当前可用上下文生成");
+        }
+        return reasoningSteps;
+    }
+
+    private StreamOptions buildStreamOptions() {
+        return StreamOptions.builder()
+                .eventTypes(EventType.ALL, EventType.AGENT_RESULT)
+                .incremental(true)
+                .includeReasoningChunk(true)
+                .includeReasoningResult(false)
+                .includeActingChunk(true)
+                .includeSummaryChunk(true)
+                .includeSummaryResult(false)
+                .build();
+    }
+
+    private List<String> extractToolCalls(Msg response) {
+        if (response == null) {
+            return List.of();
+        }
+        List<ToolUseBlock> toolUseBlocks = response.getContentBlocks(ToolUseBlock.class);
+        if (toolUseBlocks.isEmpty()) {
+            return List.of();
+        }
+        return toolUseBlocks.stream()
+                .map(ToolUseBlock::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private String extractThinkingSummary(Msg response) {
+        if (response == null) {
+            return "";
+        }
+        List<ThinkingBlock> thinkingBlocks = response.getContentBlocks(ThinkingBlock.class);
+        if (thinkingBlocks.isEmpty()) {
+            return "";
+        }
+        StringBuilder summaryBuilder = new StringBuilder();
+        for (ThinkingBlock block : thinkingBlocks) {
+            String thinking = block.getThinking();
+            if (thinking == null || thinking.isBlank()) {
+                continue;
+            }
+            if (summaryBuilder.length() > 0) {
+                summaryBuilder.append(' ');
+            }
+            summaryBuilder.append(thinking.strip());
+            if (summaryBuilder.length() >= 120) {
+                break;
+            }
+        }
+        String summary = summaryBuilder.toString().trim();
+        if (summary.length() <= 120) {
+            return summary;
+        }
+        return summary.substring(0, 120) + "...";
+    }
+
+
+    private AgentProfileVersion publishedProfile() {
+        return agentProfileVersionRepository.findFirstByPublishedTrueOrderByUpdatedAtDesc()
+                .orElseThrow(() -> new IllegalStateException("No published agent profile version found"));
+    }
+
+    private String resolveChatModel(String requestedChatModel, AgentProfileVersion profile) {
+        if (requestedChatModel == null || requestedChatModel.isBlank()) {
+            return profile.getChatModel();
+        }
+        return modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrueAndPublicSelectableTrue(
+                        requestedChatModel.trim(),
+                        ModelType.CHAT
+                )
+                .map(ModelCatalog::getCode)
+                .orElseThrow(() -> new IllegalArgumentException("Publicly selectable chat model not found: " + requestedChatModel));
+    }
+
+    private ReActAgent createReActAgent(AgentProfileVersion profile, String chatModelCode, boolean enableKnowledgeBaseTool) {
+        return chatModelFactory.createReActAgent(
+                profile,
+                chatModelCode,
+                enableKnowledgeBaseTool,
+                knowledgeBaseSearchTool
+        );
+    }
+
+    private List<Msg> toAgentScopeHistory(List<ChatTurn> history) {
+        List<Msg> messages = new ArrayList<>();
+        for (ChatTurn turn : history) {
+            MsgRole role = switch (turn.getRole()) {
+                case "user" -> MsgRole.USER;
+                case "assistant" -> MsgRole.ASSISTANT;
+                default -> null;
+            };
+            if (role == null) {
+                continue;
+            }
+            messages.add(Msg.builder()
+                    .role(role)
+                    .textContent(turn.getContent() == null ? "" : turn.getContent())
+                    .build());
+        }
+        return messages;
+    }
+
+    private ChatResponse stubbedAnswer(String sessionId, AgentProfileVersion profile, String query, String chatModelCode) {
+        List<RetrievedChunk> retrievedChunks = knowledgeBaseRetrievalService.search(query, profile.getRetrievalTopK());
+        List<String> toolCalls = retrievedChunks.isEmpty() ? List.of() : List.of("searchKnowledgeBase");
+        String answer;
+        if (retrievedChunks.isEmpty()) {
+            answer = "当前测试模式未检索到匹配知识片段，因此无法给出基于知识库的正式回答。";
+        } else {
+            StringBuilder builder = new StringBuilder("当前运行在测试桩模式，但检索链路已生效。命中的知识片段如下：\n");
+            for (RetrievedChunk chunk : retrievedChunks) {
+                builder.append("- ")
+                        .append(chunk.documentTitle())
+                        .append(" / ")
+                        .append(chunk.headingPath())
+                        .append("：")
+                        .append(chunk.snippet())
+                        .append('\n');
+            }
+            answer = builder.toString().trim();
+        }
+        return new ChatResponse(sessionId, answer, toCitations(retrievedChunks), toolCalls, chatModelCode);
+    }
+
+    private List<ChatCitationView> toCitations(List<RetrievedChunk> chunks) {
+        return chunks.stream()
+                .filter(RetrievedChunk::publicVisible)
+                .map(chunk -> new ChatCitationView(
+                        chunk.documentId(),
+                        chunk.documentTitle(),
+                        chunk.headingPath(),
+                        chunk.anchor(),
+                        chunk.snippet()
+                ))
+                .toList();
+    }
+
+    private QueryRoutingDecision routeQuery(String query, AgentProfileVersion profile) {
+        return routingService.routeQuery(query, profile, this::invokeRoutingModel);
+    }
+
+    private String resolveRoutingModel(AgentProfileVersion profile) {
+        return routingService.resolveRoutingModel(profile);
+    }
+
+    protected String invokeRoutingModel(String query, String routingModelCode) {
+        return routingService.invokeRoutingModel(query, routingModelCode);
+    }
+
+    private GenerateOptions buildRoutingClassifierGenerateOptions(String routingModelCode) {
+        return routingService.buildRoutingClassifierGenerateOptions(routingModelCode);
+    }
+
+    private Map<String, Integer> toEventTypeCountPayload(Map<EventType, Integer> eventTypeCounts) {
+        Map<String, Integer> payload = new LinkedHashMap<>();
+        for (EventType eventType : EventType.values()) {
+            payload.put(eventType.name(), eventTypeCounts.getOrDefault(eventType, 0));
+        }
+        return payload;
+    }
+
+    private boolean shouldRunFallbackRetrieval(boolean enableKnowledgeBase, List<RetrievedChunk> retrievedChunks) {
+        return enableKnowledgeBase && (retrievedChunks == null || retrievedChunks.isEmpty());
+    }
+
+    private void sleep(Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new ChatGenerationCancelledException();
+        }
+    }
+
+    private static final class ChatGenerationCancelledException extends RuntimeException {
+    }
+
+    private static final class RunningTaskControl {
+        private final Long userId;
+        private final String sessionId;
+        private final AtomicBoolean cancelled = new AtomicBoolean(false);
+        private volatile Thread worker;
+
+        private RunningTaskControl(Long userId, String sessionId) {
+            this.userId = userId;
+            this.sessionId = sessionId;
+        }
+
+        private void bind(Thread worker) {
+            this.worker = worker;
+        }
+
+        private void cancel() {
+            this.cancelled.set(true);
+        }
+
+        private boolean isCancelled() {
+            return cancelled.get();
+        }
+
+        private Long userId() {
+            return userId;
+        }
+
+        private String sessionId() {
+            return sessionId;
+        }
+
+        private Thread worker() {
+            return worker;
+        }
+    }
+
+}

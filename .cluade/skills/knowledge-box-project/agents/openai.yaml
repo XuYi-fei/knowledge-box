@@ -1,0 +1,7 @@
+interface:
+  display_name: "Knowledge Box Project"
+  short_description: "Read repo rules and progress before changing Knowledge Box"
+  default_prompt: "Use $knowledge-box-project before working in this repository so you read rule.md, progress.md, and update project status after changes."
+
+policy:
+  allow_implicit_invocation: true

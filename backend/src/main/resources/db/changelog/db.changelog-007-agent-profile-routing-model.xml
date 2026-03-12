@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="007-001-add-agent-profile-routing-model" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS routing_model VARCHAR(64);
+
+            UPDATE agent_profile_version
+            SET routing_model = COALESCE(NULLIF(TRIM(chat_model), ''), 'qwen-plus')
+            WHERE routing_model IS NULL OR TRIM(routing_model) = '';
+
+            ALTER TABLE agent_profile_version
+                ALTER COLUMN routing_model SET NOT NULL;
+
+            ALTER TABLE agent_profile_version
+                ALTER COLUMN routing_model SET DEFAULT 'qwen-plus';
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="016-001-about-release-note-yuque-migration-script" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.12',
+                '新增语雀文档迁移脚本（导出/转存图片/初始化审核）',
+                '支持从语雀单文档导出 Markdown，转存图片到 Knowledge Box，并创建文档审核单。',
+                E'## 本次更新\n\n- 新增 `scripts/yuque_kb_migrate.py`，支持 `export-md/rehost-images/init-review`\n- 图片迁移走 `POST /api/admin/documents/paste-image`，可校验 provider 为 `oss`\n- 初始化导入默认进入审核流并等待 `PENDING_REVIEW`，不自动发布',
+                TIMESTAMPTZ '2026-03-12 20:45:00+08',
+                -3,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM about_release_note
+                WHERE version_label = '2026.03.12'
+                  AND title = '新增语雀文档迁移脚本（导出/转存图片/初始化审核）'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

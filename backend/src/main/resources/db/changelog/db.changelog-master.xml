@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <include file="db/changelog/db.changelog-001-init.xml"/>
+    <include file="db/changelog/db.changelog-002-chat-rag.xml"/>
+    <include file="db/changelog/db.changelog-003-model-catalog.xml"/>
+    <include file="db/changelog/db.changelog-004-public-chat-models.xml"/>
+    <include file="db/changelog/db.changelog-005-user-auth-chat.xml"/>
+    <include file="db/changelog/db.changelog-006-user-password-mode.xml"/>
+    <include file="db/changelog/db.changelog-007-agent-profile-routing-model.xml"/>
+    <include file="db/changelog/db.changelog-008-about-release-notes.xml"/>
+    <include file="db/changelog/db.changelog-009-chat-autoscroll-release-note.xml"/>
+    <include file="db/changelog/db.changelog-010-document-governance.xml"/>
+    <include file="db/changelog/db.changelog-011-document-governance-release-note.xml"/>
+    <include file="db/changelog/db.changelog-012-document-governance-bugfix.xml"/>
+    <include file="db/changelog/db.changelog-013-fill-upload-and-paste-image-release-note.xml"/>
+    <include file="db/changelog/db.changelog-014-yuque-skill-release-note.xml"/>
+    <include file="db/changelog/db.changelog-015-yuque-script-release-note.xml"/>
+    <include file="db/changelog/db.changelog-016-yuque-migration-script-release-note.xml"/>
+    <include file="db/changelog/db.changelog-017-bootstrap-seed-import-release-note.xml"/>
+    <include file="db/changelog/db.changelog-018-admin-password-management.xml"/>
+    <include file="db/changelog/db.changelog-019-admin-password-management-release-note.xml"/>
+</databaseChangeLog>

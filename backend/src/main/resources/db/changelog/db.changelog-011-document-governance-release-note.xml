@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="011-001-about-release-note-document-governance" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03',
+                '知识文档审核流与分类标签治理',
+                '文档管理升级为“上传/编辑 -> 审核 -> 发布”闭环，并支持分类标签建议与索引重建。',
+                E'## 本次更新\n\n- 文档管理支持上传者、可见性、扩展字段、源 Markdown 编辑\n- 新增审核请求页，上传/编辑后先进入审核再发布\n- 分类与标签通过独立 Agent 生成建议，审核可调整后生效\n- 新增异步全量重建索引，完成后原子切换索引表',
+                TIMESTAMPTZ '2026-03-11 21:00:00+08',
+                -1,
+                TRUE
+            WHERE NOT EXISTS (
+                SELECT 1 FROM about_release_note
+                WHERE version_label = '2026.03'
+                  AND title = '知识文档审核流与分类标签治理'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

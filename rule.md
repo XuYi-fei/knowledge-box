@@ -33,8 +33,7 @@
 - Backend startup now requires explicit `knowledge-box.admin.password` and `knowledge-box.auth.jwt-secret`.
 - Redis, SMTP, and CORS are expected to be configuration-driven rather than fixed in source.
 - QQ 邮箱发送验证码时，`spring.mail.password` 必须填 SMTP 授权码，不是网页登录密码。
-- PostgreSQL 集成测试依赖本机 PostgreSQL 与 `pgvector` 扩展可用。
-- PostgreSQL 集成测试默认连接 `postgres` 数据库，且 `vector` 扩展应位于 `public` schema；若扩展被装进历史临时 schema，新的测试 schema 会报 `type "vector" does not exist`。
+- PostgreSQL 集成测试依赖本机 PostgreSQL 与 `pgvector` 扩展可用；测试默认连接 `postgres` 数据库，且 `vector` 扩展应位于 `public` schema，避免新测试 schema 报 `type "vector" does not exist`。
 - AgentScope 的 `@ToolParam` 注解必须显式提供 `name`，否则会在编译期报错。
 - AgentScope 事件消费在 `switch` 中需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`，避免版本升级后被默认分支静默忽略。
 - AgentScope 1.0.9 的 DashScope 原生端点自动路由对 `qwen3.5-*` 覆盖不完整，相关模型需走 `knowledge-box.chat.dashscope-compatible.*` 兼容端点策略。
@@ -56,4 +55,3 @@
 - 对带唯一键的“绑定表”执行同事务“删除旧绑定+插入新绑定”时，优先使用 JPQL bulk delete（`@Modifying @Query`）或显式 flush，避免 Hibernate 写入顺序触发唯一键冲突。
 - 后端已拆分为 `backend-app/service/repository/domain` 多模块；日常编译/测试/启动建议以 `backend/backend-app` 为目标模块并加 `-am` 联动依赖模块。
 - 前端健康探测不要直接依赖 `/actuator/health` 聚合状态；邮件等依赖异常会误报 `DOWN`。优先使用业务可用性端点 `/api/public/system/availability`。
-- PostgreSQL 集成测试若使用 `currentSchema=<schema>,public`，需确保 `pgvector` 扩展位于 `public` schema；若扩展残留在临时 schema，会报 `type "vector" does not exist`。

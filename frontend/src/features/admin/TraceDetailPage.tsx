@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Card, Descriptions, Empty, List, Space, Spin, Tag, Timeline, Typography } from 'antd';
+import { Alert, Card, Collapse, Descriptions, Empty, List, Space, Spin, Tag, Typography } from 'antd';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { AgentExecutionEvent, AgentExecutionSpan } from '../../lib/types';
 import { buildErrorSummary } from '../../lib/errors';
+import { AgentExecutionEvent, AgentExecutionSpan } from '../../lib/types';
 
 function formatDateTime(value?: string | null) {
   if (!value) {
@@ -35,35 +35,51 @@ function parseJsonText(value?: string | null) {
   }
 }
 
+function statusColor(status?: string | null) {
+  if (status === 'COMPLETED') {
+    return 'green';
+  }
+  if (status === 'FAILED') {
+    return 'red';
+  }
+  if (status === 'CANCELLED') {
+    return 'orange';
+  }
+  return 'processing';
+}
+
 function JsonBlock({ title, value }: { title: string; value?: string | null }) {
   if (!value || !value.trim()) {
     return null;
   }
   return (
-    <div>
+    <div className="trace-detail-json-block">
       <Typography.Text strong>{title}</Typography.Text>
-      <pre style={{ margin: '8px 0 0', padding: 12, background: '#f6f8fa', borderRadius: 8, overflowX: 'auto' }}>{parseJsonText(value)}</pre>
+      <pre className="trace-detail-json-pre">{parseJsonText(value)}</pre>
     </div>
   );
 }
 
 function EventList({ events }: { events: AgentExecutionEvent[] }) {
   if (!events.length) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该 span 暂无事件" />;
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="该步骤暂无事件" />;
   }
   return (
     <List
       size="small"
+      className="trace-detail-event-list"
       dataSource={events}
       renderItem={(event) => (
-        <List.Item>
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
-            <Space wrap>
-              <Tag color="blue">#{event.sequenceNo}</Tag>
-              <Tag>{event.eventType ?? 'UNKNOWN'}</Tag>
-              <Typography.Text type="secondary">{formatDateTime(event.occurredAt)}</Typography.Text>
-            </Space>
-            <pre style={{ margin: 0, padding: 12, background: '#f6f8fa', borderRadius: 8, overflowX: 'auto' }}>{parseJsonText(event.payloadJson)}</pre>
+        <List.Item className="trace-detail-event-item">
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+            <div className="trace-detail-event-meta">
+              <Space wrap>
+                <Tag color="blue">#{event.sequenceNo}</Tag>
+                <Tag>{event.eventType ?? 'UNKNOWN'}</Tag>
+                <Typography.Text type="secondary">{formatDateTime(event.occurredAt)}</Typography.Text>
+              </Space>
+            </div>
+            <pre className="trace-detail-json-pre">{parseJsonText(event.payloadJson)}</pre>
           </Space>
         </List.Item>
       )}
@@ -71,40 +87,96 @@ function EventList({ events }: { events: AgentExecutionEvent[] }) {
   );
 }
 
-function SpanCard({ span, events }: { span: AgentExecutionSpan; events: AgentExecutionEvent[] }) {
+function StepHeader({
+  title,
+  subtitle,
+  status,
+  stepNo,
+  durationMs,
+  startedAt,
+  eventCount,
+  extraTag,
+}: {
+  title: string;
+  subtitle?: string;
+  status?: string | null;
+  stepNo: number | string;
+  durationMs?: number | null;
+  startedAt?: string | null;
+  eventCount: number;
+  extraTag?: string;
+}) {
   return (
-    <Card
-      size="small"
-      title={
+    <div className="trace-step-header">
+      <div className="trace-step-header-main">
         <Space wrap>
-          <span>{span.spanName ?? span.spanId}</span>
-          <Tag>{span.spanType}</Tag>
-          <Tag color={span.status === 'COMPLETED' ? 'green' : span.status === 'FAILED' ? 'red' : span.status === 'CANCELLED' ? 'orange' : 'processing'}>
-            {span.status}
-          </Tag>
+          <Tag color="blue">步骤 {stepNo}</Tag>
+          {extraTag ? <Tag>{extraTag}</Tag> : null}
+          <Tag color={statusColor(status)}>{status ?? 'UNKNOWN'}</Tag>
+          <Typography.Text strong>{title}</Typography.Text>
         </Space>
-      }
-    >
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Descriptions size="small" column={2} bordered>
-          <Descriptions.Item label="spanId">{span.spanId}</Descriptions.Item>
-          <Descriptions.Item label="parentSpanId">{span.parentSpanId || '-'}</Descriptions.Item>
-          <Descriptions.Item label="顺序">#{span.sequenceNo}</Descriptions.Item>
-          <Descriptions.Item label="attempt">{span.attemptNo}</Descriptions.Item>
-          <Descriptions.Item label="开始时间">{formatDateTime(span.startedAt)}</Descriptions.Item>
-          <Descriptions.Item label="结束时间">{formatDateTime(span.endedAt)}</Descriptions.Item>
-          <Descriptions.Item label="耗时">{formatDuration(span.durationMs)}</Descriptions.Item>
-          <Descriptions.Item label="事件数">{events.length}</Descriptions.Item>
-        </Descriptions>
-        <JsonBlock title="Input" value={span.inputJson} />
-        <JsonBlock title="Output" value={span.outputJson} />
-        <JsonBlock title="Tags" value={span.tagsJson} />
-        <JsonBlock title="Error" value={span.errorJson} />
-        <div>
-          <Typography.Text strong>Events</Typography.Text>
-          <EventList events={events} />
-        </div>
-      </Space>
+        {subtitle ? (
+          <Typography.Text type="secondary" className="trace-step-header-subtitle">
+            {subtitle}
+          </Typography.Text>
+        ) : null}
+      </div>
+      <div className="trace-step-header-meta">
+        <span>{formatDuration(durationMs)}</span>
+        <span>{formatDateTime(startedAt)}</span>
+        <span>{eventCount} events</span>
+      </div>
+    </div>
+  );
+}
+
+function SpanPanelBody({ span, events }: { span: AgentExecutionSpan; events: AgentExecutionEvent[] }) {
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Descriptions size="small" column={2} bordered>
+        <Descriptions.Item label="spanId">{span.spanId}</Descriptions.Item>
+        <Descriptions.Item label="parentSpanId">{span.parentSpanId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="顺序">#{span.sequenceNo}</Descriptions.Item>
+        <Descriptions.Item label="attempt">{span.attemptNo}</Descriptions.Item>
+        <Descriptions.Item label="开始时间">{formatDateTime(span.startedAt)}</Descriptions.Item>
+        <Descriptions.Item label="结束时间">{formatDateTime(span.endedAt)}</Descriptions.Item>
+        <Descriptions.Item label="耗时">{formatDuration(span.durationMs)}</Descriptions.Item>
+        <Descriptions.Item label="事件数">{events.length}</Descriptions.Item>
+      </Descriptions>
+      <JsonBlock title="Input" value={span.inputJson} />
+      <JsonBlock title="Output" value={span.outputJson} />
+      <JsonBlock title="Tags" value={span.tagsJson} />
+      <JsonBlock title="Error" value={span.errorJson} />
+      <div>
+        <Typography.Text strong>Events</Typography.Text>
+        <EventList events={events} />
+      </div>
+    </Space>
+  );
+}
+
+function StepCard({
+  panelKey,
+  header,
+  children,
+}: {
+  panelKey: string;
+  header: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="trace-step-card" bodyStyle={{ padding: 0 }}>
+      <Collapse
+        ghost
+        defaultActiveKey={[]}
+        items={[
+          {
+            key: panelKey,
+            label: header,
+            children: <div className="trace-step-body">{children}</div>,
+          },
+        ]}
+      />
     </Card>
   );
 }
@@ -118,6 +190,8 @@ export function TraceDetailPage() {
     enabled: Boolean(traceId),
   });
 
+  const spanIds = useMemo(() => new Set((traceQuery.data?.spans ?? []).map((span) => span.spanId)), [traceQuery.data?.spans]);
+
   const eventsBySpan = useMemo(() => {
     const next = new Map<string, AgentExecutionEvent[]>();
     for (const event of traceQuery.data?.events ?? []) {
@@ -129,8 +203,20 @@ export function TraceDetailPage() {
     return next;
   }, [traceQuery.data?.events]);
 
+  const orphanEvents = useMemo(
+    () =>
+      (traceQuery.data?.events ?? [])
+        .filter((event) => !event.spanId || !spanIds.has(event.spanId))
+        .sort((left, right) => left.sequenceNo - right.sequenceNo),
+    [spanIds, traceQuery.data?.events],
+  );
+
   if (traceQuery.isLoading) {
-    return <div style={{ minHeight: 240, display: 'grid', placeItems: 'center' }}><Spin size="large" /></div>;
+    return (
+      <div style={{ minHeight: 240, display: 'grid', placeItems: 'center' }}>
+        <Spin size="large" />
+      </div>
+    );
   }
 
   if (traceQuery.isError || !traceQuery.data) {
@@ -138,6 +224,7 @@ export function TraceDetailPage() {
   }
 
   const { trace, spans } = traceQuery.data;
+  const orderedSpans = [...spans].sort((left, right) => left.sequenceNo - right.sequenceNo);
 
   return (
     <div className="page-stack">
@@ -145,13 +232,13 @@ export function TraceDetailPage() {
         <Space>
           <Link to="/admin/traces">返回运行追踪</Link>
         </Space>
-        <Typography.Title level={3} style={{ marginBottom: 0 }}>Trace 详情</Typography.Title>
+        <Typography.Title level={3} style={{ marginBottom: 0 }}>
+          Trace 详情
+        </Typography.Title>
         <Card title={trace.traceId}>
           <Descriptions column={2} bordered size="small">
             <Descriptions.Item label="状态">
-              <Tag color={trace.status === 'COMPLETED' ? 'green' : trace.status === 'FAILED' ? 'red' : trace.status === 'CANCELLED' ? 'orange' : 'processing'}>
-                {trace.status}
-              </Tag>
+              <Tag color={statusColor(trace.status)}>{trace.status}</Tag>
             </Descriptions.Item>
             <Descriptions.Item label="耗时">{formatDuration(trace.durationMs)}</Descriptions.Item>
             <Descriptions.Item label="用户 ID">{trace.userId ?? '-'}</Descriptions.Item>
@@ -164,17 +251,57 @@ export function TraceDetailPage() {
             <Descriptions.Item label="结束时间">{formatDateTime(trace.endedAt)}</Descriptions.Item>
             <Descriptions.Item label="错误码">{trace.errorCode || '-'}</Descriptions.Item>
             <Descriptions.Item label="错误信息">{trace.errorMessage || '-'}</Descriptions.Item>
-            <Descriptions.Item label="请求摘要" span={2}>{trace.requestQueryMasked ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="请求摘要" span={2}>
+              {trace.requestQueryMasked ?? '-'}
+            </Descriptions.Item>
           </Descriptions>
         </Card>
         <Card title="执行时间线">
-          {spans.length ? (
-            <Timeline
-              items={spans.map((span) => ({
-                color: span.status === 'COMPLETED' ? 'green' : span.status === 'FAILED' ? 'red' : span.status === 'CANCELLED' ? 'orange' : 'blue',
-                children: <SpanCard span={span} events={eventsBySpan.get(span.spanId) ?? []} />,
-              }))}
-            />
+          {orderedSpans.length || orphanEvents.length ? (
+            <div className="trace-step-list">
+              {orderedSpans.map((span) => {
+                const events = (eventsBySpan.get(span.spanId) ?? []).sort((left, right) => left.sequenceNo - right.sequenceNo);
+                return (
+                  <StepCard
+                    key={span.spanId}
+                    panelKey={span.spanId}
+                    header={
+                      <StepHeader
+                        title={span.spanName ?? span.spanId}
+                        subtitle={span.parentSpanId ? `parent: ${span.parentSpanId}` : undefined}
+                        status={span.status}
+                        stepNo={span.sequenceNo}
+                        durationMs={span.durationMs}
+                        startedAt={span.startedAt}
+                        eventCount={events.length}
+                        extraTag={span.spanType}
+                      />
+                    }
+                  >
+                    <SpanPanelBody span={span} events={events} />
+                  </StepCard>
+                );
+              })}
+
+              {orphanEvents.length ? (
+                <StepCard
+                  panelKey="orphan-events"
+                  header={
+                    <StepHeader
+                      title="未绑定 Span 的事件"
+                      subtitle="这些事件没有对应的 spanId，通常表示链路异常或落库不完整。"
+                      status="UNKNOWN"
+                      stepNo="?"
+                      durationMs={null}
+                      startedAt={orphanEvents[0]?.occurredAt}
+                      eventCount={orphanEvents.length}
+                    />
+                  }
+                >
+                  <EventList events={orphanEvents} />
+                </StepCard>
+              ) : null}
+            </div>
           ) : (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前 trace 暂无 span 数据" />
           )}

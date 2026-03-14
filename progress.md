@@ -43,6 +43,7 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含登录页技术性 SMTP 提示移除与验证码失败文案收口）。
 - 前端验证：`npm --prefix frontend run build` 通过（含管理员 trace 列表页、详情页、筛选和时间线展示）。
 - 前端验证：`npm --prefix frontend run build` 通过（含公共对话页最小高度占满视口与备案 footer 固定在页面底部的布局修复）。
+- 前端验证：`npm --prefix frontend run build` 通过（含管理员 trace 详情页按步骤折叠卡片展示时间线，支持快速定位每个 span / orphan event）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过。
 - 后端打包验证：`mvn -q -pl backend/backend-app -am -DskipTests package` 通过。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 Agent execution trace 实体、服务、管理端查询接口与清理任务）。

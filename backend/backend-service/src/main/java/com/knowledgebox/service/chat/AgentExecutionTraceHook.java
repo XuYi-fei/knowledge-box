@@ -37,19 +37,19 @@ final class AgentExecutionTraceHook implements Hook {
                     traceContext,
                     traceContext.requestSpanId(),
                     "agent.call.start",
-                    Map.of("inputMessages", serializeMessages(preCallEvent.getInputMessages()))
+                    payload("inputMessages", serializeMessages(preCallEvent.getInputMessages()))
             );
             case PostCallEvent postCallEvent -> traceService.recordEvent(
                     traceContext,
                     traceContext.requestSpanId(),
                     "agent.call.end",
-                    Map.of("finalMessage", serializeMessage(postCallEvent.getFinalMessage()))
+                    payload("finalMessage", serializeMessage(postCallEvent.getFinalMessage()))
             );
             case PreReasoningEvent preReasoningEvent -> traceService.recordEvent(
                     traceContext,
                     traceContext.answerStreamSpanId(),
                     "prompt.injected",
-                    Map.of(
+                    payload(
                             "phase", "reasoning",
                             "modelName", preReasoningEvent.getModelName(),
                             "generateOptions", preReasoningEvent.getGenerateOptions(),
@@ -60,7 +60,7 @@ final class AgentExecutionTraceHook implements Hook {
                     traceContext,
                     traceContext.answerStreamSpanId(),
                     "prompt.injected",
-                    Map.of(
+                    payload(
                             "phase", "summary",
                             "modelName", preSummaryEvent.getModelName(),
                             "generateOptions", preSummaryEvent.getGenerateOptions(),
@@ -74,7 +74,7 @@ final class AgentExecutionTraceHook implements Hook {
                     traceContext,
                     resolveToolSpanId(actingChunkEvent.getToolUse()),
                     "tool.chunk",
-                    Map.of("chunk", serializeToolResult(actingChunkEvent.getChunk()))
+                    payload("chunk", serializeToolResult(actingChunkEvent.getChunk()))
             );
             case PostActingEvent postActingEvent -> finishToolSpan(postActingEvent);
             case ErrorEvent errorEvent -> traceService.recordEvent(
@@ -102,7 +102,7 @@ final class AgentExecutionTraceHook implements Hook {
                 "tool.call[" + toolIndex + "]",
                 com.knowledgebox.domain.chat.AgentExecutionSpanType.TOOL,
                 toolStartPayload(toolUse),
-                Map.of("toolIndex", toolIndex)
+                payload("toolIndex", toolIndex)
         );
         traceService.recordEvent(
                 traceContext,
@@ -128,7 +128,7 @@ final class AgentExecutionTraceHook implements Hook {
                 result != null && result.isSuspended()
                         ? com.knowledgebox.domain.chat.AgentExecutionStatus.CANCELLED
                         : com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
-                Map.of("toolResult", serializeToolResult(result)),
+                payload("toolResult", serializeToolResult(result)),
                 Map.of(),
                 null
         );
@@ -216,6 +216,14 @@ final class AgentExecutionTraceHook implements Hook {
         payload.put("toolName", toolUse == null ? null : toolUse.getName());
         payload.put("toolCallId", toolUse == null ? null : toolUse.getId());
         payload.put("toolResult", serializeToolResult(result));
+        return payload;
+    }
+
+    private Map<String, Object> payload(Object... keyValues) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        for (int index = 0; index < keyValues.length; index += 2) {
+            payload.put((String) keyValues[index], keyValues[index + 1]);
+        }
         return payload;
     }
 }

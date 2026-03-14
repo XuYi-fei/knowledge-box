@@ -29,6 +29,7 @@
   - 事件分支需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`
   - `DashScopeChatModel.enableThinking(false)` 时不要再设置 `thinkingBudget`
   - 动态注册 Tool/MCP 前先建 tool group
+  - Hook 事件里的 `generateOptions` 等字段可能为 `null`，trace/debug payload 不要直接用 `Map.of(...)`
 - 文档治理相关高频坑仍需注意：
   - 审核/生成异步线程要在 `afterCommit` 后启动
   - 标签绑定写入前要去重，删除旧绑定优先 bulk delete 或显式 flush
@@ -50,6 +51,7 @@
 - 后端全量测试：`mvn -q -pl backend/backend-app -am test` 通过（本机 PostgreSQL + pgvector 已就绪，含 `KnowledgeBoxPostgresIntegrationTests` 与 `KnowledgeBoxProductionLiquibaseIntegrationTests`）。
 - 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含流式事件订阅集合与 AgentScope 事件消费回归）。
 - 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxPostgresIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含 Agent execution trace 落库、管理端 trace 列表/详情接口与 IT Liquibase 新增 changelog 回归）。
+- 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=AgentExecutionTraceHookTests,ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（修复 AgentExecutionTraceHook 对 `null generateOptions` 使用 `Map.of(...)` 触发的聊天 NPE）。
 - 语雀 skill 脚本验证：`python3 .codex/skills/yuque-openapi-guide/scripts/yuque_api.py --help` 与语法编译检查通过。
 - 导入脚本命令校验：`python3 scripts/yuque_kb_migrate.py --help` 与三个子命令 `--help` 均可正常执行。
 

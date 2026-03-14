@@ -221,7 +221,7 @@
             ) VALUES (
                 1, 1, 1, 'PUBLISHED', 'qwen-max', 'text-embedding-v3', 'gte-rerank',
                 0.2, 6, 1, TRUE, 'You are the public supervisor agent for the knowledge base.',
-                '["http-search"]', '["local-mcp"]', '["retrieval-critic"]'
+                '["http-search"]', '[]', '["retrieval-critic"]'
             );
 
             INSERT INTO model_catalog (

@@ -56,3 +56,4 @@
 - 对带唯一键的“绑定表”执行同事务“删除旧绑定+插入新绑定”时，优先使用 JPQL bulk delete（`@Modifying @Query`）或显式 flush，避免 Hibernate 写入顺序触发唯一键冲突。
 - 后端已拆分为 `backend-app/service/repository/domain` 多模块；日常编译/测试/启动建议以 `backend/backend-app` 为目标模块并加 `-am` 联动依赖模块。
 - 前端健康探测不要直接依赖 `/actuator/health` 聚合状态；邮件等依赖异常会误报 `DOWN`。优先使用业务可用性端点 `/api/public/system/availability`。
+- PostgreSQL 集成测试若使用 `currentSchema=<schema>,public`，需确保 `pgvector` 扩展位于 `public` schema；若扩展残留在临时 schema，会报 `type "vector" does not exist`。

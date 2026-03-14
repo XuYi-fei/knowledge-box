@@ -59,3 +59,4 @@
 - 测试专用 `db.changelog-it.xml` 若追加 `about_release_note` 相关 release note 变更，需先同步建表基线，否则 PostgreSQL 集成测试会在 Liquibase 迁移阶段直接失败。
 - AgentScope Hook 事件对象的部分调试字段（如 `generateOptions`）允许为 `null`；记录 trace/debug payload 时不要直接用 `Map.of(...)` 组装可空值。
 - 管理端删除 Trace 时需保护 `RUNNING` 状态记录；执行中的链路若被删掉，后续 span/event 落库会触发外键或一致性问题。
+- Trace 详情里的 `sequenceNo` 是 span/event 共用的全局链路序号，不适合直接当“步骤号”；前端展示应另行按时间线重排步骤编号，并把原始序号明确标成“全局序号”。

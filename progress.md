@@ -2,173 +2,50 @@
 
 ## 当前阶段
 
-- 主线已具备用户登录、知识库问答、AgentScope 编排与管理端基础能力。
-- 当前重点转向“文档治理闭环 + 管理端可运营性”细化，以及聊天体验稳定性持续打磨。
+- 主线能力已基本成型，当前重点是继续收口文档治理闭环、管理端运营能力，以及聊天体验细节。
 
-## 已完成
+## 核心进度
 
-- 前端已建立用户聊天页与管理后台基础路由；用户工作区支持“问答页 / 关于”tab。
-- 后端已建立 Spring Boot + Liquibase + PostgreSQL/pgvector 基础工程，核心配置已改为显式配置。
-- 用户认证已打通：邮箱验证码登录、密码登录、自动注册、JWT 登录态。
-- 知识库链路已接入：Markdown 上传、图片转存、文档切分、向量检索与关键词回退。
-- 聊天链路已支持会话/消息持久化、SSE 流式输出、历史恢复、删除会话、失败恢复与前端断流重连。
-- 大模型主链路已切换到 AgentScope Java ReActAgent，并接入 tool calling、查询路由、reasoning/tool/citation 事件展示与 trace 持久化。
-- 管理端已接入模型目录、Agent Profile Version、文档、Hooks、Trace 等基础页面；`routingModel` 配置与启动校验已落地。
-- “关于”页已改为后端驱动更新日志；`about_release_note` 与只读接口已接入。
-- 已新增项目级 `yuque-openapi-guide` skill：基于本地 `yuque_openapi_20251121_green.html` 总结语雀 OpenAPI，并按读取链路、知识库、文档、目录、团队统计拆分 references；同时补充 `scripts/yuque_api.py`，便于后续直接读取个人语雀文档与知识库。
-- 聊天页滚动体验已优化：切换历史自动贴底、流式回复过程中持续贴底。
-- 文档治理已升级：
-  - 新增文档上传者、可见性、源 Markdown、扩展字段、向量参数摘要字段。
-  - 新增分类/标签词库与文档绑定。
-  - 新增审核请求、审核资产、审核分块与审核状态流转。
-  - 新增索引重建任务表与异步重建入口（运行中禁止重复触发）。
-  - 存储层支持 `local` 与 `oss` 双实现（配置切换）。
-  - 新增文档分类标签 Agent（AgentScope）自动建议，失败自动回退兜底。
-- 管理端文档页面已重构：支持填写式新建、文档查看、源文档编辑并提交审核、索引重建状态与触发。
-- 管理端文档页信息层级已优化：顺序调整为“索引重建 -> 新建文档 -> 文档列表”，并让新建编辑区全宽以提升编辑/预览体验。
-- 管理端文档编辑体验已升级：
-  - 新建与编辑均支持 Markdown 左侧编辑 / 右侧预览，并支持“全编辑 / 全预览”模式切换。
-  - 查看文档与审核详情支持 Markdown 渲染预览（代码块 + 内嵌 HTML 标签）。
-  - 编辑区支持粘贴图片自动上传并插入 Markdown 链接（后端 MD5 去重）。
-  - 预览区图片支持点击弹出大图并缩放查看。
-  - 已修复语雀导出 `<font style=\"...\">` 等内联 HTML 样式在预览区不生效问题：渲染器会解析 HTML `style` 字符串并映射到 React 内联样式，编辑页与查看页保持一致。
-  - 已补强语雀 `font` 标签兼容：除标准 `<font ...>` 外，额外兼容 `` `<font ...></font>` ``、`&lt;font ...&gt;...&lt;/font&gt;` 与 `style=\\\"...\\\"` 等变体，避免预览区直接显示标签文本。
-- 管理端文档编辑分栏模式已支持“编辑区/预览区”双向滚动同步，长文档下左右浏览位置可自动对齐。
-- 文档编辑工作台体验继续优化：split 模式左右面板默认同高；新增“全屏编辑/退出全屏”（支持 `Esc` 退出）；并禁用 textarea 手动拖拽缩放，避免布局被用户拉伸破坏。
-- 文档编辑工作台已新增基础快捷编辑工具栏：支持选中加粗、斜体、行内代码、插入链接，以及“本地选图上传后插入 Markdown”的图片按钮（与粘贴图片复用同一上传链路）。
-- 管理端新增“文档审核”页面：支持审核单列表/详情、分类标签调整、通过/驳回。
-- 管理端“文档审核”列表已支持按状态筛选与后端分页查询（`status/page/pageSize`），并保持最近更新时间倒序（`updatedAt desc, id desc`）。
-- 后端已补充审核并发约束：同一文档在存在 `CREATED/PROCESSING/PENDING_REVIEW` 审核单时，不允许重复提交源文档编辑审核。
-- 文档审核发布链路已修复标签绑定唯一键冲突：`approve` 前会清理并刷新旧绑定，标签按大小写无关去重并按标签ID二次去重。
-- 新增增量变更集 `db.changelog-012-document-governance-bugfix.xml`，修正初始化 `Knowledge Box Agent` 文档状态异常（`PROCESSING` -> `READY`）。
-- 索引重建链路已修复：手动构建 `PgVectorStore` 后显式执行 `afterPropertiesSet()` 初始化 shadow 向量表，并移除对 shadow 表的冗余预删除，避免首条 SQL 即失败。
-- 管理端“索引重建”卡片已补充失败详情展示（`errorMessage`）。
-- 管理端文档上传已扩展：
-  - 新增“填写式上传文档”接口，支持通过 JSON 直接提交 `title/sourceFilename/visibilityType/sourceMarkdown/extensionJson` 创建审核请求，不再依赖上传 `.md` 文件。
-  - 新增“粘贴图片上传”接口，服务端按 `MD5 + 扩展名` 生成确定性对象名，`local/oss` 均支持同对象不重复创建。
-- 新增语雀单文档迁移脚本 `scripts/yuque_kb_migrate.py`：
-  - `export-md`：按知识库+文档 ID 导出 Markdown 与元数据 JSON，支持“先导出审查”流程。
-  - `rehost-images`：识别 Markdown/HTML 图片链接，下载后调用 `POST /api/admin/documents/paste-image` 转存，并支持 provider 强校验（如 `oss`）。
-  - `init-review`：调用 `POST /api/admin/documents/upload-json` 创建审核单并轮询到目标状态（默认 `PENDING_REVIEW`，不自动发布）。
-- 迁移链路已进一步重构为“脚本化初始化机制（不依赖 Liquibase 文档内容变更）”：
-  - 新增 `scripts/oss_rehost_markdown_images.py`，支持离线下载外链图片并直接转存 OSS，按 `md5.ext` 复用对象并回写 Markdown 链接。
-  - 新增 `scripts/prepare_bootstrap_seed.py`，用于生成/更新 `backend/bootstrap/document-seed.json` 初始化清单（含稳定 `importKey`）。
-  - 后端新增启动导入器 `DocumentBootstrapImportRunner`，由 `knowledge-box.document.bootstrap.*` 配置控制是否在启动时自动创建审核单。
-  - 启动导入新增 `importKey` 幂等校验，基于 `document_review_request/knowledge_document.extension_json` 去重，避免重复重启重复导入。
-  - 启动导入新增 `sourceMarkdownPath` 相对路径回溯解析：当进程工作目录与 seed 文件目录不一致时，会沿 seed 目录祖先逐级解析，避免 `tmp/...` 场景下因路径基准不同导致导入失败。
-  - 已实操完成 `Spring面试题` 的第二步和第三步产物：
-    - `tmp/yuque-exports/spring-interview.rehosted.md`
-    - `tmp/yuque-exports/spring-interview.oss-images.json`
-    - `backend/bootstrap/document-seed.json`
-- 已完成语雀批量初始化入审（2026-03-12）：
-  - 目标范围：`个人后端八股 & 面经` 全量文档 + `大模型学习相关/Spring AI Alibaba` 目录文档。
-  - 产物目录：`tmp/yuque-batch/full-20260312/`（含每篇文档导出、转存、入审结果）。
-  - 汇总结果：`summary.json` 首轮 `90 -> 82成功/1跳过/7失败`，`retry-summary.json` 复跑后 `7/7` 全部补齐，最终 `89成功创建 + 1按importKey跳过`。
-- 已补充仓库忽略规则：语雀迁移产物目录 `tmp/yuque-exports/`、`tmp/yuque-batch/` 已加入 `.gitignore`，避免批量导出/中间文件误提交。
-- README 已补充“语雀批量迁移（跨服务器）”说明：新增环境变量、参数传递方式、三步命令模板、脚本默认值位置与 bootstrap 配置项索引，便于在新服务器复用导入流程。
-- 已修复语雀批量迁移中 `paste-image` 大图失败问题：将后端 multipart 默认上限提升为 `max-file-size=20MB`、`max-request-size=100MB`，并同步到 `application.yml`、`application-local.yml.example` 与 README 配置说明。
-- 本地配置已补齐存储配置：`application-local.yml` 新增 `knowledge-box.storage.oss.*` 全量字段，README 同步给出 OSS 切换与字段说明。
-- 已修复文档审核通过时报错 `The input texts limit 25`：
-  - 向量写入链路改为按批次写入（默认每批 20 条），覆盖审核通过、全量同步和索引重建三条路径。
-  - 新增配置项 `knowledge-box.retrieval.embedding-batch-size`（环境变量 `KB_RETRIEVAL_EMBEDDING_BATCH_SIZE`）。
-- 已根据实测日志进一步修正 DashScope 上限：
-  - DashScope embedding 单批上限实际为 `10`（错误信息：`batch size is invalid, it should not be larger than 10`）。
-  - 批次逻辑已强制 clamp 到 `<=10`（即使配置更大也会自动降到 10）。
-  - 默认批次改为 `10`，README 与配置示例已同步。
-- 文档审核异步启动时序已修复：审核流水线程改为事务提交后启动，避免并发时偶发读取不到新建审核单。
-- 已新增增量变更集：
-  - `db.changelog-010-document-governance.xml`
-  - `db.changelog-011-document-governance-release-note.xml`
-  - `db.changelog-013-fill-upload-and-paste-image-release-note.xml`
-- 管理员鉴权已升级为数据库口令优先：
-  - 新增 `admin_operator.password_hash` 字段，Basic Auth 改为从数据库读取管理员密码哈希。
-  - 新增 `POST /api/admin/me/password` 接口，管理员登录态下可提交“当前密码 + 新密码”在线改密。
-  - 前端管理端已增加右上角改密入口；改密成功后会同步更新本地 Basic Auth token。
-  - `knowledge-box.admin.password` 仅用于初始化缺失密码，不会覆盖数据库里已修改的管理员密码。
-- 仓库敏感配置治理已补齐：
-  - `backend/src/main/resources/application-local.yml` 已加入 `.gitignore`，避免本地账号、密钥等敏感值被追踪。
-  - 已核对 `application-local.yml.example` 覆盖本地配置项且不包含真实敏感值，可作为安全模板提交。
-- `knowledge-box-project` skill 已更新：功能/bugfix 完成且测试通过后，要求在同一轮执行 git 提交。
-- Agent 集成能力已升级为“动态配置 + 版本级绑定”：
-  - Tool/MCP/Skill 元数据扩展（Tool class/bean/config、MCP 加密 header/query/超时、Skill 来源/对象Key/MD5）。
-  - 新增 `agent_profile_version_*_binding` 三张绑定表，并完成旧 JSON 字段回填迁移。
-  - 运行时装配改为 `AgentCapabilityAssemblyService`：按发布版本动态注册 Tool/MCP/Skill（AgentScope API），聊天链路与文档分类 Agent 均复用该装配。
-  - 管理端已支持 Tool/MCP/Skill 的增改删与 Skill zip 上传；Profile Version 支持绑定管理（toolCodes/skillCodes/mcpBindings）。
-  - MCP 密钥更新链路已支持“掩码值保留旧密钥”，避免后台编辑时误清空敏感 header。
-- 动态绑定实现已按“可重建数据库”策略调整为 ID 绑定：
-  - `agent_profile_version_tool_binding/mcp_binding/skill_binding` 改为存储 `tool_id/mcp_id/skill_id` 外键，不再存储 code 字符串。
-  - 保持管理端/API 使用 code 交互，服务层负责 code ↔ id 解析与回显。
-  - 已直接修改历史初始化脚本 `db.changelog-020-agent-integrations-dynamic-binding.xml` 的建表与回填 SQL（未新增迁移文件）。
-- 配置文档同步完成：`application-local.yml.example` 与 README 已补齐 `knowledge-box.integration.*` 相关项（主密钥、Skill 缓存目录、Skill 包分类路径）。
-- 启动期文档导入（bootstrap）已扩展为“单文件 + 目录扫描”双模式：
-  - 新增配置：`knowledge-box.document.bootstrap.seed-directory`、`seed-directory-pattern`、`seed-directory-recursive`。
-  - 支持按目录批量扫描 seed（默认 `*.json`）并导入审核流，适配跨服务器统一目录部署。
-  - `seed-file` 与 `seed-directory` 可同时开启；同一 seed 文件不会重复导入。
-- 新增增量变更集 `db.changelog-022-bootstrap-seed-directory-release-note.xml`，同步“关于”页更新说明。
-- 已修复动态 Tool/MCP 注册的 group 初始化缺陷：
-  - `AgentCapabilityAssemblyService` 在注册 builtin/tool/mcp 前显式 `createToolGroup`，避免 `Tool group ... does not exist`。
-  - 新增 `AgentCapabilityAssemblyServiceTests`，覆盖 builtin 与动态 tool 的组创建回归。
-- 管理端 Agent 版本“绑定管理”弹窗已合并为单窗口，移除重复渲染的第二个绑定弹窗，避免点击一次同时弹出两层 Tool/Skill/MCP 配置窗口。
-- 管理端 Agent 版本“绑定管理”已修复 MCP 空项回填：打开弹窗时会清洗 `mcpCode` 为空的脏数据并重置表单状态，避免在“无 MCP 绑定”场景下默认出现一张全空 MCP 编辑卡片。
-- 已修复 Agent 版本绑定管理的两处问题：
-  - 初始化脚本不再给默认 `agent_profile_version` 预绑定 `local-mcp`（`mcp_bindings` 改为 `[]`），新库默认无 MCP 绑定。
-  - `AgentProfileBindingService.updateBindings` 的删旧逻辑改为 JPQL bulk delete，避免同事务“删旧+插新”触发 `uk_profile_tool_binding` 唯一键冲突。
-- 新增 `AgentProfileBindingServiceTests`，覆盖绑定去重与“先删后建”更新路径回归。
+- 用户侧已具备登录、知识库问答、会话持久化、SSE 流式输出、历史恢复、删除会话与“关于”tab。
+- 后端已建立 Spring Boot + Liquibase + PostgreSQL/pgvector 基础工程，并已拆分为 `backend-app/service/repository/domain` 四个 Maven 子模块。
+- 大模型主链路已切换到 AgentScope Java ReActAgent，并接入 tool calling、查询路由、reasoning/tool/citation 展示与 trace。
+- 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理与动态 Tool/MCP/Skill 绑定管理。
+- 文档治理链路已落地：文档上传、审核流、分类标签、索引重建、Markdown 预览/编辑、图片转存、向量写入与 bootstrap 初始化导入。
+- 前端已补齐全局后端可用性提示（改为右侧悬浮卡片，不阻断页面渲染）、底部备案 footer（工信部链接）和文档审核更新时间秒级展示。
+- 前端后端可用性探测已改为“页面加载时单次探测”；探测失败仅提示一次，不再自动轮询重试，避免浏览器资源被持续占用。
+- 后端新增独立可用性接口 `/api/public/system/availability`，用于前端健康探测，不再依赖 actuator 聚合健康状态。
+- 已新增项目级 `yuque-openapi-guide` skill，并补充可执行脚本 `scripts/yuque_api.py`，用于读取个人语雀知识库、文档、目录、搜索与历史版本。
+- 已新增 `scripts/README.md`，用于说明“后端运行中”如何用 `yuque_kb_migrate.py` 动态导入语雀文档（单篇 + 批量）到审核流。
 
-## 已验证无误
+## 关键注意点
 
-- 后端 `mvn -q -pl backend test` 通过，覆盖 Liquibase、PostgreSQL、pgvector 与新增 `010/011` 迁移。
-- 后端 `mvn -q -pl backend test` 再次通过，覆盖新增 `015-yuque-script-release-note` 迁移。
-- 脚本本地验证通过：`python3 .codex/skills/yuque-openapi-guide/scripts/yuque_api.py --help` 与只读语法编译检查均通过。
-- 新增集成验证通过：管理端“上传 -> 审核 -> 通过发布”主路径在 `KnowledgeBoxPostgresIntegrationTests` 可执行。
-- 前端 `npm --prefix frontend run build` 通过，覆盖文档页重构与审核页新路由。
-- 新增集成验证通过：`KnowledgeBoxPostgresIntegrationTests.shouldRejectEditingDocumentWhenAnotherReviewIsInProgress`，覆盖“审核中重复提交编辑”冲突场景。
-- 新增集成验证通过：`KnowledgeBoxPostgresIntegrationTests.shouldApproveEditReviewWithCaseInsensitiveDuplicateTags`，覆盖标签大小写重复输入下的审核通过路径。
-- 后端 `mvn -q -pl backend test` 再次通过（含索引重建修复后回归）。
-- 前端 `npm --prefix frontend run build` 再次通过（含索引重建失败信息展示）。
-- 后端 `mvn -q -pl backend test` 通过（含新增 `013` release note 迁移、填写式上传接口与粘贴图片去重上传接口回归）。
-- 新增集成验证通过：`KnowledgeBoxPostgresIntegrationTests.shouldCreateReviewRequestFromJsonUpload`，覆盖 JSON 提交新文档审核路径。
-- 新增集成验证通过：`KnowledgeBoxPostgresIntegrationTests.shouldReuseSameAssetWhenPastingSameImageContent`，覆盖同 MD5 图片重复上传复用同 URL/对象路径。
-- 后端 `mvn -q -pl backend test` 再次通过（含“事务提交后启动审核流水”并发时序修复回归）。
-- 前端 `npm --prefix frontend run build` 再次通过（含 Markdown 工作台、查看预览与粘贴图片上传入口改造）。
-- 前端 `npm --prefix frontend run build` 再次通过（含文档页布局顺序与编辑区宽度优化）。
-- 前端 `npm --prefix frontend run build` 再次通过（含预览区图片点击放大与缩放能力）。
-- 前端 `npm --prefix frontend run build` 通过（含语雀 `<font style=\"...\">` 内联样式渲染修复）。
-- 前端 `npm --prefix frontend run build` 通过（含语雀 `font` 标签多变体兼容：反引号包裹、HTML 实体、转义引号）。
-- 脚本验证通过：`python3 scripts/yuque_kb_migrate.py --help` 与 `python3 -m py_compile scripts/yuque_kb_migrate.py`。
-- 语雀导出实测通过：`Spring面试题` 已成功导出到 `tmp/yuque-exports/spring-interview.raw.md`（`docId=238740054`，导出字段 `body`）。
-- 新增脚本验证通过：`python3 -m py_compile scripts/oss_rehost_markdown_images.py scripts/prepare_bootstrap_seed.py`。
-- 后端测试通过：`mvn -q -pl backend test`（含新增 `DocumentBootstrapImportRunnerTests`、新增 017 release note 迁移）。
-- 迁移步骤验证通过：
-  - `oss_rehost_markdown_images.py` 成功转存 3 张语雀图片并改写链接。
-  - `prepare_bootstrap_seed.py` 成功生成并更新 `importKey=yuque:51241102:238740054` 的 seed 条目。
-- 新增单测通过：`mvn -q -pl backend -Dtest=DocumentBootstrapImportRunnerTests test`（覆盖 `sourceMarkdownPath` 相对路径回溯解析）。
-- 新增单测通过：`mvn -q -pl backend -Dtest=KnowledgeBaseIndexingServiceTests,DocumentBootstrapImportRunnerTests test`（覆盖向量分批写入与 bootstrap 回溯解析）。
-- 新增单测通过：`mvn -q -pl backend -Dtest=KnowledgeBaseIndexingServiceTests test`（新增覆盖“配置大于 10 时自动 clamp 到 10”）。
-- 启动导入实测通过（2026-03-12）：`KB_DOCUMENT_BOOTSTRAP_ENABLED=true KB_DOCUMENT_BOOTSTRAP_SEED_FILE=bootstrap/document-seed.json SERVER_PORT=18080 mvn -pl backend spring-boot:run -Dspring-boot.run.profiles=local` 日志为 `created=1, skipped=0, failed=0`。
-- 重复启动幂等实测通过（2026-03-12）：同命令二次执行日志为 `created=0, skipped=1, failed=0`。
-- 后端全量测试通过：`mvn -q -pl backend test`（含文档审核分页接口改造回归）。
-- 新增集成验证通过：`KnowledgeBoxPostgresIntegrationTests.shouldFilterAndPaginateDocumentReviewsInDescOrder`，覆盖审核列表状态筛选、分页与倒序返回。
-- 前端构建通过：`npm --prefix frontend run build`（含审核筛选分页、分栏滚动同步、编辑页全屏、split 同高、禁用手动拉伸及基础快捷编辑工具栏改造）。
-- 语雀批量迁移执行完成：`tmp/yuque-batch/full-20260312/summary.json` 与 `tmp/yuque-batch/full-20260312/retry-summary.json` 显示最终 `90` 目标全部已处理完成（`89` 创建审核单，`1` 因 importKey 幂等跳过，`0` 剩余失败）。
-- 后端 `mvn -q -pl backend test` 通过（含管理员改密接口、Liquibase `018/019` 迁移与集成测试回归）。
-- 前端 `npm --prefix frontend run build` 通过（含管理端改密弹窗与 token 更新逻辑）。
-- 后端 `mvn -q -pl backend test` 与前端 `npm --prefix frontend run build` 再次通过（含仓库敏感配置治理与 skill 规则更新后的回归）。
-- 后端 `mvn -q -pl backend test` 通过（含 `020/021` 迁移、ChatOrchestrator 测试适配与动态集成链路回归）。
-- 前端 `npm --prefix frontend run build` 通过（含 Integrations 管理页 CRUD/上传与 Profile Version 绑定管理弹窗）。
-- 后端 `mvn -q -pl backend test` 再次通过（含绑定表 `*_id` 外键化与旧初始化脚本直接改造回归）。
-- 后端单测通过：`mvn -q -pl backend -Dtest=DocumentBootstrapImportRunnerTests test`（覆盖 seed 目录扫描导入与 seed-file/seed-directory 重复去重）。
-- 后端编译通过：`mvn -pl backend -DskipTests compile`（含 bootstrap 新配置与导入器改造回归）。
-- 后端全量测试通过：`mvn -q -pl backend test`（含 Liquibase 新增 `022` 更新日志变更集回归）。
-- 后端单测通过：`mvn -q -pl backend -Dtest=AgentCapabilityAssemblyServiceTests test`（覆盖动态能力装配的 tool group 创建逻辑）。
-- 后端全量测试通过：`mvn -q -pl backend test`（含 `AgentCapabilityAssemblyService` 修复回归）。
-- 前端构建通过：`npm --prefix frontend run build`（含 Profile Version 绑定管理弹窗去重与单窗口合并回归）。
-- 前端构建通过：`npm --prefix frontend run build`（含绑定管理中 MCP 空项清洗与无绑定场景回归）。
-- 后端单测通过：`mvn -q -pl backend -Dtest=AgentProfileBindingServiceTests test`（覆盖 Agent Profile 绑定去重与删旧重建回归）。
-- 后端全量测试通过：`mvn -q -pl backend test`（含默认 MCP 绑定修正与绑定保存唯一键冲突修复回归）。
+- `application-local.yml` 仅在 `local` profile 生效，且视为用户本地敏感配置，不要覆盖。
+- “关于”tab 的更新日志来自数据库；独立功能完成后要补增量 changelog 往 `about_release_note` 写数据。
+- AgentScope 相关高频坑仍需注意：
+  - `@ToolParam` 必须显式写 `name`
+  - 事件分支需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`
+  - `DashScopeChatModel.enableThinking(false)` 时不要再设置 `thinkingBudget`
+  - 动态注册 Tool/MCP 前先建 tool group
+- 文档治理相关高频坑仍需注意：
+  - 审核/生成异步线程要在 `afterCommit` 后启动
+  - 标签绑定写入前要去重，删除旧绑定优先 bulk delete 或显式 flush
+  - DashScope embedding 单批上限按 `10` 控制
+  - bootstrap 导入必须依赖稳定 `importKey` 做幂等
+- Git 提交信息默认使用中文。
+
+## 最近验证
+
+- 前端验证：`npm --prefix frontend run build` 通过（包含后端异常提示条、备案 footer、审核时间格式化改动，以及健康探测失败不自动重试修复）。
+- 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过。
+- 后端打包验证：`mvn -q -pl backend/backend-app -am -DskipTests package` 通过。
+- 后端单测抽样：`mvn -q -pl backend/backend-app -am -Dtest=AgentCapabilityAssemblyServiceTests -Dsurefire.failIfNoSpecifiedTests=false test` 与 `AgentProfileBindingServiceTests` 通过。
+- 一键回归脚本验证：`bash scripts/quick-regression.sh` 通过（后端编译 + 关键单测 + 前端构建）。
+- 后端全量测试：`mvn -q -pl backend/backend-app -am test` 通过（本机 PostgreSQL + pgvector 已就绪，含 `KnowledgeBoxPostgresIntegrationTests` 与 `KnowledgeBoxProductionLiquibaseIntegrationTests`）。
+- 语雀 skill 脚本验证：`python3 .codex/skills/yuque-openapi-guide/scripts/yuque_api.py --help` 与语法编译检查通过。
+- 导入脚本命令校验：`python3 scripts/yuque_kb_migrate.py --help` 与三个子命令 `--help` 均可正常执行。
 
 ## 待继续推进
 
-- 文档审核策略细化：批量审核、权限颗粒度、审核原因规范化与可观测性增强。
+- 文档审核策略继续细化：批量审核、权限颗粒度、审核原因规范化、可观测性增强。
 - 聊天体验继续打磨：流式颗粒度、未完成会话恢复、Markdown/代码块渲染细节。
 - Redis、邮件发送、OSS 与真实模型配置的本地联调继续补齐。

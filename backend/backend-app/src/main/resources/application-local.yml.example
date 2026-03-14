@@ -1,0 +1,119 @@
+spring:
+  servlet:
+    multipart:
+      max-file-size: ${KB_SERVLET_MULTIPART_MAX_FILE_SIZE:20MB}
+      max-request-size: ${KB_SERVLET_MULTIPART_MAX_REQUEST_SIZE:100MB}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/knowledge_box}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: ${MAIL_USERNAME:your_qq_mail@qq.com}
+    password: ${MAIL_PASSWORD:your_qq_smtp_auth_code}
+    protocol: smtp
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: false
+          ssl:
+            enable: false
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:your-dashscope-api-key}
+      chat:
+        options:
+          model: ${DASHSCOPE_CHAT_MODEL:qwen-max}
+      embedding:
+        options:
+          model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
+          dimensions: ${KB_RETRIEVAL_EMBEDDING_DIMENSIONS:1024}
+
+management:
+  health:
+    mail:
+      enabled: ${KB_MANAGEMENT_HEALTH_MAIL_ENABLED:false}
+
+knowledge-box:
+  admin:
+    username: ${KB_ADMIN_USERNAME:admin}
+    password: ${KB_ADMIN_PASSWORD:change-this-admin-password}
+  auth:
+    jwt-secret: ${KB_AUTH_JWT_SECRET:replace-with-a-long-random-jwt-secret}
+    issuer: ${KB_AUTH_ISSUER:knowledge-box-local}
+    token-ttl: ${KB_AUTH_TOKEN_TTL:7d}
+    verification-code-ttl: ${KB_AUTH_VERIFICATION_CODE_TTL:10m}
+    send-cooldown: ${KB_AUTH_SEND_COOLDOWN:60s}
+  mail:
+    from-address: ${KB_MAIL_FROM_ADDRESS:${MAIL_USERNAME:your_qq_mail@qq.com}}
+    from-personal: ${KB_MAIL_FROM_PERSONAL:Knowledge Box}
+  web:
+    allowed-origins:
+      - http://localhost:5173
+  storage:
+    provider: ${KB_STORAGE_PROVIDER:local}
+    local-base-path: ${KB_STORAGE_LOCAL_BASE_PATH:backend/uploads}
+    public-base-url: ${KB_STORAGE_PUBLIC_BASE_URL:http://localhost:8080/uploads}
+    oss:
+      endpoint: ${KB_STORAGE_OSS_ENDPOINT:https://oss-cn-hangzhou.aliyuncs.com}
+      bucket: ${KB_STORAGE_OSS_BUCKET:your-bucket}
+      access-key-id: ${KB_STORAGE_OSS_ACCESS_KEY_ID:}
+      access-key-secret: ${KB_STORAGE_OSS_ACCESS_KEY_SECRET:}
+      public-base-url: ${KB_STORAGE_OSS_PUBLIC_BASE_URL:https://your-bucket.oss-cn-hangzhou.aliyuncs.com}
+      path-prefix: ${KB_STORAGE_OSS_PATH_PREFIX:knowledge-box}
+  chat:
+    top-k: ${KB_CHAT_TOP_K:6}
+    history-turns: ${KB_CHAT_HISTORY_TURNS:12}
+    stub-responses: ${KB_CHAT_STUB_RESPONSES:false}
+    stream-delay: ${KB_CHAT_STREAM_DELAY:150ms}
+    knowledge-base-routing:
+      enabled: ${KB_CHAT_KB_ROUTING_ENABLED:true}
+      force-enable-regexes: []
+      force-disable-regexes:
+        - "(?i).*(你是什么模型|你是(什么|哪个)|你用的什么模型|what model are you|which model are you|who are you|what are you).*"
+        - "(?i).*(写个|写一个|实现|给我.*代码|write (a|an)|implement).*(快速排序|quicksort|quick\\s*sort).*"
+        - "(?i).*\\b(quicksort|quick\\s*sort|merge\\s*sort|heap\\s*sort|bubble\\s*sort|binary\\s*search|bfs|dfs)\\b.*"
+    dashscope-compatible:
+      base-url: ${KB_DASHSCOPE_COMPATIBLE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      force-model-regexes:
+        - "(?i)^qwen3\\.5-.*$"
+  retrieval:
+    top-k: ${KB_RETRIEVAL_TOP_K:6}
+    similarity-threshold: ${KB_RETRIEVAL_SIMILARITY_THRESHOLD:0.2}
+    chunk-size: ${KB_RETRIEVAL_CHUNK_SIZE:900}
+    embedding-batch-size: ${KB_RETRIEVAL_EMBEDDING_BATCH_SIZE:10}
+    vector-enabled: ${KB_RETRIEVAL_VECTOR_ENABLED:true}
+    embedding-dimensions: ${KB_RETRIEVAL_EMBEDDING_DIMENSIONS:1024}
+    vector-schema: ${KB_RETRIEVAL_VECTOR_SCHEMA:public}
+    vector-table: ${KB_RETRIEVAL_VECTOR_TABLE:kb_vector_store}
+  document:
+    taxonomy:
+      model: ${KB_DOCUMENT_TAXONOMY_MODEL:qwen-plus}
+      max-tags: ${KB_DOCUMENT_TAXONOMY_MAX_TAGS:5}
+      max-tokens: ${KB_DOCUMENT_TAXONOMY_MAX_TOKENS:256}
+    bootstrap:
+      enabled: ${KB_DOCUMENT_BOOTSTRAP_ENABLED:false}
+      seed-file: ${KB_DOCUMENT_BOOTSTRAP_SEED_FILE:}
+      seed-directory: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY:}
+      seed-directory-pattern: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_PATTERN:*.json}
+      seed-directory-recursive: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE:true}
+      fail-fast: ${KB_DOCUMENT_BOOTSTRAP_FAIL_FAST:false}
+      operator-username: ${KB_DOCUMENT_BOOTSTRAP_OPERATOR_USERNAME:admin}
+  integration:
+    crypto:
+      # 强烈建议使用长度足够的随机值；也可使用 base64: 前缀传入 Base64 编码值
+      master-key: ${KB_INTEGRATION_CRYPTO_MASTER_KEY:replace-with-a-long-random-master-key}
+    skill-cache-dir: ${KB_INTEGRATION_SKILL_CACHE_DIR:backend/uploads/skills/cache}
+    skill-package-category: ${KB_INTEGRATION_SKILL_PACKAGE_CATEGORY:agent-skills}

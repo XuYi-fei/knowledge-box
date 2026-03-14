@@ -51,6 +51,15 @@ const REVIEW_STATUS_OPTIONS: Array<{ label: string; value: ReviewFilterStatus }>
   { label: '失败', value: 'FAILED' },
 ];
 
+function formatDateTimeToSeconds(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const pad = (raw: number) => String(raw).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 export function DocumentReviewsPage() {
   const { modal, message } = App.useApp();
   const queryClient = useQueryClient();
@@ -244,7 +253,7 @@ export function DocumentReviewsPage() {
                     </Space>
                     <Typography.Text type="secondary">阶段: {item.stage}</Typography.Text>
                     <Progress percent={item.progressPercent} size="small" />
-                    <Typography.Text type="secondary">更新时间: {item.updatedAt}</Typography.Text>
+                    <Typography.Text type="secondary">更新时间: {formatDateTimeToSeconds(item.updatedAt)}</Typography.Text>
                   </Space>
                 </List.Item>
               )}

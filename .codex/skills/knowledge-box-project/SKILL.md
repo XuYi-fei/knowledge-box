@@ -20,7 +20,7 @@ Keep those two markdown files small. Do not paste them into new docs or duplicat
 1. Build context from `rule.md`, `progress.md`, and the touched modules.
 2. Implement the requested change while following the project constraints.
 3. Run targeted verification when feasible.
-4. If this task is a completed feature/bugfix and verification passed, stage related files and create a git commit before finishing.
+4. If this task is a completed feature/bugfix and verification passed, stage related files and create a git commit before finishing, using a Chinese commit message.
 5. Update `../../../progress.md` if the task changes project status, completed scope, or verification scope.
 6. If the task delivers an independent feature, also sync a concise release note for the About tab by adding database data through an additive changelog/script against `about_release_note`.
 7. If the task introduces a new recurring constraint or a new pitfall, add a short note to `../../../rule.md`.
@@ -29,6 +29,7 @@ Keep those two markdown files small. Do not paste them into new docs or duplicat
 
 - Update `progress.md` after meaningful feature work, bug fixes, infrastructure changes, or verification changes.
 - For completed feature/bugfix work, do not stop at code + tests: create a git commit in the same turn after verification passes.
+- When creating git commits in this repo, use Chinese commit messages by default unless the user explicitly asks otherwise.
 - Keep `progress.md` factual and compressed. Preserve only current stage, core completed capabilities, verified scope, and the next focus.
 - Separate "completed" from "verified".
 - When an independent feature ships, do not stop at `progress.md`: also append a concise About-tab release note through an additive database change, rather than hiding the change only in docs.

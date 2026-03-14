@@ -12,7 +12,7 @@
 - Do not hardcode environment-specific endpoints or origins in Java or frontend source when they should be configurable.
 - Prefer explicit configuration in `application-local.yml`, `application-local.yml.example`, environment variables, or documented startup parameters.
 - Do not overwrite values already configured by the user in `application-local.yml` unless the user explicitly asks to modify that file.
-- `backend/src/main/resources/application-local.yml` 视为本地敏感配置文件，必须保持在 `.gitignore` 中，不参与版本追踪。
+- `backend/backend-app/src/main/resources/application-local.yml` 视为本地敏感配置文件，必须保持在 `.gitignore` 中，不参与版本追踪。
 - If shared config structure changes, prefer updating `application.yml`, `application-local.yml.example`, and README; only touch `application-local.yml` when the change is explicitly local-env related and user-approved.
 - When changing backend config shape, keep `README.md` and local example config in sync.
 - Keep admin-only settings, local-only settings, and shared defaults clearly separated.
@@ -22,6 +22,7 @@
 
 - After each meaningful feature, bugfix, or infra change, update `progress.md`.
 - After each independent feature is completed, also add a concise release note to the About tab by inserting data for `about_release_note` through a new additive database changelog/script.
+- When creating git commits in this repo, use Chinese commit messages unless the user explicitly asks for another language.
 - Distinguish "已完成" from "已验证无误". Only move items into verified when you actually ran a validation path.
 - Prefer targeted verification that matches the change surface. Record what was verified.
 - Do not revert unrelated user changes.
@@ -33,6 +34,7 @@
 - Redis, SMTP, and CORS are expected to be configuration-driven rather than fixed in source.
 - QQ 邮箱发送验证码时，`spring.mail.password` 必须填 SMTP 授权码，不是网页登录密码。
 - PostgreSQL 集成测试依赖本机 PostgreSQL 与 `pgvector` 扩展可用。
+- PostgreSQL 集成测试默认连接 `postgres` 数据库，且 `vector` 扩展应位于 `public` schema；若扩展被装进历史临时 schema，新的测试 schema 会报 `type "vector" does not exist`。
 - AgentScope 的 `@ToolParam` 注解必须显式提供 `name`，否则会在编译期报错。
 - AgentScope 事件消费在 `switch` 中需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`，避免版本升级后被默认分支静默忽略。
 - AgentScope 1.0.9 的 DashScope 原生端点自动路由对 `qwen3.5-*` 覆盖不完整，相关模型需走 `knowledge-box.chat.dashscope-compatible.*` 兼容端点策略。
@@ -52,3 +54,5 @@
 - DashScope embedding 接口存在严格单次输入文本条数上限（当前实测上限 10）；向量写入需分批 `add` 且批次不得超过 10，避免审核通过/全量重建时报 `batch size is invalid`。
 - 语雀文档迁移/粘贴图片链路若包含大图，需显式配置 `spring.servlet.multipart.max-file-size` 与 `max-request-size`；Spring 默认 1MB 会导致 `/api/admin/documents/paste-image` 抛 `MaxUploadSizeExceededException`。
 - 对带唯一键的“绑定表”执行同事务“删除旧绑定+插入新绑定”时，优先使用 JPQL bulk delete（`@Modifying @Query`）或显式 flush，避免 Hibernate 写入顺序触发唯一键冲突。
+- 后端已拆分为 `backend-app/service/repository/domain` 多模块；日常编译/测试/启动建议以 `backend/backend-app` 为目标模块并加 `-am` 联动依赖模块。
+- 前端健康探测不要直接依赖 `/actuator/health` 聚合状态；邮件等依赖异常会误报 `DOWN`。优先使用业务可用性端点 `/api/public/system/availability`。

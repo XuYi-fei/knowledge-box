@@ -109,8 +109,8 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 当前配置分成两层：
 
-- [application.yml](/Users/xuyifei/repos/knowledge-box/backend/src/main/resources/application.yml): 放跨环境共享且应显式存在的基础配置，例如 Redis key 命名空间规划
-- [application-local.yml](/Users/xuyifei/repos/knowledge-box/backend/src/main/resources/application-local.yml): 放本地开发环境实际使用的数据库、Redis、SMTP、管理员账号等配置；IDEA 以 `local` profile 启动时会读取
+- [application.yml](/Users/xuyifei/repos/knowledge-box/backend/backend-app/src/main/resources/application.yml): 放跨环境共享且应显式存在的基础配置，例如 Redis key 命名空间规划
+- [application-local.yml](/Users/xuyifei/repos/knowledge-box/backend/backend-app/src/main/resources/application-local.yml): 放本地开发环境实际使用的数据库、Redis、SMTP、管理员账号等配置；IDEA 以 `local` profile 启动时会读取
 
 共享基础配置当前包含：
 
@@ -285,13 +285,12 @@ VITE_API_BASE_URL=http://localhost:8080
 
 方式一：使用 IDE
 
-- 以 `local` Profile 启动 [KnowledgeBoxApplication.java](/Users/xuyifei/repos/knowledge-box/backend/src/main/java/com/knowledgebox/KnowledgeBoxApplication.java)
+- 以 `local` Profile 启动 [KnowledgeBoxApplication.java](/Users/xuyifei/repos/knowledge-box/backend/backend-app/src/main/java/com/knowledgebox/KnowledgeBoxApplication.java)
 
 方式二：命令行启动
 
 ```bash
-cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=local
+mvn -pl backend/backend-app spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
 后端默认地址：
@@ -547,22 +546,25 @@ KB_DOCUMENT_BOOTSTRAP_FAIL_FAST=true
 
 对应位置：
 
-- 共享默认配置：[application.yml](/Users/xuyifei/repos/knowledge-box/backend/src/main/resources/application.yml)
-- 本地示例配置：[application-local.yml.example](/Users/xuyifei/repos/knowledge-box/backend/src/main/resources/application-local.yml.example)
+- 共享默认配置：[application.yml](/Users/xuyifei/repos/knowledge-box/backend/backend-app/src/main/resources/application.yml)
+- 本地示例配置：[application-local.yml.example](/Users/xuyifei/repos/knowledge-box/backend/backend-app/src/main/resources/application-local.yml.example)
 
 ## 已验证命令
 
 本仓库当前已验证通过：
 
 ```bash
-cd backend
-mvn test
+mvn -pl backend/backend-app -am test
 ```
 
 ```bash
 cd frontend
 npm install
 npm run build
+```
+
+```bash
+bash scripts/quick-regression.sh
 ```
 
 ## 常见问题

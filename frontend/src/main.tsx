@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App as AntdApp, ConfigProvider, theme } from 'antd';
 import { RouterProvider } from 'react-router-dom';
+import { AppShell } from './app/AppShell';
 import { router } from './app/router';
 import './styles/global.css';
 
@@ -23,7 +24,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     >
       <QueryClientProvider client={queryClient}>
         <AntdApp>
-          <RouterProvider router={router} />
+          <AppShell>
+            <RouterProvider router={router} />
+          </AppShell>
         </AntdApp>
       </QueryClientProvider>
     </ConfigProvider>

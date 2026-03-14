@@ -9,7 +9,7 @@ build/
 target/
 *.tsbuildinfo
 .env
-backend/src/main/resources/application-local.yml
+backend/backend-app/src/main/resources/application-local.yml
 backend/bootstrap/document-seed.json
 backend/uploads/
 yuque_openapi_*.html

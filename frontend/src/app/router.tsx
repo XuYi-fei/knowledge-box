@@ -17,7 +17,7 @@ const UserLoginPage = lazy(() => import('../features/auth/UserLoginPage').then((
 
 function withSuspense(element: ReactNode) {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><Spin size="large" /></div>}>
+    <Suspense fallback={<div style={{ minHeight: '100%', display: 'grid', placeItems: 'center' }}><Spin size="large" /></div>}>
       {element}
     </Suspense>
   );

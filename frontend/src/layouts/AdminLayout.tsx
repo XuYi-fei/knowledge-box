@@ -72,7 +72,7 @@ export function AdminLayout() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eef4f3' }}>
+    <div style={{ minHeight: '100%', background: '#eef4f3' }}>
       <ProLayout
         title="Knowledge Box Admin"
         logo={<ProfileOutlined />}

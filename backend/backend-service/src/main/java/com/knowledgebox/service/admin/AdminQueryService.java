@@ -2,7 +2,6 @@ package com.knowledgebox.service.admin;
 
 import com.knowledgebox.api.AdminDashboardView;
 import com.knowledgebox.api.AgentProfileVersionView;
-import com.knowledgebox.api.AgentTraceView;
 import com.knowledgebox.api.IngestionJobView;
 import com.knowledgebox.api.KnowledgeDocumentView;
 import com.knowledgebox.api.McpServerView;
@@ -15,7 +14,6 @@ import com.knowledgebox.domain.agent.ModelCatalog;
 import com.knowledgebox.domain.document.IngestionJobStatus;
 import com.knowledgebox.domain.hook.HookEventType;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
-import com.knowledgebox.repository.AgentTraceRepository;
 import com.knowledgebox.repository.KnowledgeDocumentRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import com.knowledgebox.service.document.DocumentGovernanceService;
@@ -29,7 +27,7 @@ public class AdminQueryService {
     private final AgentProfileVersionRepository agentProfileVersionRepository;
     private final ModelCatalogRepository modelCatalogRepository;
     private final KnowledgeDocumentRepository knowledgeDocumentRepository;
-    private final AgentTraceRepository agentTraceRepository;
+    private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
     private final DocumentGovernanceService documentGovernanceService;
     private final IntegrationAdminService integrationAdminService;
 
@@ -37,14 +35,14 @@ public class AdminQueryService {
             AgentProfileVersionRepository agentProfileVersionRepository,
             ModelCatalogRepository modelCatalogRepository,
             KnowledgeDocumentRepository knowledgeDocumentRepository,
-            AgentTraceRepository agentTraceRepository,
+            AgentExecutionTraceQueryService agentExecutionTraceQueryService,
             DocumentGovernanceService documentGovernanceService,
             IntegrationAdminService integrationAdminService
     ) {
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.modelCatalogRepository = modelCatalogRepository;
         this.knowledgeDocumentRepository = knowledgeDocumentRepository;
-        this.agentTraceRepository = agentTraceRepository;
+        this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
         this.documentGovernanceService = documentGovernanceService;
         this.integrationAdminService = integrationAdminService;
     }
@@ -54,7 +52,7 @@ public class AdminQueryService {
                 Math.toIntExact(agentProfileVersionRepository.count()),
                 Math.toIntExact(knowledgeDocumentRepository.count()),
                 1,
-                Math.toIntExact(agentTraceRepository.count())
+                Math.toIntExact(agentExecutionTraceQueryService.traceCount())
         );
     }
 
@@ -96,13 +94,6 @@ public class AdminQueryService {
     public List<WebhookSubscriptionView> hooks() {
         return List.of(
                 new WebhookSubscriptionView(1L, HookEventType.ANSWER_COMPLETED, "https://example.com/hooks/answer", "kb_****_signed", true)
-        );
-    }
-
-    public List<AgentTraceView> traces() {
-        return List.of(
-                new AgentTraceView(1L, "trace-1001", "session-001", "SUPERVISOR_THOUGHT", "{\"reasoning\": \"query needs retrieval\"}"),
-                new AgentTraceView(2L, "trace-1002", "session-001", "RETRIEVAL_FINISHED", "{\"hits\": 2}")
         );
     }
 

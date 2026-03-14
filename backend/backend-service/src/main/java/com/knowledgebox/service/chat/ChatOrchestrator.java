@@ -18,6 +18,7 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.message.ToolUseBlock;
 import io.agentscope.core.model.GenerateOptions;
+import io.agentscope.core.tool.ToolExecutionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,7 +46,7 @@ public class ChatOrchestrator {
     private final AgentProfileVersionRepository agentProfileVersionRepository;
     private final ModelCatalogRepository modelCatalogRepository;
     private final ConversationMemoryService conversationMemoryService;
-    private final AgentTraceService agentTraceService;
+    private final AgentExecutionTraceService agentExecutionTraceService;
     private final KnowledgeBaseRetrievalService knowledgeBaseRetrievalService;
     private final AgentCapabilityAssemblyService agentCapabilityAssemblyService;
     private final ChatStreamBroker chatStreamBroker;
@@ -62,7 +63,7 @@ public class ChatOrchestrator {
             AgentProfileVersionRepository agentProfileVersionRepository,
             ModelCatalogRepository modelCatalogRepository,
             ConversationMemoryService conversationMemoryService,
-            AgentTraceService agentTraceService,
+            AgentExecutionTraceService agentExecutionTraceService,
             KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
             AgentCapabilityAssemblyService agentCapabilityAssemblyService,
             ChatStreamBroker chatStreamBroker,
@@ -73,14 +74,14 @@ public class ChatOrchestrator {
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.modelCatalogRepository = modelCatalogRepository;
         this.conversationMemoryService = conversationMemoryService;
-        this.agentTraceService = agentTraceService;
+        this.agentExecutionTraceService = agentExecutionTraceService;
         this.knowledgeBaseRetrievalService = knowledgeBaseRetrievalService;
         this.agentCapabilityAssemblyService = agentCapabilityAssemblyService;
         this.chatStreamBroker = chatStreamBroker;
         this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
         this.routingService = new KnowledgeBaseRoutingService(properties, chatModelFactory);
         this.chatStreamDeltaService = new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker);
-        this.agentEventStreamService = new AgentEventStreamService(chatStreamDeltaService);
+        this.agentEventStreamService = new AgentEventStreamService(chatStreamDeltaService, agentExecutionTraceService);
         this.assistantTurnAwaitService = new AssistantTurnAwaitService(conversationMemoryService);
         this.chatMessagePayloadService = new ChatMessagePayloadService(conversationMemoryService);
     }
@@ -228,15 +229,18 @@ public class ChatOrchestrator {
     private void generate(StreamTask task, RunningTaskControl control) {
         List<String> reasoningSteps = new ArrayList<>();
         StringBuilder answerBuilder = new StringBuilder();
+        AgentExecutionTraceContext traceContext = null;
         try {
             throwIfCancelled(control);
             ChatExchangeContext.clear();
             ChatExchangeContext.sessionCode(task.sessionId());
+            traceContext = agentExecutionTraceService.startOrResumeTrace(task);
+            agentExecutionTraceService.bindMdc(traceContext, traceContext.requestSpanId());
             reasoningSteps.add("已接收用户问题，正在分析检索意图");
             updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
 
             List<ChatTurn> history = conversationMemoryService.history(task.userId(), task.sessionId(), properties.getChat().getHistoryTurns());
-            agentTraceService.trace(task.sessionId(), "REQUEST_RECEIVED", Map.of(
+            agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "request.received", Map.of(
                     "query", task.query(),
                     "historyTurns", history.size(),
                     "profile", task.profileCode(),
@@ -246,6 +250,17 @@ public class ChatOrchestrator {
             if (properties.getChat().isStubResponses()) {
                 ChatResponse stubbed = stubbedAnswer(task.sessionId(), task.profile(), task.query(), task.chatModelCode());
                 reasoningSteps.add("测试桩模式已完成检索，正在按流式方式输出答案");
+                String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
+                traceContext.setAnswerStreamSpanId(answerStreamSpanId);
+                agentExecutionTraceService.startSpan(
+                        traceContext,
+                        traceContext.requestSpanId(),
+                        answerStreamSpanId,
+                        "answer.stream",
+                        com.knowledgebox.domain.chat.AgentExecutionSpanType.STREAM,
+                        Map.of("mode", "stub"),
+                        Map.of("streamMode", "stub")
+                );
                 chatStreamDeltaService.streamTextDelta(
                         task,
                         reasoningSteps,
@@ -257,6 +272,7 @@ public class ChatOrchestrator {
                 throwIfCancelled(control);
                 finishSuccessfully(
                         task,
+                        traceContext,
                         answerBuilder.toString(),
                         reasoningSteps,
                         stubbed.citations(),
@@ -277,11 +293,29 @@ public class ChatOrchestrator {
             reasoningSteps.add("已装载历史上下文，准备执行 ReAct Agent");
             updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
 
+            String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
+            agentExecutionTraceService.startSpan(
+                    traceContext,
+                    traceContext.requestSpanId(),
+                    routingSpanId,
+                    "query.route",
+                    com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
+                    Map.of("query", task.query()),
+                    Map.of()
+            );
             QueryRoutingDecision routingDecision = routeQuery(task.query(), task.profile());
+            agentExecutionTraceService.endSpan(
+                    traceContext,
+                    routingSpanId,
+                    com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
+                    routingPayload(routingDecision),
+                    Map.of(),
+                    null
+            );
             reasoningSteps.add("查询路由[" + routingDecision.source() + "]："
                     + (routingDecision.enableKnowledgeBase() ? "启用知识库工具" : "跳过知识库工具"));
             updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
-            agentTraceService.trace(task.sessionId(), "QUERY_ROUTED", Map.of(
+            agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", Map.of(
                     "query", task.query(),
                     "enableKnowledgeBase", routingDecision.enableKnowledgeBase(),
                     "matchedRule", routingDecision.matchedRule(),
@@ -291,13 +325,32 @@ public class ChatOrchestrator {
                     "routingModelOutput", routingDecision.routingModelOutput() == null ? "" : routingDecision.routingModelOutput()
             ));
 
-            ReActAgent agent = createReActAgent(task.profile(), task.chatModelCode(), routingDecision.enableKnowledgeBase());
+            String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
+            traceContext.setAnswerStreamSpanId(answerStreamSpanId);
+            agentExecutionTraceService.startSpan(
+                    traceContext,
+                    traceContext.requestSpanId(),
+                    answerStreamSpanId,
+                    "answer.stream",
+                    com.knowledgebox.domain.chat.AgentExecutionSpanType.STREAM,
+                    Map.of(
+                            "chatModel", task.chatModelCode(),
+                            "enableKnowledgeBase", routingDecision.enableKnowledgeBase(),
+                            "historyTurns", history.size()
+                    ),
+                    Map.of()
+            );
+
+            ReActAgent agent = createReActAgent(task.profile(), task.chatModelCode(), routingDecision.enableKnowledgeBase(), traceContext);
             AgentStreamState streamState = new AgentStreamState();
+            final AgentExecutionTraceContext activeTraceContext = traceContext;
             agent.stream(toAgentScopeHistory(history), buildStreamOptions())
                     .doOnNext(event -> {
                         throwIfCancelled(control);
+                        agentExecutionTraceService.bindMdc(activeTraceContext, activeTraceContext.answerStreamSpanId());
                         agentEventStreamService.consumeAgentEvent(
                                 task,
+                                activeTraceContext,
                                 reasoningSteps,
                                 answerBuilder,
                                 streamState,
@@ -336,8 +389,21 @@ public class ChatOrchestrator {
             reasoningSteps.clear();
             reasoningSteps.addAll(completedReasoningSteps);
             throwIfCancelled(control);
+            agentExecutionTraceService.endSpan(
+                    traceContext,
+                    answerStreamSpanId,
+                    com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
+                    Map.of(
+                            "answerLength", answerBuilder.length(),
+                            "toolCalls", toolCalls,
+                            "reasoningStepCount", reasoningSteps.size()
+                    ),
+                    Map.of(),
+                    null
+            );
             finishSuccessfully(
                     task,
+                    traceContext,
                     answerBuilder.toString(),
                     reasoningSteps,
                     toCitations(retrievedChunks),
@@ -346,6 +412,7 @@ public class ChatOrchestrator {
                     routingDecision
             );
         } catch (ChatGenerationCancelledException exception) {
+            agentExecutionTraceService.cancelTrace(traceContext);
             log.info(
                     "Chat generation was cancelled or message removed. userId={}, sessionId={}, assistantMessageId={}",
                     task.userId(),
@@ -355,6 +422,7 @@ public class ChatOrchestrator {
             chatStreamBroker.complete(task.assistantMessageId());
         } catch (Exception exception) {
             if (isCancellationException(exception)) {
+                agentExecutionTraceService.cancelTrace(traceContext);
                 log.info(
                         "Chat generation interrupted by cancellation. userId={}, sessionId={}, assistantMessageId={}",
                         task.userId(),
@@ -374,6 +442,7 @@ public class ChatOrchestrator {
                 chatStreamBroker.complete(task.assistantMessageId());
                 return;
             }
+            agentExecutionTraceService.failTrace(traceContext, exception);
             log.error(
                     "Chat generation failed. userId={}, sessionId={}, assistantMessageId={}, chatModel={}",
                     task.userId(),
@@ -417,11 +486,13 @@ public class ChatOrchestrator {
         } finally {
             runningTasks.remove(task.assistantMessageId());
             ChatExchangeContext.clear();
+            agentExecutionTraceService.clearMdc();
         }
     }
 
     private void finishSuccessfully(
             StreamTask task,
+            AgentExecutionTraceContext traceContext,
             String answer,
             List<String> reasoningSteps,
             List<ChatCitationView> citations,
@@ -441,16 +512,42 @@ public class ChatOrchestrator {
         Map<String, Object> answerTracePayload = new LinkedHashMap<>();
         answerTracePayload.put("toolCalls", toolCalls);
         answerTracePayload.put("citations", citations.size());
-        answerTracePayload.put("routing", Map.of(
-                "enableKnowledgeBase", routingDecision.enableKnowledgeBase(),
-                "matchedRule", routingDecision.matchedRule(),
-                "reason", routingDecision.reason(),
-                "source", routingDecision.source(),
-                "routingModel", routingDecision.routingModel(),
-                "routingModelOutput", routingDecision.routingModelOutput() == null ? "" : routingDecision.routingModelOutput()
-        ));
+        answerTracePayload.put("routing", routingPayload(routingDecision));
         answerTracePayload.put("eventTypeCounts", toEventTypeCountPayload(eventTypeCounts));
-        agentTraceService.trace(task.sessionId(), "ANSWER_COMPLETED", answerTracePayload);
+        String finalizeSpanId = agentExecutionTraceService.nextSpanIdValue();
+        agentExecutionTraceService.startSpan(
+                traceContext,
+                traceContext.requestSpanId(),
+                finalizeSpanId,
+                "answer.finalize",
+                com.knowledgebox.domain.chat.AgentExecutionSpanType.FINALIZE,
+                Map.of(
+                        "toolCalls", toolCalls,
+                        "citationCount", citations.size(),
+                        "reasoningStepCount", reasoningSteps.size()
+                ),
+                Map.of()
+        );
+        agentExecutionTraceService.recordEvent(traceContext, finalizeSpanId, "final.response", Map.of(
+                "answer", answer,
+                "toolCalls", toolCalls,
+                "citations", citations,
+                "reasoningSteps", reasoningSteps
+        ));
+        agentExecutionTraceService.endSpan(
+                traceContext,
+                finalizeSpanId,
+                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
+                Map.of(
+                        "answer", answer,
+                        "toolCalls", toolCalls,
+                        "citations", citations,
+                        "eventTypeCounts", toEventTypeCountPayload(eventTypeCounts)
+                ),
+                Map.of(),
+                null
+        );
+        agentExecutionTraceService.completeTrace(traceContext, answerTracePayload);
         chatStreamBroker.publish(
                 task.assistantMessageId(),
                 "done",
@@ -727,18 +824,31 @@ public class ChatOrchestrator {
                 .orElseThrow(() -> new IllegalArgumentException("Publicly selectable chat model not found: " + requestedChatModel));
     }
 
-    private ReActAgent createReActAgent(AgentProfileVersion profile, String chatModelCode, boolean enableKnowledgeBaseTool) {
+    private ReActAgent createReActAgent(
+            AgentProfileVersion profile,
+            String chatModelCode,
+            boolean enableKnowledgeBaseTool,
+            AgentExecutionTraceContext traceContext
+    ) {
         AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(
                 profile.getId(),
                 enableKnowledgeBaseTool
         );
+        List<io.agentscope.core.hook.Hook> hooks = new ArrayList<>();
+        if (capabilities.hooks() != null && !capabilities.hooks().isEmpty()) {
+            hooks.addAll(capabilities.hooks());
+        }
+        hooks.add(new AgentExecutionTraceHook(agentExecutionTraceService, traceContext));
         return chatModelFactory.createReActAgent(
                 profile,
                 chatModelCode,
                 enableKnowledgeBaseTool,
                 capabilities.toolkit(),
                 capabilities.skillBox(),
-                capabilities.hooks()
+                hooks,
+                ToolExecutionContext.builder()
+                        .register(AgentExecutionTraceContext.class, traceContext)
+                        .build()
         );
     }
 
@@ -817,6 +927,17 @@ public class ChatOrchestrator {
         for (EventType eventType : EventType.values()) {
             payload.put(eventType.name(), eventTypeCounts.getOrDefault(eventType, 0));
         }
+        return payload;
+    }
+
+    private Map<String, Object> routingPayload(QueryRoutingDecision routingDecision) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("enableKnowledgeBase", routingDecision.enableKnowledgeBase());
+        payload.put("matchedRule", routingDecision.matchedRule());
+        payload.put("reason", routingDecision.reason());
+        payload.put("source", routingDecision.source());
+        payload.put("routingModel", routingDecision.routingModel());
+        payload.put("routingModelOutput", routingDecision.routingModelOutput());
         return payload;
     }
 

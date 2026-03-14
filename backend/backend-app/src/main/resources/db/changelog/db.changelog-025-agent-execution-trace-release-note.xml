@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="025-001-about-release-note-agent-execution-trace" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.14',
+                '管理员可查看 Agent 调用链日志',
+                '对话链路新增 trace/span/event 持久化日志，管理员可按 traceId 查看 prompt 注入、thinking、工具调用、最终回复与耗时。',
+                E'## 本次更新\n\n- 新增管理员专属 Agent 调用链日志页面，可按 `traceId` 查看完整执行时间线\n- 每次对话都会生成稳定的 `traceId`，并按逻辑阶段拆分 `spanId`\n- 记录 prompt 注入、thinking/summary 过程、工具调用开始与结束、最终回复和异常\n- 日志落库到 PostgreSQL，并支持按保留期自动清理',
+                TIMESTAMPTZ '2026-03-14 22:30:00+08',
+                -1,
+                TRUE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.14'
+                   AND title = '管理员可查看 Agent 调用链日志'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -11,6 +11,7 @@ import io.agentscope.core.model.Model;
 import io.agentscope.core.model.OpenAIChatModel;
 import io.agentscope.core.skill.SkillBox;
 import io.agentscope.core.tool.Toolkit;
+import io.agentscope.core.tool.ToolExecutionContext;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -38,7 +39,8 @@ final class ChatModelFactory {
             boolean enableKnowledgeBaseTool,
             Toolkit toolkit,
             SkillBox skillBox,
-            List<Hook> hooks
+            List<Hook> hooks,
+            ToolExecutionContext toolExecutionContext
     ) {
         ReActAgent.Builder builder = ReActAgent.builder()
                 .name("knowledge-box-react-agent")
@@ -52,6 +54,9 @@ final class ChatModelFactory {
         }
         if (hooks != null && !hooks.isEmpty()) {
             builder.hooks(hooks);
+        }
+        if (toolExecutionContext != null) {
+            builder.toolExecutionContext(toolExecutionContext);
         }
         return builder.build();
     }

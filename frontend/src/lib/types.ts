@@ -223,12 +223,63 @@ export type WebhookSubscription = {
   enabled: boolean;
 };
 
-export type AgentTrace = {
+export type AgentExecutionTraceStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export type AgentExecutionTraceSummary = {
+  traceId: string;
+  userId: number | null;
+  sessionCode: string | null;
+  assistantMessageCode: string | null;
+  clientMessageId: string | null;
+  profileCode: string | null;
+  chatModelCode: string | null;
+  requestQueryMasked: string | null;
+  status: AgentExecutionTraceStatus;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  attemptCount: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+};
+
+export type AgentExecutionTracePage = {
+  items: AgentExecutionTraceSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type AgentExecutionSpan = {
+  spanId: string;
+  parentSpanId: string | null;
+  spanName: string | null;
+  spanType: 'REQUEST' | 'ROUTING' | 'STREAM' | 'TOOL' | 'FINALIZE' | (string & {});
+  status: AgentExecutionTraceStatus;
+  sequenceNo: number;
+  attemptNo: number;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  inputJson: string | null;
+  outputJson: string | null;
+  tagsJson: string | null;
+  errorJson: string | null;
+};
+
+export type AgentExecutionEvent = {
   id: number;
-  traceCode: string;
-  sessionCode: string;
-  stage: string;
-  payloadJson: string;
+  spanId: string | null;
+  eventType: string | null;
+  sequenceNo: number;
+  occurredAt: string;
+  payloadJson: string | null;
+};
+
+export type AgentExecutionTraceDetail = {
+  trace: AgentExecutionTraceSummary;
+  spans: AgentExecutionSpan[];
+  events: AgentExecutionEvent[];
 };
 
 export type UploadResult = {

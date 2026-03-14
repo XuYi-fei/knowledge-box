@@ -160,6 +160,54 @@ class KnowledgeBoxPostgresIntegrationTests {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldPersistAgentExecutionTraceAndExposeAdminTraceDetail() {
+        String accessToken = createUserToken("trace-user@example.com", "password123");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+
+        ResponseEntity<ChatResponse> chatResponse = testRestTemplate.exchange(
+                RequestEntity.post(java.net.URI.create("http://localhost:" + port + "/api/app/chat/messages"))
+                        .headers(headers)
+                        .body(Map.of(
+                                "sessionId", "session-trace-001",
+                                "clientTraceId", "msg-trace-001",
+                                "query", "这个知识库系统的核心能力有哪些？",
+                                "chatModel", "qwen-plus"
+                        )),
+                ChatResponse.class
+        );
+
+        assertThat(chatResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> tracesResponse = testRestTemplate.withBasicAuth("admin-it", "admin-it-pass").getForEntity(
+                "http://localhost:" + port + "/api/admin/traces?sessionCode=session-trace-001&page=1&pageSize=10",
+                Map.class
+        );
+
+        assertThat(tracesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(tracesResponse.getBody()).isNotNull();
+        List<Map<String, Object>> items = (List<Map<String, Object>>) tracesResponse.getBody().get("items");
+        assertThat(items).isNotEmpty();
+        Map<String, Object> trace = items.get(0);
+        assertThat(trace).containsEntry("sessionCode", "session-trace-001");
+        assertThat(trace.get("traceId")).isNotNull();
+        assertThat(trace.get("status")).isEqualTo("COMPLETED");
+
+        String traceId = String.valueOf(trace.get("traceId"));
+        ResponseEntity<Map> detailResponse = testRestTemplate.withBasicAuth("admin-it", "admin-it-pass").getForEntity(
+                "http://localhost:" + port + "/api/admin/traces/" + traceId,
+                Map.class
+        );
+
+        assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(detailResponse.getBody()).isNotNull();
+        assertThat(detailResponse.getBody()).containsKey("trace");
+        assertThat((List<?>) detailResponse.getBody().get("spans")).isNotEmpty();
+        assertThat((List<?>) detailResponse.getBody().get("events")).isNotEmpty();
+    }
+
+    @Test
     void shouldProtectAdminEndpointsAndAllowBasicAuth() {
         ResponseEntity<Map> unauthorized = testRestTemplate.getForEntity(
                 "http://localhost:" + port + "/api/admin/me",

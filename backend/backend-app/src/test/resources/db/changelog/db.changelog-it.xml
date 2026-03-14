@@ -653,4 +653,126 @@
             );
         ]]></sql>
     </changeSet>
+    <changeSet id="it-024-create-agent-execution-trace-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS agent_execution_trace (
+                id BIGSERIAL PRIMARY KEY,
+                trace_id VARCHAR(64) NOT NULL UNIQUE,
+                user_id BIGINT,
+                session_code VARCHAR(64) NOT NULL,
+                assistant_message_code VARCHAR(64) NOT NULL UNIQUE,
+                client_message_id VARCHAR(64),
+                profile_code VARCHAR(64) NOT NULL,
+                chat_model_code VARCHAR(64) NOT NULL,
+                request_query_masked TEXT NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                started_at TIMESTAMPTZ NOT NULL,
+                ended_at TIMESTAMPTZ,
+                duration_ms BIGINT,
+                root_span_id VARCHAR(64) NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 1,
+                error_code VARCHAR(128),
+                error_message TEXT,
+                summary_json TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_trace_session_started
+                ON agent_execution_trace(session_code, started_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_trace_status_started
+                ON agent_execution_trace(status, started_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_trace_user_started
+                ON agent_execution_trace(user_id, started_at DESC);
+
+            CREATE TABLE IF NOT EXISTS agent_execution_span (
+                id BIGSERIAL PRIMARY KEY,
+                trace_id VARCHAR(64) NOT NULL REFERENCES agent_execution_trace(trace_id) ON DELETE CASCADE,
+                span_id VARCHAR(64) NOT NULL UNIQUE,
+                parent_span_id VARCHAR(64),
+                span_name VARCHAR(128) NOT NULL,
+                span_type VARCHAR(16) NOT NULL,
+                status VARCHAR(16) NOT NULL,
+                sequence_no INTEGER NOT NULL,
+                attempt_no INTEGER NOT NULL DEFAULT 1,
+                started_at TIMESTAMPTZ NOT NULL,
+                ended_at TIMESTAMPTZ,
+                duration_ms BIGINT,
+                input_json TEXT,
+                output_json TEXT,
+                tags_json TEXT,
+                error_json TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_span_trace_seq
+                ON agent_execution_span(trace_id, sequence_no, id);
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_span_parent
+                ON agent_execution_span(parent_span_id);
+
+            CREATE TABLE IF NOT EXISTS agent_execution_event (
+                id BIGSERIAL PRIMARY KEY,
+                trace_id VARCHAR(64) NOT NULL REFERENCES agent_execution_trace(trace_id) ON DELETE CASCADE,
+                span_id VARCHAR(64) NOT NULL REFERENCES agent_execution_span(span_id) ON DELETE CASCADE,
+                event_type VARCHAR(64) NOT NULL,
+                sequence_no INTEGER NOT NULL,
+                occurred_at TIMESTAMPTZ NOT NULL,
+                payload_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_event_trace_seq
+                ON agent_execution_event(trace_id, sequence_no, id);
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_event_span_seq
+                ON agent_execution_event(span_id, sequence_no, id);
+        ]]></sql>
+    </changeSet>
+    <changeSet id="it-024b-create-about-release-note" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS about_release_note (
+                id BIGSERIAL PRIMARY KEY,
+                version_label VARCHAR(64) NOT NULL,
+                title VARCHAR(128) NOT NULL,
+                summary VARCHAR(512) NOT NULL,
+                content_markdown TEXT NOT NULL,
+                published_at TIMESTAMPTZ NOT NULL,
+                display_order INTEGER NOT NULL DEFAULT 0,
+                highlighted BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_about_release_note_published
+                ON about_release_note(published_at DESC, display_order ASC);
+        ]]></sql>
+    </changeSet>
+    <changeSet id="it-025-agent-execution-trace-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.14',
+                '管理员可查看 Agent 调用链日志',
+                '对话链路新增 trace/span/event 持久化日志，管理员可按 traceId 查看 prompt 注入、thinking、工具调用、最终回复与耗时。',
+                E'## 本次更新\n\n- 新增管理员专属 Agent 调用链日志页面，可按 `traceId` 查看完整执行时间线\n- 每次对话都会生成稳定的 `traceId`，并按逻辑阶段拆分 `spanId`\n- 记录 prompt 注入、thinking/summary 过程、工具调用开始与结束、最终回复和异常\n- 日志落库到 PostgreSQL，并支持按保留期自动清理',
+                TIMESTAMPTZ '2026-03-14 22:30:00+08',
+                -1,
+                TRUE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.14'
+                   AND title = '管理员可查看 Agent 调用链日志'
+            );
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

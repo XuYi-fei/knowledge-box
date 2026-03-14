@@ -21,6 +21,7 @@ Knowledge Box 是一套个人知识库系统。
 - 上传 Markdown 文档
 - 上传 Markdown 所引用的本地图片资源，后端会转存并改写图片链接
 - 查看文档处理任务、Hooks、Tools / MCP / Skills、运行 Trace
+- 按 `traceId` 查看 Agent 调用链日志详情，包括 span/event 时间线、prompt 注入、thinking、工具调用、最终回复与耗时
 
 ### 当前技术栈
 
@@ -243,6 +244,9 @@ knowledge-box:
 - `knowledge-box.chat.knowledge-base-routing.force-disable-regexes`: 命中后强制禁用知识库工具和 fallback 检索（适合通用编程问答）
 - `knowledge-box.chat.dashscope-compatible.base-url`: DashScope OpenAI 兼容端点（用于需兼容端点的模型）
 - `knowledge-box.chat.dashscope-compatible.force-model-regexes`: 命中后改走兼容端点的模型名规则（默认包含 `qwen3.5-*`）
+- `knowledge-box.observability.agent-trace.enabled`: 是否启用 Agent 调用链日志持久化
+- `knowledge-box.observability.agent-trace.retention`: Agent 调用链日志保留时长（如 `30d`）
+- `knowledge-box.observability.agent-trace.cleanup-interval`: Agent 调用链日志定时清理间隔（如 `24h`）
 - `knowledge-box.retrieval.embedding-batch-size`: 向量写入分批大小（默认 `10`；当前 DashScope 链路会强制上限 `10`，用于避免 `batch size is invalid`）
 - `knowledge-box.document.bootstrap.enabled`: 是否在应用启动时按 seed 文件初始化文档审核单（默认关闭）
 - `knowledge-box.document.bootstrap.seed-file`: 初始化 seed 文件路径（支持 `file:` 或 `classpath:`）

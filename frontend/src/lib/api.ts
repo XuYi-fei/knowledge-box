@@ -1,9 +1,11 @@
 import {
   AboutReleaseNote,
+  AgentExecutionTraceDetail,
+  AgentExecutionTracePage,
+  AgentExecutionTraceSummary,
   AgentProfileVersionBindings,
   AgentProfileVersionMcpBinding,
   AgentProfileVersion,
-  AgentTrace,
   ChatMessageStatus,
   DocumentCategory,
   DocumentIndexRebuildJob,
@@ -605,8 +607,42 @@ export const api = {
   async hooks() {
     return requestJson<WebhookSubscription[]>('/api/admin/hooks', undefined, 'admin');
   },
-  async traces() {
-    return requestJson<AgentTrace[]>('/api/admin/traces', undefined, 'admin');
+  async traces(params?: {
+    traceId?: string;
+    status?: AgentExecutionTraceSummary['status'] | 'ALL';
+    sessionCode?: string;
+    userId?: number;
+    queryKeyword?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const searchParams = new URLSearchParams();
+    if (params?.traceId) {
+      searchParams.set('traceId', params.traceId);
+    }
+    if (params?.status && params.status !== 'ALL') {
+      searchParams.set('status', params.status);
+    }
+    if (params?.sessionCode) {
+      searchParams.set('sessionCode', params.sessionCode);
+    }
+    if (typeof params?.userId === 'number' && !Number.isNaN(params.userId)) {
+      searchParams.set('userId', String(params.userId));
+    }
+    if (params?.queryKeyword) {
+      searchParams.set('queryKeyword', params.queryKeyword);
+    }
+    if (typeof params?.page === 'number') {
+      searchParams.set('page', String(params.page));
+    }
+    if (typeof params?.pageSize === 'number') {
+      searchParams.set('pageSize', String(params.pageSize));
+    }
+    const query = searchParams.toString();
+    return requestJson<AgentExecutionTracePage>(`/api/admin/traces${query ? `?${query}` : ''}`, undefined, 'admin');
+  },
+  async traceDetail(traceId: string) {
+    return requestJson<AgentExecutionTraceDetail>(`/api/admin/traces/${encodeURIComponent(traceId)}`, undefined, 'admin');
   },
   async uploadDocument(
     markdown: File,

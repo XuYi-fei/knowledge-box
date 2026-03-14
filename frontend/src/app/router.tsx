@@ -12,6 +12,7 @@ const DocumentReviewsPage = lazy(() => import('../features/admin/DocumentReviews
 const IntegrationsPage = lazy(() => import('../features/admin/IntegrationsPage').then((module) => ({ default: module.IntegrationsPage })));
 const HooksPage = lazy(() => import('../features/admin/HooksPage').then((module) => ({ default: module.HooksPage })));
 const TracesPage = lazy(() => import('../features/admin/TracesPage').then((module) => ({ default: module.TracesPage })));
+const TraceDetailPage = lazy(() => import('../features/admin/TraceDetailPage').then((module) => ({ default: module.TraceDetailPage })));
 const PublicChatPage = lazy(() => import('../features/chat/PublicChatPage').then((module) => ({ default: module.PublicChatPage })));
 const UserLoginPage = lazy(() => import('../features/auth/UserLoginPage').then((module) => ({ default: module.UserLoginPage })));
 
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
       { path: 'integrations', element: withSuspense(<IntegrationsPage />) },
       { path: 'hooks', element: withSuspense(<HooksPage />) },
       { path: 'traces', element: withSuspense(<TracesPage />) },
+      { path: 'traces/:traceId', element: withSuspense(<TraceDetailPage />) },
     ],
   },
 ]);

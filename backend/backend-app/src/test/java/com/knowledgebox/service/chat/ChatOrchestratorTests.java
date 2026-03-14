@@ -64,7 +64,7 @@ class ChatOrchestratorTests {
                 mock(AgentProfileVersionRepository.class),
                 mock(ModelCatalogRepository.class),
                 conversationMemoryService,
-                mock(AgentTraceService.class),
+                mock(AgentExecutionTraceService.class),
                 mock(KnowledgeBaseRetrievalService.class),
                 emptyCapabilitiesAssembler(),
                 chatStreamBroker,
@@ -72,7 +72,8 @@ class ChatOrchestratorTests {
                 ""
         );
         agentEventStreamService = new AgentEventStreamService(
-                new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker)
+                new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker),
+                mock(AgentExecutionTraceService.class)
         );
         orchestrator = probeChatOrchestrator;
     }
@@ -229,18 +230,19 @@ class ChatOrchestratorTests {
         AgentStreamState streamState = new AgentStreamState();
         List<String> reasoningSteps = new ArrayList<>();
         StringBuilder answerBuilder = new StringBuilder();
+        AgentExecutionTraceContext traceContext = traceContext();
 
-        agentEventStreamService.consumeAgentEvent(streamTask, reasoningSteps, answerBuilder, streamState, reasoningEvent("先分析问题"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, reasoningEvent("先分析问题"), (task, steps, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, reasoningSteps, answerBuilder, streamState, toolResultEvent("searchKnowledgeBase"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, toolResultEvent("searchKnowledgeBase"), (task, steps, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, reasoningSteps, answerBuilder, streamState, hintEvent("优先参考已有上下文"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, hintEvent("优先参考已有上下文"), (task, steps, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, reasoningSteps, answerBuilder, streamState, summaryEvent("这是总结输出"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, summaryEvent("这是总结输出"), (task, steps, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, reasoningSteps, answerBuilder, streamState, agentResultEvent("这是最终答案"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, agentResultEvent("这是最终答案"), (task, steps, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, reasoningSteps, answerBuilder, streamState, allEvent("all marker"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, allEvent("all marker"), (task, steps, full, delta) -> {
         });
 
         assertThat(reasoningSteps).anyMatch(step -> step.startsWith("思考中："));
@@ -304,9 +306,11 @@ class ChatOrchestratorTests {
         AgentStreamState streamState = new AgentStreamState();
         List<String> reasoningSteps = new ArrayList<>();
         StringBuilder answerBuilder = new StringBuilder();
+        AgentExecutionTraceContext traceContext = traceContext();
 
         agentEventStreamService.consumeAgentEvent(
                 streamTask,
+                traceContext,
                 reasoningSteps,
                 answerBuilder,
                 streamState,
@@ -404,6 +408,12 @@ class ChatOrchestratorTests {
         return assemblyService;
     }
 
+    private AgentExecutionTraceContext traceContext() {
+        AgentExecutionTraceContext traceContext = new AgentExecutionTraceContext("trace-test", 1, 0, "span-request");
+        traceContext.setAnswerStreamSpanId("span-stream");
+        return traceContext;
+    }
+
     private static final class ProbeChatOrchestrator extends ChatOrchestrator {
         private String routingModelOutput = NEED_KB;
         private int invokeRoutingModelCalls = 0;
@@ -413,7 +423,7 @@ class ChatOrchestratorTests {
                 AgentProfileVersionRepository agentProfileVersionRepository,
                 ModelCatalogRepository modelCatalogRepository,
                 ConversationMemoryService conversationMemoryService,
-                AgentTraceService agentTraceService,
+                AgentExecutionTraceService agentExecutionTraceService,
                 KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
                 AgentCapabilityAssemblyService agentCapabilityAssemblyService,
                 ChatStreamBroker chatStreamBroker,
@@ -425,7 +435,7 @@ class ChatOrchestratorTests {
                     agentProfileVersionRepository,
                     modelCatalogRepository,
                     conversationMemoryService,
-                    agentTraceService,
+                    agentExecutionTraceService,
                     knowledgeBaseRetrievalService,
                     agentCapabilityAssemblyService,
                     chatStreamBroker,

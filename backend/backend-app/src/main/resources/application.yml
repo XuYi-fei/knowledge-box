@@ -28,6 +28,10 @@ spring:
 server:
   port: 8080
 
+logging:
+  pattern:
+    level: "%5p [trace:%X{traceId:-} span:%X{spanId:-}]"
+
 management:
   endpoints:
     web:
@@ -101,3 +105,8 @@ knowledge-box:
       master-key: ${KB_INTEGRATION_CRYPTO_MASTER_KEY:}
     skill-cache-dir: ${KB_INTEGRATION_SKILL_CACHE_DIR:backend/uploads/skills/cache}
     skill-package-category: ${KB_INTEGRATION_SKILL_PACKAGE_CATEGORY:agent-skills}
+  observability:
+    agent-trace:
+      enabled: ${KB_OBSERVABILITY_AGENT_TRACE_ENABLED:true}
+      retention: ${KB_OBSERVABILITY_AGENT_TRACE_RETENTION:30d}
+      cleanup-interval: ${KB_OBSERVABILITY_AGENT_TRACE_CLEANUP_INTERVAL:24h}

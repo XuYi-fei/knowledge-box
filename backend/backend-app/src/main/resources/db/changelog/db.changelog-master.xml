@@ -28,4 +28,6 @@
     <include file="db/changelog/db.changelog-021-agent-integrations-release-note.xml"/>
     <include file="db/changelog/db.changelog-022-bootstrap-seed-directory-release-note.xml"/>
     <include file="db/changelog/db.changelog-023-seed-admin-user-account.xml"/>
+    <include file="db/changelog/db.changelog-024-agent-execution-trace.xml"/>
+    <include file="db/changelog/db.changelog-025-agent-execution-trace-release-note.xml"/>
 </databaseChangeLog>

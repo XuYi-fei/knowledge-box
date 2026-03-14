@@ -1,9 +1,10 @@
 package com.knowledgebox.web.admin;
 
 import com.knowledgebox.api.AdminDashboardView;
+import com.knowledgebox.api.AgentExecutionTraceDetailView;
+import com.knowledgebox.api.AgentExecutionTracePageView;
 import com.knowledgebox.api.AgentProfileVersionView;
 import com.knowledgebox.api.AgentProfileVersionBindingsView;
-import com.knowledgebox.api.AgentTraceView;
 import com.knowledgebox.api.ChangeAdminPasswordRequest;
 import com.knowledgebox.api.CreateMcpServerRequest;
 import com.knowledgebox.api.CreateModelCatalogRequest;
@@ -22,6 +23,7 @@ import com.knowledgebox.api.UpdateSkillBindingRequest;
 import com.knowledgebox.api.UpdateToolDefinitionRequest;
 import com.knowledgebox.api.WebhookSubscriptionView;
 import com.knowledgebox.service.admin.AdminCommandService;
+import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
 import com.knowledgebox.service.admin.AdminQueryService;
 import com.knowledgebox.service.integration.AgentProfileBindingService;
 import com.knowledgebox.service.integration.IntegrationAdminService;
@@ -46,17 +48,20 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 public class AdminController {
 
     private final AdminQueryService adminQueryService;
+    private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
     private final AdminCommandService adminCommandService;
     private final IntegrationAdminService integrationAdminService;
     private final AgentProfileBindingService agentProfileBindingService;
 
     public AdminController(
             AdminQueryService adminQueryService,
+            AgentExecutionTraceQueryService agentExecutionTraceQueryService,
             AdminCommandService adminCommandService,
             IntegrationAdminService integrationAdminService,
             AgentProfileBindingService agentProfileBindingService
     ) {
         this.adminQueryService = adminQueryService;
+        this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
         this.adminCommandService = adminCommandService;
         this.integrationAdminService = integrationAdminService;
         this.agentProfileBindingService = agentProfileBindingService;
@@ -226,7 +231,20 @@ public class AdminController {
     }
 
     @GetMapping("/traces")
-    public List<AgentTraceView> traces() {
-        return adminQueryService.traces();
+    public AgentExecutionTracePageView traces(
+            @RequestParam(required = false) String traceId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String sessionCode,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String queryKeyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize
+    ) {
+        return agentExecutionTraceQueryService.traces(traceId, status, sessionCode, userId, queryKeyword, page, pageSize);
+    }
+
+    @GetMapping("/traces/{traceId}")
+    public AgentExecutionTraceDetailView traceDetail(@PathVariable String traceId) {
+        return agentExecutionTraceQueryService.traceDetail(traceId);
     }
 }

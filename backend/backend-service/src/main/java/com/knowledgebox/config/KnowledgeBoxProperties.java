@@ -17,6 +17,7 @@ public class KnowledgeBoxProperties {
     private final Retrieval retrieval = new Retrieval();
     private final Document document = new Document();
     private final Integration integration = new Integration();
+    private final Observability observability = new Observability();
     private final Web web = new Web();
 
     public Admin getAdmin() {
@@ -53,6 +54,10 @@ public class KnowledgeBoxProperties {
 
     public Integration getIntegration() {
         return integration;
+    }
+
+    public Observability getObservability() {
+        return observability;
     }
 
     public Web getWeb() {
@@ -682,6 +687,44 @@ public class KnowledgeBoxProperties {
 
         public void setMasterKey(String masterKey) {
             this.masterKey = masterKey;
+        }
+    }
+
+    public static class Observability {
+        private final AgentTrace agentTrace = new AgentTrace();
+
+        public AgentTrace getAgentTrace() {
+            return agentTrace;
+        }
+    }
+
+    public static class AgentTrace {
+        private boolean enabled = true;
+        private Duration retention = Duration.ofDays(30);
+        private Duration cleanupInterval = Duration.ofHours(24);
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public Duration getRetention() {
+            return retention;
+        }
+
+        public void setRetention(Duration retention) {
+            this.retention = retention;
+        }
+
+        public Duration getCleanupInterval() {
+            return cleanupInterval;
+        }
+
+        public void setCleanupInterval(Duration cleanupInterval) {
+            this.cleanupInterval = cleanupInterval;
         }
     }
 }

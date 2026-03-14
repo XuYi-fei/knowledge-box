@@ -3,6 +3,7 @@ package com.knowledgebox;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.knowledgebox.api.ChatResponse;
+import com.knowledgebox.api.UserAuthResponse;
 import com.knowledgebox.domain.chat.ChatMessageStatus;
 import com.knowledgebox.domain.chat.ChatSession;
 import com.knowledgebox.domain.chat.ChatSessionStatus;
@@ -252,6 +253,24 @@ class KnowledgeBoxPostgresIntegrationTests {
         assertThat(updateResponse.getBody()).containsEntry("chatModel", "qwen-plus");
         assertThat(updateResponse.getBody()).containsEntry("routingModel", "qwen-plus");
         assertThat(updateResponse.getBody()).containsEntry("retrievalTopK", 8);
+    }
+
+    @Test
+    void shouldAllowPasswordLoginForSeededAdminFrontendAccount() {
+        ResponseEntity<UserAuthResponse> response = testRestTemplate.postForEntity(
+                "http://localhost:" + port + "/api/public/auth/login/password",
+                Map.of(
+                        "email", "admin@example.com",
+                        "password", "admin123"
+                ),
+                UserAuthResponse.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().accessToken()).isNotBlank();
+        assertThat(response.getBody().user().email()).isEqualTo("admin@example.com");
+        assertThat(response.getBody().message()).isEqualTo("登录成功，欢迎回来");
     }
 
     @Test

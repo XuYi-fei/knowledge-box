@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="023-001-seed-admin-user-account" author="codex">
+        <sql><![CDATA[
+            INSERT INTO user_account (email, password_hash, password_login_enabled, enabled, last_login_at)
+            SELECT
+                'admin@example.com',
+                '{bcrypt}$2y$10$C07jFOscKcjb5GSLlLCIqeovZRE3DV0FdQcf4VnD8PJy2cwDBLqdm',
+                TRUE,
+                TRUE,
+                CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM user_account
+                WHERE lower(email) = 'admin@example.com'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

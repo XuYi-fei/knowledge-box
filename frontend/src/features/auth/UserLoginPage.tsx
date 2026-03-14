@@ -119,7 +119,7 @@ export function UserLoginPage() {
       message.success(result.message);
     },
     onError: (error) => {
-      setErrorSummary(buildErrorSummary(error, '验证码发送失败，请检查 Redis、SMTP 与 QQ 邮箱授权码配置'));
+      setErrorSummary(buildErrorSummary(error, '验证码发送失败，请稍后重试'));
     },
   });
 
@@ -388,10 +388,6 @@ export function UserLoginPage() {
               </Button>
             </>
           )}
-
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            如果发送失败，请优先查看后端日志中的 SMTP 详细报错；使用 QQ 邮箱时需要填写 SMTP 授权码，而不是邮箱登录密码。
-          </Typography.Paragraph>
         </div>
       </Card>
     </div>

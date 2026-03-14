@@ -637,4 +637,20 @@
             ON CONFLICT (profile_version_id, skill_id) DO NOTHING;
         ]]></sql>
     </changeSet>
+    <changeSet id="it-023-seed-admin-user-account" author="codex">
+        <sql><![CDATA[
+            INSERT INTO user_account (email, password_hash, password_login_enabled, enabled, last_login_at)
+            SELECT
+                'admin@example.com',
+                '{bcrypt}$2y$10$C07jFOscKcjb5GSLlLCIqeovZRE3DV0FdQcf4VnD8PJy2cwDBLqdm',
+                TRUE,
+                TRUE,
+                CURRENT_TIMESTAMP
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM user_account
+                WHERE lower(email) = 'admin@example.com'
+            );
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

@@ -775,4 +775,31 @@
             );
         ]]></sql>
     </changeSet>
+    <changeSet id="it-026-trace-delete-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.14',
+                '管理员支持删除单条 Trace',
+                '运行追踪页支持删除单条已结束的 trace，并自动清理对应的 span/event 明细。',
+                E'## 本次更新\n\n- 管理端 trace 列表页与详情页都支持删除单条 trace\n- 删除 trace 时会一并清理其下属 span 和 event 明细\n- 运行中的 trace 会被保护，避免链路执行中删除导致日志写入失败',
+                TIMESTAMPTZ '2026-03-14 23:55:00+08',
+                -2,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.14'
+                   AND title = '管理员支持删除单条 Trace'
+            );
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

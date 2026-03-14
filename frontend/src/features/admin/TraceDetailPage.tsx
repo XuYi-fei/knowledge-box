@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import { Alert, Card, Collapse, Descriptions, Empty, List, Space, Spin, Tag, Typography } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, App, Button, Card, Collapse, Descriptions, Empty, List, Popconfirm, Space, Spin, Tag, Typography } from 'antd';
 import { useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
 import { AgentExecutionEvent, AgentExecutionSpan } from '../../lib/types';
@@ -182,12 +183,28 @@ function StepCard({
 }
 
 export function TraceDetailPage() {
+  const { message } = App.useApp();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const params = useParams<{ traceId: string }>();
   const traceId = params.traceId ?? '';
   const traceQuery = useQuery({
     queryKey: ['traceDetail', traceId],
     queryFn: () => api.traceDetail(traceId),
     enabled: Boolean(traceId),
+  });
+
+  const deleteTraceMutation = useMutation({
+    mutationFn: (currentTraceId: string) => api.deleteTrace(currentTraceId),
+    onSuccess: (_result, deletedTraceId) => {
+      message.success(`已删除 Trace ${deletedTraceId}`);
+      void queryClient.invalidateQueries({ queryKey: ['traces'] });
+      void queryClient.removeQueries({ queryKey: ['traceDetail', deletedTraceId] });
+      navigate('/admin/traces', { replace: true });
+    },
+    onError: (error) => {
+      message.error(buildErrorSummary(error, '删除 Trace 失败，请稍后重试'));
+    },
   });
 
   const spanIds = useMemo(() => new Set((traceQuery.data?.spans ?? []).map((span) => span.spanId)), [traceQuery.data?.spans]);
@@ -229,8 +246,24 @@ export function TraceDetailPage() {
   return (
     <div className="page-stack">
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Space>
+        <Space style={{ justifyContent: 'space-between', width: '100%' }} wrap>
           <Link to="/admin/traces">返回运行追踪</Link>
+          <Popconfirm
+            title="删除这条 Trace？"
+            description="删除后对应的 span 和 event 会一并清除，无法恢复。"
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true, loading: deleteTraceMutation.isPending }}
+            onConfirm={() => deleteTraceMutation.mutate(traceId)}
+          >
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              loading={deleteTraceMutation.isPending}
+            >
+              删除 Trace
+            </Button>
+          </Popconfirm>
         </Space>
         <Typography.Title level={3} style={{ marginBottom: 0 }}>
           Trace 详情

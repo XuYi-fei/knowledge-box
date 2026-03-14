@@ -644,6 +644,15 @@ export const api = {
   async traceDetail(traceId: string) {
     return requestJson<AgentExecutionTraceDetail>(`/api/admin/traces/${encodeURIComponent(traceId)}`, undefined, 'admin');
   },
+  async deleteTrace(traceId: string) {
+    return requestJson<{ message: string }>(
+      `/api/admin/traces/${encodeURIComponent(traceId)}`,
+      {
+        method: 'DELETE',
+      },
+      'admin',
+    );
+  },
   async uploadDocument(
     markdown: File,
     assets: File[],

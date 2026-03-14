@@ -23,6 +23,7 @@ import com.knowledgebox.api.UpdateSkillBindingRequest;
 import com.knowledgebox.api.UpdateToolDefinitionRequest;
 import com.knowledgebox.api.WebhookSubscriptionView;
 import com.knowledgebox.service.admin.AdminCommandService;
+import com.knowledgebox.service.admin.AgentExecutionTraceAdminService;
 import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
 import com.knowledgebox.service.admin.AdminQueryService;
 import com.knowledgebox.service.integration.AgentProfileBindingService;
@@ -49,6 +50,7 @@ public class AdminController {
 
     private final AdminQueryService adminQueryService;
     private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
+    private final AgentExecutionTraceAdminService agentExecutionTraceAdminService;
     private final AdminCommandService adminCommandService;
     private final IntegrationAdminService integrationAdminService;
     private final AgentProfileBindingService agentProfileBindingService;
@@ -56,12 +58,14 @@ public class AdminController {
     public AdminController(
             AdminQueryService adminQueryService,
             AgentExecutionTraceQueryService agentExecutionTraceQueryService,
+            AgentExecutionTraceAdminService agentExecutionTraceAdminService,
             AdminCommandService adminCommandService,
             IntegrationAdminService integrationAdminService,
             AgentProfileBindingService agentProfileBindingService
     ) {
         this.adminQueryService = adminQueryService;
         this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
+        this.agentExecutionTraceAdminService = agentExecutionTraceAdminService;
         this.adminCommandService = adminCommandService;
         this.integrationAdminService = integrationAdminService;
         this.agentProfileBindingService = agentProfileBindingService;
@@ -246,5 +250,11 @@ public class AdminController {
     @GetMapping("/traces/{traceId}")
     public AgentExecutionTraceDetailView traceDetail(@PathVariable String traceId) {
         return agentExecutionTraceQueryService.traceDetail(traceId);
+    }
+
+    @DeleteMapping("/traces/{traceId}")
+    public Map<String, String> deleteTrace(@PathVariable String traceId) {
+        agentExecutionTraceAdminService.deleteTrace(traceId);
+        return Map.of("message", "Trace deleted");
     }
 }

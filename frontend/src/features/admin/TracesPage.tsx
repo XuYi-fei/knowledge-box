@@ -1,6 +1,6 @@
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Empty, Form, Input, InputNumber, List, Pagination, Select, Space, Tag, Typography } from 'antd';
+import { DeleteOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, App, Button, Card, Empty, Form, Input, InputNumber, List, Pagination, Popconfirm, Select, Space, Tag, Typography } from 'antd';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
@@ -67,6 +67,8 @@ function metaItem(label: string, value: ReactNode) {
 }
 
 export function TracesPage() {
+  const { message } = App.useApp();
+  const queryClient = useQueryClient();
   const [form] = Form.useForm<FilterValues>();
   const [filters, setFilters] = useState<FilterValues>({ status: 'ALL' });
   const [page, setPage] = useState(1);
@@ -83,6 +85,20 @@ export function TracesPage() {
       Object.entries(filters).filter(([, value]) => value !== undefined && value !== '' && value !== 'ALL').length,
     [filters],
   );
+
+  const deleteTraceMutation = useMutation({
+    mutationFn: (traceId: string) => api.deleteTrace(traceId),
+    onSuccess: (_result, traceId) => {
+      message.success(`已删除 Trace ${traceId}`);
+      if ((traceQuery.data?.items?.length ?? 0) === 1 && page > 1) {
+        setPage((current) => Math.max(1, current - 1));
+      }
+      void queryClient.invalidateQueries({ queryKey: ['traces'] });
+    },
+    onError: (error) => {
+      message.error(buildErrorSummary(error, '删除 Trace 失败，请稍后重试'));
+    },
+  });
 
   return (
     <div className="page-stack">
@@ -179,6 +195,23 @@ export function TracesPage() {
                     <Space wrap>
                       <Tag color={statusColor(trace.status)}>{trace.status}</Tag>
                       <Tag>{trace.chatModelCode ?? '未知模型'}</Tag>
+                      <Popconfirm
+                        title="删除这条 Trace？"
+                        description="删除后对应的 span 和 event 会一并清除，无法恢复。"
+                        okText="删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true, loading: deleteTraceMutation.isPending }}
+                        onConfirm={() => deleteTraceMutation.mutate(trace.traceId)}
+                      >
+                        <Button
+                          danger
+                          type="text"
+                          icon={<DeleteOutlined />}
+                          loading={deleteTraceMutation.isPending && deleteTraceMutation.variables === trace.traceId}
+                        >
+                          删除
+                        </Button>
+                      </Popconfirm>
                     </Space>
                   </Space>
 

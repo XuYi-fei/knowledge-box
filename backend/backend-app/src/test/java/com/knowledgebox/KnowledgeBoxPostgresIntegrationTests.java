@@ -208,6 +208,94 @@ class KnowledgeBoxPostgresIntegrationTests {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldDeleteCompletedAgentExecutionTraceFromAdminEndpoint() {
+        String accessToken = createUserToken("trace-delete-user@example.com", "password123");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+
+        ResponseEntity<ChatResponse> chatResponse = testRestTemplate.exchange(
+                RequestEntity.post(java.net.URI.create("http://localhost:" + port + "/api/app/chat/messages"))
+                        .headers(headers)
+                        .body(Map.of(
+                                "sessionId", "session-trace-delete-001",
+                                "clientTraceId", "msg-trace-delete-001",
+                                "query", "请总结这个系统的运行追踪能力",
+                                "chatModel", "qwen-plus"
+                        )),
+                ChatResponse.class
+        );
+
+        assertThat(chatResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> tracesResponse = testRestTemplate.withBasicAuth("admin-it", "admin-it-pass").getForEntity(
+                "http://localhost:" + port + "/api/admin/traces?sessionCode=session-trace-delete-001&page=1&pageSize=10",
+                Map.class
+        );
+
+        assertThat(tracesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(tracesResponse.getBody()).isNotNull();
+        List<Map<String, Object>> items = (List<Map<String, Object>>) tracesResponse.getBody().get("items");
+        assertThat(items).isNotEmpty();
+        String traceId = String.valueOf(items.get(0).get("traceId"));
+
+        Integer traceCountBeforeDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_trace where trace_id = ?",
+                Integer.class,
+                traceId
+        );
+        Integer spanCountBeforeDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_span where trace_id = ?",
+                Integer.class,
+                traceId
+        );
+        Integer eventCountBeforeDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_event where trace_id = ?",
+                Integer.class,
+                traceId
+        );
+        assertThat(traceCountBeforeDelete).isEqualTo(1);
+        assertThat(spanCountBeforeDelete).isGreaterThan(0);
+        assertThat(eventCountBeforeDelete).isGreaterThan(0);
+
+        ResponseEntity<Map> deleteResponse = testRestTemplate.withBasicAuth("admin-it", "admin-it-pass").exchange(
+                "http://localhost:" + port + "/api/admin/traces/" + traceId,
+                HttpMethod.DELETE,
+                HttpEntity.EMPTY,
+                Map.class
+        );
+
+        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(deleteResponse.getBody()).containsEntry("message", "Trace deleted");
+
+        ResponseEntity<Map> detailAfterDelete = testRestTemplate.withBasicAuth("admin-it", "admin-it-pass").getForEntity(
+                "http://localhost:" + port + "/api/admin/traces/" + traceId,
+                Map.class
+        );
+        assertThat(detailAfterDelete.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(detailAfterDelete.getBody()).containsEntry("code", "TRACE_NOT_FOUND");
+
+        Integer traceCountAfterDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_trace where trace_id = ?",
+                Integer.class,
+                traceId
+        );
+        Integer spanCountAfterDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_span where trace_id = ?",
+                Integer.class,
+                traceId
+        );
+        Integer eventCountAfterDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_event where trace_id = ?",
+                Integer.class,
+                traceId
+        );
+        assertThat(traceCountAfterDelete).isZero();
+        assertThat(spanCountAfterDelete).isZero();
+        assertThat(eventCountAfterDelete).isZero();
+    }
+
+    @Test
     void shouldProtectAdminEndpointsAndAllowBasicAuth() {
         ResponseEntity<Map> unauthorized = testRestTemplate.getForEntity(
                 "http://localhost:" + port + "/api/admin/me",

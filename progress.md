@@ -12,6 +12,7 @@
 - 聊天主链路已修正 AgentScope 流式事件订阅，最终回答正文恢复走 `SUMMARY -> delta/fullContent` 主输出区，thinking/tool 仅留在小字摘要区。
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理与动态 Tool/MCP/Skill 绑定管理。
 - 管理端 Trace 已升级为管理员专属的 Agent 调用链日志系统：后端按 `trace/span/event` 持久化 prompt 注入、thinking/summary、工具调用、最终回复与耗时，前端支持列表筛选与详情时间线查看。
+- 管理端 Trace 现支持删除单条已结束的执行链路；列表页和详情页都可删除，并会级联清理对应的 span/event 明细。
 - 文档治理链路已落地：文档上传、审核流、分类标签、索引重建、Markdown 预览/编辑、图片转存、向量写入与 bootstrap 初始化导入。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com`，可直接用 `admin123` 登录用户侧首页。
 - 前端已补齐全局后端可用性提示（改为右侧悬浮卡片，不阻断页面渲染）、底部备案 footer（工信部链接）和文档审核更新时间秒级展示。
@@ -44,6 +45,7 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含管理员 trace 列表页、详情页、筛选和时间线展示）。
 - 前端验证：`npm --prefix frontend run build` 通过（含公共对话页最小高度占满视口与备案 footer 固定在页面底部的布局修复）。
 - 前端验证：`npm --prefix frontend run build` 通过（含管理员 trace 详情页按步骤折叠卡片展示时间线，支持快速定位每个 span / orphan event）。
+- 前端验证：`npm --prefix frontend run build` 通过（含管理员 trace 列表页 / 详情页删除单条 trace 的操作入口）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过。
 - 后端打包验证：`mvn -q -pl backend/backend-app -am -DskipTests package` 通过。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 Agent execution trace 实体、服务、管理端查询接口与清理任务）。
@@ -53,6 +55,7 @@
 - 后端全量测试：`mvn -q -pl backend/backend-app -am test` 通过（本机 PostgreSQL + pgvector 已就绪，含 `KnowledgeBoxPostgresIntegrationTests` 与 `KnowledgeBoxProductionLiquibaseIntegrationTests`）。
 - 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含流式事件订阅集合与 AgentScope 事件消费回归）。
 - 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxPostgresIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含 Agent execution trace 落库、管理端 trace 列表/详情接口与 IT Liquibase 新增 changelog 回归）。
+- 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxPostgresIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含管理员删除单条 trace 后 trace/span/event 级联清理与详情接口 404 回归）。
 - 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=AgentExecutionTraceHookTests,ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（修复 AgentExecutionTraceHook 对 `null generateOptions` 使用 `Map.of(...)` 触发的聊天 NPE）。
 - 语雀 skill 脚本验证：`python3 .codex/skills/yuque-openapi-guide/scripts/yuque_api.py --help` 与语法编译检查通过。
 - 导入脚本命令校验：`python3 scripts/yuque_kb_migrate.py --help` 与三个子命令 `--help` 均可正常执行。

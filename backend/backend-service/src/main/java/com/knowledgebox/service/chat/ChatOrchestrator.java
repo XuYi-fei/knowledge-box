@@ -648,7 +648,14 @@ public class ChatOrchestrator {
 
     private StreamOptions buildStreamOptions() {
         return StreamOptions.builder()
-                .eventTypes(EventType.ALL, EventType.AGENT_RESULT)
+                .eventTypes(
+                        EventType.REASONING,
+                        EventType.TOOL_RESULT,
+                        EventType.HINT,
+                        EventType.SUMMARY,
+                        EventType.AGENT_RESULT,
+                        EventType.ALL
+                )
                 .incremental(true)
                 .includeReasoningChunk(true)
                 .includeReasoningResult(false)

@@ -36,6 +36,7 @@
 - PostgreSQL 集成测试依赖本机 PostgreSQL 与 `pgvector` 扩展可用；测试默认连接 `postgres` 数据库，且 `vector` 扩展应位于 `public` schema，避免新测试 schema 报 `type "vector" does not exist`。
 - AgentScope 的 `@ToolParam` 注解必须显式提供 `name`，否则会在编译期报错。
 - AgentScope 事件消费在 `switch` 中需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`，避免版本升级后被默认分支静默忽略。
+- AgentScope `StreamOptions.eventTypes(...)` 里的 `EventType.ALL` 不是“订阅全部事件”的通配符；聊天主链路若要保留正文流式输出与 thinking/tool 展示，需显式订阅 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`。
 - AgentScope 1.0.9 的 DashScope 原生端点自动路由对 `qwen3.5-*` 覆盖不完整，相关模型需走 `knowledge-box.chat.dashscope-compatible.*` 兼容端点策略。
 - 已发布 `agent_profile_version.routing_model` 必须指向已启用的 CHAT 模型；启动期会进行强校验，不满足会直接启动失败。
 - AgentScope 1.0.9 下，若 `DashScopeChatModel.enableThinking(false)`，不要在对应 `GenerateOptions` 里设置 `thinkingBudget`（即使为 0），否则会抛 `IllegalStateException`。

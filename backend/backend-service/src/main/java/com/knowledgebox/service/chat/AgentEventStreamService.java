@@ -42,7 +42,7 @@ final class AgentEventStreamService {
         streamState.recordEvent(eventType);
         switch (eventType) {
             case REASONING -> {
-                String reasoningChunk = extractThinkingSummary(event.getMessage());
+                String reasoningChunk = extractThinkingOnly(event.getMessage());
                 if (!reasoningChunk.isBlank()) {
                     updateReasoningProgress(task, reasoningSteps, answerBuilder, streamState, reasoningChunk, false, progressUpdater);
                 }
@@ -70,7 +70,7 @@ final class AgentEventStreamService {
                         reasoningSteps,
                         answerBuilder,
                         streamState,
-                        extractThinkingSummary(event.getMessage()),
+                        extractThinkingOnly(event.getMessage()),
                         true,
                         progressUpdater
                 );
@@ -232,7 +232,7 @@ final class AgentEventStreamService {
         return calls;
     }
 
-    private String extractThinkingSummary(Msg response) {
+    private String extractThinkingOnly(Msg response) {
         if (response == null || response.getContent() == null) {
             return "";
         }
@@ -251,7 +251,6 @@ final class AgentEventStreamService {
         if (thinking.length() > 0) {
             return thinking.toString();
         }
-        String text = response.getTextContent();
-        return text == null ? "" : text;
+        return "";
     }
 }

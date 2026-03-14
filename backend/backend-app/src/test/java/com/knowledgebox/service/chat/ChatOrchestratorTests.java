@@ -20,6 +20,7 @@ import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import io.agentscope.core.agent.Event;
 import io.agentscope.core.agent.EventType;
+import io.agentscope.core.agent.StreamOptions;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
@@ -266,6 +267,57 @@ class ChatOrchestratorTests {
                 eq("message"),
                 any(ChatStreamEvent.class)
         );
+    }
+
+    @Test
+    void shouldSubscribeRequiredAgentScopeStreamEventTypes() throws Exception {
+        StreamOptions options = (StreamOptions) invokePrivateMethod(
+                "buildStreamOptions",
+                new Class<?>[0]
+        );
+
+        assertThat(options.getEventTypes()).containsExactlyInAnyOrder(
+                EventType.REASONING,
+                EventType.TOOL_RESULT,
+                EventType.HINT,
+                EventType.SUMMARY,
+                EventType.AGENT_RESULT,
+                EventType.ALL
+        );
+        assertThat(options.isIncremental()).isTrue();
+        assertThat(options.isIncludeReasoningChunk()).isTrue();
+        assertThat(options.isIncludeSummaryChunk()).isTrue();
+    }
+
+    @Test
+    void shouldNotTreatPlainAgentResultTextAsThinkingStep() {
+        StreamTask streamTask = new StreamTask(
+                1L,
+                SESSION_ID,
+                "client-message-1",
+                "请解释事件流",
+                ASSISTANT_MESSAGE_ID,
+                "profile-1",
+                new AgentProfileVersion(),
+                "qwen-max"
+        );
+        AgentStreamState streamState = new AgentStreamState();
+        List<String> reasoningSteps = new ArrayList<>();
+        StringBuilder answerBuilder = new StringBuilder();
+
+        agentEventStreamService.consumeAgentEvent(
+                streamTask,
+                reasoningSteps,
+                answerBuilder,
+                streamState,
+                agentResultEvent("这是最终答案"),
+                (task, steps, full, delta) -> {
+                }
+        );
+
+        assertThat(reasoningSteps).isEmpty();
+        assertThat(answerBuilder).isEmpty();
+        assertThat(streamState.finalMessage).isNotNull();
     }
 
     private Object invokePrivateMethod(String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {

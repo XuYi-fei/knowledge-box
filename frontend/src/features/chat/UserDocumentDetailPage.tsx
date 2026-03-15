@@ -1,17 +1,124 @@
-import { LeftOutlined } from '@ant-design/icons';
+import { DownOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Empty, Space, Spin, Tag, Typography } from 'antd';
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import { extractMarkdownOutline, MarkdownRenderer } from '../admin/components/MarkdownRenderer';
+import { extractMarkdownOutline, MarkdownRenderer, type MarkdownOutlineItem } from '../admin/components/MarkdownRenderer';
 
 function parseTagNames(tags: string) {
   return tags
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+type OutlineNode = MarkdownOutlineItem & {
+  parentId: string | null;
+  children: OutlineNode[];
+};
+
+function normalizeComparableHeading(value: string) {
+  return value
+    .replace(/\s+/g, ' ')
+    .replace(/等\d+处/g, '')
+    .replace(/[·>#]/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function slugifyValue(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function extractHeadingCandidates(headingPath: string | null, anchor: string | null) {
+  const candidates: string[] = [];
+  if (headingPath) {
+    const rawParts = headingPath
+      .split(/\s*\/\s*|\s*>\s*|\s*·\s*/)
+      .map((item) => item.replace(/等\d+处/g, '').trim())
+      .filter(Boolean);
+    candidates.push(...rawParts.reverse());
+  }
+  if (anchor?.trim()) {
+    candidates.push(anchor.trim());
+  }
+  return Array.from(new Set(candidates));
+}
+
+function resolveTargetHeadingId(outline: MarkdownOutlineItem[], headingPath: string | null, anchor: string | null) {
+  if (!outline.length) {
+    return null;
+  }
+  const candidates = extractHeadingCandidates(headingPath, anchor);
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeComparableHeading(candidate);
+    const matchingHeading = outline.find((item) => {
+      const normalizedHeading = normalizeComparableHeading(item.text);
+      return (
+        normalizedHeading === normalizedCandidate ||
+        normalizedHeading.includes(normalizedCandidate) ||
+        normalizedCandidate.includes(normalizedHeading)
+      );
+    });
+    if (matchingHeading) {
+      return matchingHeading.id;
+    }
+    const slugCandidate = slugifyValue(candidate);
+    if (!slugCandidate) {
+      continue;
+    }
+    const slugMatched = outline.find((item) => item.id.endsWith(`-${slugCandidate}`) || item.id.includes(slugCandidate));
+    if (slugMatched) {
+      return slugMatched.id;
+    }
+  }
+  return outline[0]?.id ?? null;
+}
+
+function buildOutlineTree(outline: MarkdownOutlineItem[]) {
+  const rootNodes: OutlineNode[] = [];
+  const nodeMap = new Map<string, OutlineNode>();
+  const stack: OutlineNode[] = [];
+
+  for (const item of outline) {
+    while (stack.length && stack[stack.length - 1].level >= item.level) {
+      stack.pop();
+    }
+    const parent = stack[stack.length - 1] ?? null;
+    const node: OutlineNode = {
+      ...item,
+      parentId: parent?.id ?? null,
+      children: [],
+    };
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      rootNodes.push(node);
+    }
+    stack.push(node);
+    nodeMap.set(node.id, node);
+  }
+
+  return {
+    rootNodes,
+    nodeMap,
+  };
+}
+
+function collectPathIds(nodeMap: Map<string, OutlineNode>, headingId: string | null) {
+  const path = new Set<string>();
+  let currentId = headingId;
+  while (currentId) {
+    path.add(currentId);
+    currentId = nodeMap.get(currentId)?.parentId ?? null;
+  }
+  return path;
 }
 
 export function UserDocumentDetailPage() {
@@ -24,6 +131,9 @@ export function UserDocumentDetailPage() {
   const snippet = params.get('snippet');
   const numericDocumentId = Number(documentId);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
+  const [highlightedHeadingId, setHighlightedHeadingId] = useState<string | null>(null);
+  const [expandedHeadingIds, setExpandedHeadingIds] = useState<string[]>([]);
+  const initialFocusRef = useRef<string | null>(null);
 
   const documentQuery = useQuery({
     queryKey: ['userDocumentDetail', numericDocumentId],
@@ -48,10 +158,16 @@ export function UserDocumentDetailPage() {
     () => (detailDocument ? extractMarkdownOutline(detailDocument.sourceMarkdown, headingIdPrefix) : []),
     [detailDocument, headingIdPrefix],
   );
+  const outlineTree = useMemo(() => buildOutlineTree(outline), [outline]);
+  const activePathIds = useMemo(
+    () => collectPathIds(outlineTree.nodeMap, activeHeadingId),
+    [activeHeadingId, outlineTree.nodeMap],
+  );
 
   useEffect(() => {
     if (!outline.length) {
       setActiveHeadingId(null);
+      setExpandedHeadingIds([]);
       return;
     }
 
@@ -94,13 +210,105 @@ export function UserDocumentDetailPage() {
     };
   }, [outline]);
 
-  function scrollToHeading(headingId: string) {
+  useEffect(() => {
+    if (!outline.length) {
+      return;
+    }
+    const targetId = resolveTargetHeadingId(outline, headingPath, anchor);
+    if (!targetId || initialFocusRef.current === `${numericDocumentId}:${targetId}`) {
+      return;
+    }
+    initialFocusRef.current = `${numericDocumentId}:${targetId}`;
+    const pathIds = Array.from(collectPathIds(outlineTree.nodeMap, targetId));
+    setExpandedHeadingIds((current) => Array.from(new Set([...current, ...pathIds])));
+    setActiveHeadingId(targetId);
+    setHighlightedHeadingId(targetId);
+    requestAnimationFrame(() => {
+      const target = globalThis.document.getElementById(targetId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+      }
+    });
+  }, [anchor, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
+
+  useEffect(() => {
+    if (!activeHeadingId) {
+      return;
+    }
+    const pathIds = Array.from(collectPathIds(outlineTree.nodeMap, activeHeadingId));
+    setExpandedHeadingIds((current) => Array.from(new Set([...current, ...pathIds])));
+  }, [activeHeadingId, outlineTree.nodeMap]);
+
+  useEffect(() => {
+    const previous = globalThis.document.querySelector('.document-heading-highlight');
+    if (previous instanceof HTMLElement) {
+      previous.classList.remove('document-heading-highlight');
+    }
+    if (!highlightedHeadingId) {
+      return;
+    }
+    const target = globalThis.document.getElementById(highlightedHeadingId);
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    target.classList.add('document-heading-highlight');
+    return () => {
+      target.classList.remove('document-heading-highlight');
+    };
+  }, [highlightedHeadingId]);
+
+  function scrollToHeading(headingId: string, behavior: ScrollBehavior = 'smooth') {
     const target = globalThis.document.getElementById(headingId);
     if (!target) {
       return;
     }
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target.scrollIntoView({ behavior, block: 'start' });
     setActiveHeadingId(headingId);
+    setHighlightedHeadingId(headingId);
+    const pathIds = Array.from(collectPathIds(outlineTree.nodeMap, headingId));
+    setExpandedHeadingIds((current) => Array.from(new Set([...current, ...pathIds])));
+  }
+
+  function toggleHeading(node: OutlineNode) {
+    setExpandedHeadingIds((current) => {
+      if (current.includes(node.id)) {
+        return current.filter((item) => item !== node.id);
+      }
+      return [...current, node.id];
+    });
+  }
+
+  function renderOutlineNodes(nodes: OutlineNode[], depth = 0) {
+    return nodes.map((node) => {
+      const isExpanded = expandedHeadingIds.includes(node.id) || activePathIds.has(node.id);
+      const hasChildren = node.children.length > 0;
+      return (
+        <div key={node.id} className="document-outline-node" style={{ ['--outline-depth' as const]: depth } as CSSProperties}>
+          <div className={`document-outline-row ${activeHeadingId === node.id ? 'document-outline-row-active' : ''}`}>
+            {hasChildren ? (
+              <button
+                type="button"
+                className="document-outline-toggle"
+                onClick={() => toggleHeading(node)}
+                aria-label={isExpanded ? `收起 ${node.text}` : `展开 ${node.text}`}
+              >
+                {isExpanded ? <DownOutlined /> : <RightOutlined />}
+              </button>
+            ) : (
+              <span className="document-outline-toggle document-outline-toggle-placeholder" />
+            )}
+            <button
+              type="button"
+              className={`document-outline-item ${activeHeadingId === node.id ? 'document-outline-item-active' : ''}`}
+              onClick={() => scrollToHeading(node.id)}
+            >
+              {node.text}
+            </button>
+          </div>
+          {hasChildren && isExpanded ? <div className="document-outline-children">{renderOutlineNodes(node.children, depth + 1)}</div> : null}
+        </div>
+      );
+    });
   }
 
   return (
@@ -180,17 +388,7 @@ export function UserDocumentDetailPage() {
             <div className="document-outline-card">
               <Typography.Text type="secondary">文档大纲</Typography.Text>
               <div className="document-outline-list">
-                {outline.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`document-outline-item ${activeHeadingId === item.id ? 'document-outline-item-active' : ''}`}
-                    style={{ ['--outline-level' as const]: item.level } as CSSProperties}
-                    onClick={() => scrollToHeading(item.id)}
-                  >
-                    {item.text}
-                  </button>
-                ))}
+                {renderOutlineNodes(outlineTree.rootNodes)}
               </div>
             </div>
           </aside>

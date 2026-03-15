@@ -21,6 +21,7 @@
 - 管理端 Trace 详情页已新增 `通俗解读` 视图：后端对 Agent 事件与后端调用做统一语义映射，前端可切换查看 `Agent 过程解读` 与 `后端调用解读`，用更直白的标题/输入/输出解释整条链路。
 - 文档治理链路已落地：文档上传、审核流、分类标签、索引重建、Markdown 预览/编辑、图片转存、向量写入与 bootstrap 初始化导入。
 - 管理端文档审核队列已支持批量审核通过：可勾选当前页多条 `PENDING_REVIEW` 记录一次性发布，后端复用单条审核发布链路批量写入分类、标签、资产与向量索引。
+- 管理端文档审核页已修复批量选择同步导致的 React 死循环；当前页待审核集合未变化时不再重复 `setState`，避免进入页面即触发 `Maximum update depth exceeded`。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com`，可直接用 `admin123` 登录用户侧首页。
 - 本地 profile 的文档 bootstrap 导入路径已修正为仓库根目录可直接解析的 `backend/bootstrap/document-seed.json` 与 `tmp/yuque-batch/bootstrap-seeds`，启动时可自动扫描并导入语雀批量 seed。
 - 前端已补齐全局后端可用性提示（改为右侧悬浮卡片，不阻断页面渲染）、底部备案 footer（工信部链接）和文档审核更新时间秒级展示。
@@ -64,6 +65,7 @@
 - 本地启动验证：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 通过，启动日志显示 `[DOCUMENT-BOOTSTRAP]` 已扫描 `backend/bootstrap/document-seed.json` 与 `tmp/yuque-batch/bootstrap-seeds/yuque-batch.seed.json`，总计 `created=0 skipped=91 failed=0`（当前库内已存在对应 `importKey`，因此全部按幂等跳过）。
 - 本地数据库验证：`psql -d knowledge_box ...` 查询通过，`document_review_request` 中 `importKey` 记录数为 `91`，示例 `yuque:70111390:243374419` 已存在 1 条；HTTP 可用性 `curl -s http://127.0.0.1:18081/api/public/system/availability` 返回 `{\"status\":\"UP\",\"reachable\":true,...}`。
 - 前端验证：`npm --prefix frontend run build` 通过（含文档审核队列多选、当前页全选/清空与批量审核通过入口）。
+- 前端验证：`npm --prefix frontend run build` 通过（修复文档审核页批量选择同步引起的 `Maximum update depth exceeded` 死循环）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含批量审核通过接口、批量请求/响应 DTO 与审核服务复用单条发布链路）。
 - 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxPostgresIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含批量审核通过接口成功发布两条待审核文档；测试日志中仍有文档审核分类 Agent 的 DashScope 401 背景噪声，但未影响用例通过）。
 - 后端 Liquibase 验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxProductionLiquibaseIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含 `db.changelog-030-document-review-batch-approve-release-note.xml` 关于页更新日志变更集）。

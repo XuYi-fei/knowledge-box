@@ -104,7 +104,13 @@ export function DocumentReviewsPage() {
 
   useEffect(() => {
     const selectableReviewIds = new Set(currentPendingReviewIds);
-    setSelectedReviewIds((current) => current.filter((id) => selectableReviewIds.has(id)));
+    setSelectedReviewIds((current) => {
+      const next = current.filter((id) => selectableReviewIds.has(id));
+      if (next.length === current.length && next.every((id, index) => id === current[index])) {
+        return current;
+      }
+      return next;
+    });
   }, [currentPendingReviewIds]);
 
   const selectedPendingReviewCount = selectedReviewIds.length;

@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import { AgentExecutionBackendSpan, AgentExecutionEvent, AgentExecutionSpan } from '../../lib/types';
+import { AgentExecutionBackendSpan, AgentExecutionEvent, AgentExecutionReadableNode, AgentExecutionSpan } from '../../lib/types';
 
 const SPAN_TYPE_LABELS: Record<string, string> = {
   REQUEST: '接收请求',
@@ -880,6 +880,122 @@ function BackendWaterfallTree({
   );
 }
 
+function ReadableNodeBody({ node }: { node: AgentExecutionReadableNode }) {
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Descriptions size="small" column={2} bordered>
+        <Descriptions.Item label="节点类型">{node.nodeType}</Descriptions.Item>
+        <Descriptions.Item label="原始引用">{node.rawRefType && node.rawRefId ? `${node.rawRefType}:${node.rawRefId}` : '-'}</Descriptions.Item>
+        <Descriptions.Item label="全局序号">#{node.sequenceNo}</Descriptions.Item>
+        <Descriptions.Item label="状态">{node.status || '-'}</Descriptions.Item>
+        <Descriptions.Item label="开始时间">{formatDateTime(node.startedAt)}</Descriptions.Item>
+        <Descriptions.Item label="结束时间">{formatDateTime(node.endedAt)}</Descriptions.Item>
+        <Descriptions.Item label="耗时">{formatDuration(node.durationMs)}</Descriptions.Item>
+        <Descriptions.Item label="技术标签">{node.technicalLabel || '-'}</Descriptions.Item>
+      </Descriptions>
+      {node.plainSummary ? (
+        <div className="trace-detail-json-block">
+          <Typography.Text strong>通俗说明</Typography.Text>
+          <Typography.Paragraph style={{ marginBottom: 0 }}>{node.plainSummary}</Typography.Paragraph>
+        </div>
+      ) : null}
+      {node.inputExplanation ? (
+        <div className="trace-detail-json-block">
+          <Typography.Text strong>系统拿到的输入</Typography.Text>
+          <Typography.Paragraph style={{ marginBottom: 0 }}>{node.inputExplanation}</Typography.Paragraph>
+        </div>
+      ) : null}
+      {node.outputExplanation ? (
+        <div className="trace-detail-json-block">
+          <Typography.Text strong>这一步的输出</Typography.Text>
+          <Typography.Paragraph style={{ marginBottom: 0 }}>{node.outputExplanation}</Typography.Paragraph>
+        </div>
+      ) : null}
+    </Space>
+  );
+}
+
+function ReadableTimelineTree({
+  nodes,
+  depth,
+  parentStepLabel,
+  waterfall = false,
+  traceStartedAt,
+  totalDuration,
+}: {
+  nodes: AgentExecutionReadableNode[];
+  depth: number;
+  parentStepLabel: string | null;
+  waterfall?: boolean;
+  traceStartedAt?: string;
+  totalDuration?: number;
+}) {
+  return (
+    <div className="trace-tree-list">
+      {nodes.map((node, index) => {
+        const stepLabel = buildStepLabel(parentStepLabel, index);
+        const offsetMs = waterfall && traceStartedAt ? offsetFromTraceStart(traceStartedAt, node.startedAt) : 0;
+        const safeDuration = Math.max(totalDuration ?? 1, 1);
+        const offsetPercent = Math.min(100, (offsetMs / safeDuration) * 100);
+        const widthPercent = Math.max(2, ((node.durationMs ?? 0) / safeDuration) * 100);
+        return (
+          <div
+            key={node.nodeId}
+            className="trace-tree-node"
+            style={{ ['--trace-depth' as '--trace-depth']: depth } as React.CSSProperties}
+          >
+            <StepCard
+              panelKey={node.nodeId}
+              defaultExpanded={depth === 0}
+              header={(
+                <StepHeader
+                  title={node.title}
+                  subtitle={node.plainSummary ?? undefined}
+                  inputSummary={node.inputExplanation}
+                  outputSummary={node.outputExplanation}
+                  status={node.status}
+                  stepNo={stepLabel}
+                  globalSequenceNo={node.sequenceNo}
+                  durationMs={node.durationMs}
+                  startedAt={node.startedAt}
+                  metaText={waterfall ? node.technicalLabel ? `${node.technicalLabel} | +${offsetMs} ms` : `+${offsetMs} ms` : node.technicalLabel}
+                  extraTag={node.badge ?? undefined}
+                  visual={waterfall ? (
+                    <div className="trace-waterfall-visual">
+                      <div className="trace-waterfall-track">
+                        <div
+                          className="trace-waterfall-bar"
+                          style={{ marginLeft: `${offsetPercent}%`, width: `${Math.min(100 - offsetPercent, widthPercent)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : undefined}
+                />
+              )}
+            >
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                <ReadableNodeBody node={node} />
+                {node.children.length ? (
+                  <div className="trace-tree-children">
+                    <ReadableTimelineTree
+                      nodes={node.children}
+                      depth={depth + 1}
+                      parentStepLabel={stepLabel}
+                      waterfall={waterfall}
+                      traceStartedAt={traceStartedAt}
+                      totalDuration={totalDuration}
+                    />
+                  </div>
+                ) : null}
+              </Space>
+            </StepCard>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TraceDetailPage() {
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -938,7 +1054,14 @@ export function TraceDetailPage() {
     return <Alert type="error" showIcon message="加载 trace 详情失败" description={buildErrorSummary(traceQuery.error, '请稍后重试')} />;
   }
 
-  const { trace, spans, events, backendSpans } = traceQuery.data;
+  const {
+    trace,
+    spans,
+    events,
+    backendSpans,
+    readableAgentTimeline,
+    readableBackendTimeline,
+  } = traceQuery.data;
   const orderedSpans = [...spans].sort((left, right) => left.sequenceNo - right.sequenceNo);
   const orderedBackendSpans = [...backendSpans].sort((left, right) => left.sequenceNo - right.sequenceNo);
   const agentTimelineTree = buildAgentTimelineTree(orderedSpans, events);
@@ -996,115 +1119,182 @@ export function TraceDetailPage() {
         <Tabs
           items={[
             {
-              key: 'agent-timeline',
-              label: 'Agent 时间线',
+              key: 'professional-view',
+              label: '专业视图',
               children: (
-                <Card title="Agent 时间线">
-                  <Alert
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 16 }}
-                    message="这一层只展示 ReActAgent 的核心执行语义"
-                    description="以接收请求为最外层，向内展开查询路由、Agent 执行、工具调用、最终响应整理等阶段；每一层都保持时间顺序，展开后可继续查看该阶段下的具体事件。"
-                  />
-                  {agentTimelineTree.length ? (
-                    <AgentTimelineTree nodes={agentTimelineTree} depth={0} parentStepLabel={null} />
-                  ) : (
-                    <Empty description="当前 trace 暂无可展示的 Agent 时间线" />
-                  )}
-                </Card>
-              ),
-            },
-            {
-              key: 'backend-waterfall',
-              label: '后端调用瀑布',
-              children: (
-                <Card title="后端调用瀑布">
-                  <Alert
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 16 }}
-                    message="这一层展示关键服务方法的调用链和耗时"
-                    description="按父子调用关系分层展示关键服务方法；同层缩进一致，并保留开始偏移与耗时条，便于同时看清结构和性能。"
-                  />
-                  {backendSpanTree.length ? (
-                    <BackendWaterfallTree
-                      nodes={backendSpanTree}
-                      depth={0}
-                      parentStepLabel={null}
-                      traceStartedAt={trace.startedAt}
-                      totalDuration={totalDuration}
-                    />
-                  ) : (
-                    <Empty description="当前 trace 暂无后端调用瀑布数据" />
-                  )}
-                </Card>
-              ),
-            },
-            {
-              key: 'raw-logs',
-              label: '原始日志',
-              children: (
-                <Card title="原始日志">
-                  <Alert
-                    type="info"
-                    showIcon
-                    message="编号说明"
-                    description="步骤号和事件号是当前页面按时间线重新编号后的顺序编号；全局序号是后端在整条 trace 内统一递增的原始链路序号，所以会因为中间穿插 event 而跳号。"
-                    style={{ marginBottom: 16 }}
-                  />
-                  {orderedSpans.length || orphanEvents.length ? (
-                    <div className="trace-step-list">
-                      {orderedSpans.map((span, index) => {
-                        const currentEvents = (eventsBySpan.get(span.spanId) ?? []).sort((left, right) => left.sequenceNo - right.sequenceNo);
-                        return (
-                          <StepCard
-                            key={span.spanId}
-                            panelKey={span.spanId}
-                            header={
-                              <StepHeader
-                                title={describeSpan(span)}
-                                subtitle={span.parentSpanId ? `父步骤: ${span.parentSpanId}` : undefined}
-                                inputSummary={summarizeSpanInput(span)}
-                                outputSummary={summarizeSpanOutput(span)}
-                                status={span.status}
-                                stepNo={index + 1}
-                                globalSequenceNo={span.sequenceNo}
-                                durationMs={span.durationMs}
-                                startedAt={span.startedAt}
-                                metaText={`${currentEvents.length} events`}
-                                extraTag={SPAN_TYPE_LABELS[span.spanType] ?? span.spanType}
-                              />
-                            }
-                          >
-                            <SpanPanelBody span={span} events={currentEvents} />
-                          </StepCard>
-                        );
-                      })}
-                      {orphanEvents.length ? (
-                        <StepCard
-                          panelKey="orphan-events"
-                          header={
-                            <StepHeader
-                              title="未绑定 Span 的事件"
-                              subtitle="这些事件没有对应的 spanId，通常表示链路异常或落库不完整。"
-                              status="INFO"
-                              stepNo="?"
-                              globalSequenceNo={null}
-                              durationMs={null}
-                              startedAt={orphanEvents[0]?.occurredAt}
-                              metaText={`${orphanEvents.length} events`}
+                <Tabs
+                  items={[
+                    {
+                      key: 'agent-timeline',
+                      label: 'Agent 时间线',
+                      children: (
+                        <Card title="Agent 时间线">
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="这一层只展示 ReActAgent 的核心执行语义"
+                            description="以接收请求为最外层，向内展开查询路由、Agent 执行、工具调用、最终响应整理等阶段；每一层都保持时间顺序，展开后可继续查看该阶段下的具体事件。"
+                          />
+                          {agentTimelineTree.length ? (
+                            <AgentTimelineTree nodes={agentTimelineTree} depth={0} parentStepLabel={null} />
+                          ) : (
+                            <Empty description="当前 trace 暂无可展示的 Agent 时间线" />
+                          )}
+                        </Card>
+                      ),
+                    },
+                    {
+                      key: 'backend-waterfall',
+                      label: '后端调用瀑布',
+                      children: (
+                        <Card title="后端调用瀑布">
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="这一层展示关键服务方法的调用链和耗时"
+                            description="按父子调用关系分层展示关键服务方法；同层缩进一致，并保留开始偏移与耗时条，便于同时看清结构和性能。"
+                          />
+                          {backendSpanTree.length ? (
+                            <BackendWaterfallTree
+                              nodes={backendSpanTree}
+                              depth={0}
+                              parentStepLabel={null}
+                              traceStartedAt={trace.startedAt}
+                              totalDuration={totalDuration}
                             />
-                          }
-                        >
-                          <EventList events={orphanEvents} />
-                        </StepCard>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <Empty description="当前 trace 暂无步骤数据" />
-                  )}
-                </Card>
+                          ) : (
+                            <Empty description="当前 trace 暂无后端调用瀑布数据" />
+                          )}
+                        </Card>
+                      ),
+                    },
+                    {
+                      key: 'raw-logs',
+                      label: '原始日志',
+                      children: (
+                        <Card title="原始日志">
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="编号说明"
+                            description="步骤号和事件号是当前页面按时间线重新编号后的顺序编号；全局序号是后端在整条 trace 内统一递增的原始链路序号，所以会因为中间穿插 event 而跳号。"
+                            style={{ marginBottom: 16 }}
+                          />
+                          {orderedSpans.length || orphanEvents.length ? (
+                            <div className="trace-step-list">
+                              {orderedSpans.map((span, index) => {
+                                const currentEvents = (eventsBySpan.get(span.spanId) ?? []).sort((left, right) => left.sequenceNo - right.sequenceNo);
+                                return (
+                                  <StepCard
+                                    key={span.spanId}
+                                    panelKey={span.spanId}
+                                    header={
+                                      <StepHeader
+                                        title={describeSpan(span)}
+                                        subtitle={span.parentSpanId ? `父步骤: ${span.parentSpanId}` : undefined}
+                                        inputSummary={summarizeSpanInput(span)}
+                                        outputSummary={summarizeSpanOutput(span)}
+                                        status={span.status}
+                                        stepNo={index + 1}
+                                        globalSequenceNo={span.sequenceNo}
+                                        durationMs={span.durationMs}
+                                        startedAt={span.startedAt}
+                                        metaText={`${currentEvents.length} events`}
+                                        extraTag={SPAN_TYPE_LABELS[span.spanType] ?? span.spanType}
+                                      />
+                                    }
+                                  >
+                                    <SpanPanelBody span={span} events={currentEvents} />
+                                  </StepCard>
+                                );
+                              })}
+                              {orphanEvents.length ? (
+                                <StepCard
+                                  panelKey="orphan-events"
+                                  header={
+                                    <StepHeader
+                                      title="未绑定 Span 的事件"
+                                      subtitle="这些事件没有对应的 spanId，通常表示链路异常或落库不完整。"
+                                      status="INFO"
+                                      stepNo="?"
+                                      globalSequenceNo={null}
+                                      durationMs={null}
+                                      startedAt={orphanEvents[0]?.occurredAt}
+                                      metaText={`${orphanEvents.length} events`}
+                                    />
+                                  }
+                                >
+                                  <EventList events={orphanEvents} />
+                                </StepCard>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <Empty description="当前 trace 暂无步骤数据" />
+                          )}
+                        </Card>
+                      ),
+                    },
+                  ]}
+                />
+              ),
+            },
+            {
+              key: 'readable-view',
+              label: '通俗解读',
+              children: (
+                <Tabs
+                  items={[
+                    {
+                      key: 'readable-agent',
+                      label: 'Agent 过程解读',
+                      children: (
+                        <Card title="Agent 过程解读">
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="这一层把 Agent 链路翻译成更通俗的过程说明"
+                            description="仍然保持和专业视图一致的时间线与层级关系，但标题、输入、输出会直接解释为“系统这一步在做什么、拿到了什么、产出了什么”。"
+                          />
+                          {readableAgentTimeline.length ? (
+                            <ReadableTimelineTree nodes={readableAgentTimeline} depth={0} parentStepLabel={null} />
+                          ) : (
+                            <Empty description="当前 trace 暂无可展示的 Agent 解读数据" />
+                          )}
+                        </Card>
+                      ),
+                    },
+                    {
+                      key: 'readable-backend',
+                      label: '后端调用解读',
+                      children: (
+                        <Card title="后端调用解读">
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="这一层把后端方法调用链解释成可读流程"
+                            description="仍按瀑布流和父子缩进展示，但会把各个服务方法翻译成更直接的业务动作，例如读取历史、执行路由、调用工具、持久化回答、结束 SSE。"
+                          />
+                          {readableBackendTimeline.length ? (
+                            <ReadableTimelineTree
+                              nodes={readableBackendTimeline}
+                              depth={0}
+                              parentStepLabel={null}
+                              waterfall
+                              traceStartedAt={trace.startedAt}
+                              totalDuration={totalDuration}
+                            />
+                          ) : (
+                            <Empty description="当前 trace 暂无可展示的后端调用解读数据" />
+                          )}
+                        </Card>
+                      ),
+                    },
+                  ]}
+                />
               ),
             },
           ]}

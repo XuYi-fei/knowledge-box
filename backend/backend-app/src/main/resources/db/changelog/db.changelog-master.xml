@@ -33,4 +33,5 @@
     <include file="db/changelog/db.changelog-026-trace-delete-release-note.xml"/>
     <include file="db/changelog/db.changelog-027-trace-backend-waterfall.xml"/>
     <include file="db/changelog/db.changelog-028-trace-dual-view-release-note.xml"/>
+    <include file="db/changelog/db.changelog-029-trace-readable-view-release-note.xml"/>
 </databaseChangeLog>

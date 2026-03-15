@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="029-001-trace-readable-view-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.15',
+                '管理员 Trace 新增通俗解读视图',
+                'Trace 详情新增可读解释层，支持按时间线查看 Agent 过程解读和后端调用解读。',
+                E'## 本次更新\n\n- Trace 详情页新增 `通俗解读` 视图，保留原有层级和时间顺序，但用更直白的语言解释每一步在做什么\n- 新增 `Agent 过程解读`，把接收请求、路由判断、Prompt 注入、工具调用、最终响应等阶段翻译成更容易理解的执行过程\n- 新增 `后端调用解读`，把历史读取、创建 Agent、知识库检索、持久化回答、SSE 推送等服务方法调用翻译成业务动作',
+                TIMESTAMPTZ '2026-03-15 13:30:00+08',
+                -4,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.15'
+                   AND title = '管理员 Trace 新增通俗解读视图'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

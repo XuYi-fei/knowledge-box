@@ -204,6 +204,8 @@ class KnowledgeBoxPostgresIntegrationTests {
         assertThat(detailResponse.getBody()).isNotNull();
         assertThat(detailResponse.getBody()).containsKey("trace");
         assertThat((List<?>) detailResponse.getBody().get("agentTimeline")).isNotEmpty();
+        assertThat((List<?>) detailResponse.getBody().get("readableAgentTimeline")).isNotEmpty();
+        assertThat((List<?>) detailResponse.getBody().get("readableBackendTimeline")).isNotEmpty();
         assertThat((List<?>) detailResponse.getBody().get("backendSpans")).isNotEmpty();
         assertThat((List<?>) detailResponse.getBody().get("spans")).isNotEmpty();
         assertThat((List<?>) detailResponse.getBody().get("events")).isNotEmpty();

@@ -312,9 +312,30 @@ export type AgentExecutionBackendSpan = {
   relatedSpanId: string | null;
 };
 
+export type AgentExecutionReadableNode = {
+  nodeId: string;
+  nodeType: string;
+  title: string;
+  badge: string | null;
+  technicalLabel: string | null;
+  plainSummary: string | null;
+  inputExplanation: string | null;
+  outputExplanation: string | null;
+  status: AgentExecutionTraceStatus | string | null;
+  sequenceNo: number;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  rawRefType: string | null;
+  rawRefId: string | null;
+  children: AgentExecutionReadableNode[];
+};
+
 export type AgentExecutionTraceDetail = {
   trace: AgentExecutionTraceSummary;
   agentTimeline: AgentExecutionTimelineItem[];
+  readableAgentTimeline: AgentExecutionReadableNode[];
+  readableBackendTimeline: AgentExecutionReadableNode[];
   backendSpans: AgentExecutionBackendSpan[];
   spans: AgentExecutionSpan[];
   events: AgentExecutionEvent[];

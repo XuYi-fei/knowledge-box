@@ -802,4 +802,64 @@
             );
         ]]></sql>
     </changeSet>
+    <changeSet id="it-027-create-agent-execution-backend-span-table" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS agent_execution_backend_span (
+                id BIGSERIAL PRIMARY KEY,
+                trace_id VARCHAR(64) NOT NULL REFERENCES agent_execution_trace(trace_id) ON DELETE CASCADE,
+                call_id VARCHAR(64) NOT NULL UNIQUE,
+                parent_call_id VARCHAR(64),
+                call_name VARCHAR(128) NOT NULL,
+                call_type VARCHAR(32) NOT NULL,
+                service_class VARCHAR(160),
+                method_name VARCHAR(128),
+                status VARCHAR(16) NOT NULL,
+                sequence_no INTEGER NOT NULL,
+                attempt_no INTEGER NOT NULL DEFAULT 1,
+                started_at TIMESTAMPTZ NOT NULL,
+                ended_at TIMESTAMPTZ,
+                duration_ms BIGINT,
+                input_json TEXT,
+                output_json TEXT,
+                error_json TEXT,
+                related_span_id VARCHAR(64),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_backend_span_trace_seq
+                ON agent_execution_backend_span(trace_id, sequence_no, id);
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_backend_span_parent
+                ON agent_execution_backend_span(parent_call_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_execution_backend_span_related
+                ON agent_execution_backend_span(related_span_id);
+        ]]></sql>
+    </changeSet>
+    <changeSet id="it-028-trace-dual-view-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.15',
+                '管理员 Trace 支持双层分析视图',
+                'Trace 详情新增 Agent 时间线与后端调用瀑布，便于同时理解 ReActAgent 执行过程与服务方法耗时。',
+                E'## 本次更新\n\n- Trace 详情页新增 `Agent 时间线` 视图，按严格时间顺序展示接收请求、Prompt 注入、工具调用、Agent 结果与最终响应\n- Trace 详情页新增 `后端调用瀑布` 视图，展示聊天链路关键服务方法的父子关系、开始时间与耗时\n- 原始 trace/span/event 日志仍保留在 `原始日志` 视图中，便于高级排障',
+                TIMESTAMPTZ '2026-03-15 10:30:00+08',
+                -3,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.15'
+                   AND title = '管理员 Trace 支持双层分析视图'
+            );
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

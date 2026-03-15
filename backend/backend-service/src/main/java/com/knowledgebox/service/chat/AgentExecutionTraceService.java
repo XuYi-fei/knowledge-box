@@ -1,10 +1,12 @@
 package com.knowledgebox.service.chat;
 
+import com.knowledgebox.domain.chat.AgentExecutionBackendSpan;
 import com.knowledgebox.domain.chat.AgentExecutionEvent;
 import com.knowledgebox.domain.chat.AgentExecutionSpan;
 import com.knowledgebox.domain.chat.AgentExecutionSpanType;
 import com.knowledgebox.domain.chat.AgentExecutionStatus;
 import com.knowledgebox.domain.chat.AgentExecutionTrace;
+import com.knowledgebox.repository.AgentExecutionBackendSpanRepository;
 import com.knowledgebox.repository.AgentExecutionEventRepository;
 import com.knowledgebox.repository.AgentExecutionSpanRepository;
 import com.knowledgebox.repository.AgentExecutionTraceRepository;
@@ -19,6 +21,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -27,17 +30,20 @@ public class AgentExecutionTraceService {
     private final AgentExecutionTraceRepository traceRepository;
     private final AgentExecutionSpanRepository spanRepository;
     private final AgentExecutionEventRepository eventRepository;
+    private final AgentExecutionBackendSpanRepository backendSpanRepository;
     private final AgentExecutionLogSanitizer sanitizer;
 
     public AgentExecutionTraceService(
             AgentExecutionTraceRepository traceRepository,
             AgentExecutionSpanRepository spanRepository,
             AgentExecutionEventRepository eventRepository,
+            AgentExecutionBackendSpanRepository backendSpanRepository,
             AgentExecutionLogSanitizer sanitizer
     ) {
         this.traceRepository = traceRepository;
         this.spanRepository = spanRepository;
         this.eventRepository = eventRepository;
+        this.backendSpanRepository = backendSpanRepository;
         this.sanitizer = sanitizer;
     }
 
@@ -55,11 +61,15 @@ public class AgentExecutionTraceService {
             existing.setAttemptCount((existing.getAttemptCount() == null ? 0 : existing.getAttemptCount()) + 1);
             traceRepository.save(existing);
             int sequenceSeed = Math.max(
-                    spanRepository.findMaxSequenceNoByTraceId(existing.getTraceId()),
-                    eventRepository.findMaxSequenceNoByTraceId(existing.getTraceId())
+                    Math.max(
+                            spanRepository.findMaxSequenceNoByTraceId(existing.getTraceId()),
+                            eventRepository.findMaxSequenceNoByTraceId(existing.getTraceId())
+                    ),
+                    backendSpanRepository.findMaxSequenceNoByTraceId(existing.getTraceId())
             );
             AgentExecutionTraceContext context = new AgentExecutionTraceContext(
                     existing.getTraceId(),
+                    existing.getSessionCode(),
                     existing.getAttemptCount(),
                     sequenceSeed,
                     existing.getRootSpanId()
@@ -93,7 +103,7 @@ public class AgentExecutionTraceService {
         trace.setAttemptCount(1);
         traceRepository.save(trace);
 
-        AgentExecutionTraceContext context = new AgentExecutionTraceContext(traceId, 1, 0, requestSpanId);
+        AgentExecutionTraceContext context = new AgentExecutionTraceContext(traceId, task.sessionId(), 1, 0, requestSpanId);
         startSpan(
                 context,
                 null,
@@ -188,6 +198,76 @@ public class AgentExecutionTraceService {
         eventRepository.save(event);
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void startBackendSpan(
+            AgentExecutionTraceContext context,
+            String parentCallId,
+            String callId,
+            String callName,
+            String callType,
+            String serviceClass,
+            String methodName,
+            Map<String, ?> input,
+            String relatedSpanId
+    ) {
+        if (context == null || callId == null || callId.isBlank()) {
+            return;
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        AgentExecutionBackendSpan span = new AgentExecutionBackendSpan();
+        span.setTraceId(context.traceId());
+        span.setCallId(callId);
+        span.setParentCallId(parentCallId);
+        span.setCallName(callName);
+        span.setCallType(callType);
+        span.setServiceClass(serviceClass);
+        span.setMethodName(methodName);
+        span.setStatus(AgentExecutionStatus.RUNNING);
+        span.setSequenceNo(context.nextSequenceNo());
+        span.setAttemptNo(context.attemptNo());
+        span.setStartedAt(now);
+        span.setInputJson(sanitizeJson(input));
+        span.setRelatedSpanId(relatedSpanId);
+        span = backendSpanRepository.save(span);
+        context.bindBackendSpanRecord(callId, span.getId(), now);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void endBackendSpan(
+            AgentExecutionTraceContext context,
+            String callId,
+            AgentExecutionStatus status,
+            Map<String, ?> output,
+            Map<String, ?> error
+    ) {
+        if (context == null || callId == null || callId.isBlank()) {
+            return;
+        }
+        AgentExecutionBackendSpan span = resolveBackendSpan(context, callId);
+        if (span == null || span.getEndedAt() != null) {
+            context.markBackendSpanClosed(callId);
+            return;
+        }
+        OffsetDateTime endedAt = OffsetDateTime.now();
+        span.setStatus(status);
+        span.setEndedAt(endedAt);
+        OffsetDateTime startedAt = context.backendSpanStartedAt(callId);
+        if (startedAt == null) {
+            startedAt = span.getStartedAt();
+        }
+        if (startedAt != null) {
+            span.setDurationMs(Duration.between(startedAt, endedAt).toMillis());
+        }
+        if (output != null && !output.isEmpty()) {
+            span.setOutputJson(sanitizeJson(output));
+        }
+        if (error != null && !error.isEmpty()) {
+            span.setErrorJson(sanitizeJson(error));
+        }
+        backendSpanRepository.save(span);
+        context.markBackendSpanClosed(callId);
+    }
+
     @Transactional
     public void completeTrace(AgentExecutionTraceContext context, Map<String, ?> summary) {
         closeRemainingSpans(context, AgentExecutionStatus.COMPLETED, Map.of());
@@ -205,6 +285,10 @@ public class AgentExecutionTraceService {
     public void cancelTrace(AgentExecutionTraceContext context) {
         closeRemainingSpans(context, AgentExecutionStatus.CANCELLED, Map.of("message", "generation cancelled"));
         updateTraceTerminalState(context, AgentExecutionStatus.CANCELLED, Map.of(), "CHAT_CANCELLED", "generation cancelled");
+    }
+
+    public String nextBackendSpanIdValue() {
+        return "call-" + UUID.randomUUID();
     }
 
     public void bindMdc(AgentExecutionTraceContext context, String spanId) {
@@ -236,6 +320,17 @@ public class AgentExecutionTraceService {
                     spanId,
                     status,
                     Map.of(),
+                    Map.of(),
+                    errorPayload == null || errorPayload.isEmpty() ? null : errorPayload
+            );
+        }
+        Deque<String> activeBackendSpans = context.snapshotActiveBackendSpans();
+        List<String> backendSpanIds = new ArrayList<>(activeBackendSpans);
+        for (String callId : backendSpanIds) {
+            endBackendSpan(
+                    context,
+                    callId,
+                    status,
                     Map.of(),
                     errorPayload == null || errorPayload.isEmpty() ? null : errorPayload
             );
@@ -276,6 +371,14 @@ public class AgentExecutionTraceService {
             return spanRepository.findById(recordId).orElse(null);
         }
         return spanRepository.findByTraceIdAndSpanId(context.traceId(), spanId).orElse(null);
+    }
+
+    private AgentExecutionBackendSpan resolveBackendSpan(AgentExecutionTraceContext context, String callId) {
+        Long recordId = context.backendSpanRecordId(callId);
+        if (recordId != null) {
+            return backendSpanRepository.findById(recordId).orElse(null);
+        }
+        return backendSpanRepository.findByTraceIdAndCallId(context.traceId(), callId).orElse(null);
     }
 
     private Map<String, Object> errorPayload(Throwable error) {

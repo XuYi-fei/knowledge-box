@@ -409,7 +409,7 @@ class ChatOrchestratorTests {
     }
 
     private AgentExecutionTraceContext traceContext() {
-        AgentExecutionTraceContext traceContext = new AgentExecutionTraceContext("trace-test", 1, 0, "span-request");
+        AgentExecutionTraceContext traceContext = new AgentExecutionTraceContext("trace-test", "session-test", 1, 0, "span-request");
         traceContext.setAnswerStreamSpanId("span-stream");
         return traceContext;
     }

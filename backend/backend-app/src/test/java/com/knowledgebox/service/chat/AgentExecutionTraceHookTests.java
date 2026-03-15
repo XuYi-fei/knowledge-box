@@ -23,7 +23,7 @@ class AgentExecutionTraceHookTests {
     @BeforeEach
     void setUp() {
         traceService = mock(AgentExecutionTraceService.class);
-        traceContext = new AgentExecutionTraceContext("trace-1", 1, 0, "span-request");
+        traceContext = new AgentExecutionTraceContext("trace-1", "session-1", 1, 0, "span-request");
         traceContext.setAnswerStreamSpanId("span-answer");
         hook = new AgentExecutionTraceHook(traceService, traceContext);
     }

@@ -203,6 +203,8 @@ class KnowledgeBoxPostgresIntegrationTests {
         assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(detailResponse.getBody()).isNotNull();
         assertThat(detailResponse.getBody()).containsKey("trace");
+        assertThat((List<?>) detailResponse.getBody().get("agentTimeline")).isNotEmpty();
+        assertThat((List<?>) detailResponse.getBody().get("backendSpans")).isNotEmpty();
         assertThat((List<?>) detailResponse.getBody().get("spans")).isNotEmpty();
         assertThat((List<?>) detailResponse.getBody().get("events")).isNotEmpty();
     }
@@ -254,9 +256,15 @@ class KnowledgeBoxPostgresIntegrationTests {
                 Integer.class,
                 traceId
         );
+        Integer backendSpanCountBeforeDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_backend_span where trace_id = ?",
+                Integer.class,
+                traceId
+        );
         assertThat(traceCountBeforeDelete).isEqualTo(1);
         assertThat(spanCountBeforeDelete).isGreaterThan(0);
         assertThat(eventCountBeforeDelete).isGreaterThan(0);
+        assertThat(backendSpanCountBeforeDelete).isGreaterThan(0);
 
         ResponseEntity<Map> deleteResponse = testRestTemplate.withBasicAuth("admin-it", "admin-it-pass").exchange(
                 "http://localhost:" + port + "/api/admin/traces/" + traceId,
@@ -290,9 +298,15 @@ class KnowledgeBoxPostgresIntegrationTests {
                 Integer.class,
                 traceId
         );
+        Integer backendSpanCountAfterDelete = jdbcTemplate.queryForObject(
+                "select count(*) from agent_execution_backend_span where trace_id = ?",
+                Integer.class,
+                traceId
+        );
         assertThat(traceCountAfterDelete).isZero();
         assertThat(spanCountAfterDelete).isZero();
         assertThat(eventCountAfterDelete).isZero();
+        assertThat(backendSpanCountAfterDelete).isZero();
     }
 
     @Test

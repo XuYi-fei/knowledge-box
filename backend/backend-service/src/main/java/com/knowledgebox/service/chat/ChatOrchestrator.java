@@ -230,16 +230,35 @@ public class ChatOrchestrator {
         List<String> reasoningSteps = new ArrayList<>();
         StringBuilder answerBuilder = new StringBuilder();
         AgentExecutionTraceContext traceContext = null;
+        ChatExchangeRuntime exchangeRuntime = new ChatExchangeRuntime(task.sessionId());
+        String rootBackendCallId = null;
         try {
             throwIfCancelled(control);
-            ChatExchangeContext.clear();
-            ChatExchangeContext.sessionCode(task.sessionId());
             traceContext = agentExecutionTraceService.startOrResumeTrace(task);
             agentExecutionTraceService.bindMdc(traceContext, traceContext.requestSpanId());
+            rootBackendCallId = startBackendCall(
+                    traceContext,
+                    null,
+                    "ChatOrchestrator.generate",
+                    "ORCHESTRATOR",
+                    "generate",
+                    requestInput(task),
+                    traceContext.requestSpanId()
+            );
             reasoningSteps.add("已接收用户问题，正在分析检索意图");
             updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
 
+            String historyCallId = startBackendCall(
+                    traceContext,
+                    rootBackendCallId,
+                    "ConversationMemoryService.history",
+                    "SERVICE",
+                    "history",
+                    Map.of("sessionCode", task.sessionId(), "historyTurns", properties.getChat().getHistoryTurns()),
+                    null
+            );
             List<ChatTurn> history = conversationMemoryService.history(task.userId(), task.sessionId(), properties.getChat().getHistoryTurns());
+            completeBackendCall(traceContext, historyCallId, Map.of("turnCount", history.size()));
             agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "request.received", Map.of(
                     "query", task.query(),
                     "historyTurns", history.size(),
@@ -248,7 +267,17 @@ public class ChatOrchestrator {
             ));
 
             if (properties.getChat().isStubResponses()) {
+                String stubbedAnswerCallId = startBackendCall(
+                        traceContext,
+                        rootBackendCallId,
+                        "ChatOrchestrator.stubbedAnswer",
+                        "SERVICE",
+                        "stubbedAnswer",
+                        Map.of("query", task.query(), "chatModel", task.chatModelCode()),
+                        null
+                );
                 ChatResponse stubbed = stubbedAnswer(task.sessionId(), task.profile(), task.query(), task.chatModelCode());
+                completeBackendCall(traceContext, stubbedAnswerCallId, Map.of("answerLength", stubbed.answer().length(), "toolCalls", stubbed.toolCalls()));
                 reasoningSteps.add("测试桩模式已完成检索，正在按流式方式输出答案");
                 String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
                 traceContext.setAnswerStreamSpanId(answerStreamSpanId);
@@ -285,7 +314,8 @@ public class ChatOrchestrator {
                                 "stub",
                                 resolveRoutingModel(task.profile()),
                                 null
-                        )
+                        ),
+                        rootBackendCallId
                 );
                 return;
             }
@@ -303,7 +333,17 @@ public class ChatOrchestrator {
                     Map.of("query", task.query()),
                     Map.of()
             );
+            String routeCallId = startBackendCall(
+                    traceContext,
+                    rootBackendCallId,
+                    "KnowledgeBaseRoutingService.routeQuery",
+                    "SERVICE",
+                    "routeQuery",
+                    Map.of("query", task.query()),
+                    routingSpanId
+            );
             QueryRoutingDecision routingDecision = routeQuery(task.query(), task.profile());
+            completeBackendCall(traceContext, routeCallId, routingPayload(routingDecision));
             agentExecutionTraceService.endSpan(
                     traceContext,
                     routingSpanId,
@@ -341,9 +381,37 @@ public class ChatOrchestrator {
                     Map.of()
             );
 
-            ReActAgent agent = createReActAgent(task.profile(), task.chatModelCode(), routingDecision.enableKnowledgeBase(), traceContext);
+            String createAgentCallId = startBackendCall(
+                    traceContext,
+                    rootBackendCallId,
+                    "ChatOrchestrator.createReActAgent",
+                    "SERVICE",
+                    "createReActAgent",
+                    Map.of(
+                            "chatModel", task.chatModelCode(),
+                            "enableKnowledgeBase", routingDecision.enableKnowledgeBase()
+                    ),
+                    answerStreamSpanId
+            );
+            ReActAgent agent = createReActAgent(
+                    task.profile(),
+                    task.chatModelCode(),
+                    routingDecision.enableKnowledgeBase(),
+                    traceContext,
+                    exchangeRuntime
+            );
+            completeBackendCall(traceContext, createAgentCallId, Map.of("agentType", "ReActAgent"));
             AgentStreamState streamState = new AgentStreamState();
             final AgentExecutionTraceContext activeTraceContext = traceContext;
+            String agentStreamCallId = startBackendCall(
+                    traceContext,
+                    rootBackendCallId,
+                    "ReActAgent.stream",
+                    "STREAM",
+                    "stream",
+                    Map.of("historyTurns", history.size(), "chatModel", task.chatModelCode()),
+                    answerStreamSpanId
+            );
             agent.stream(toAgentScopeHistory(history), buildStreamOptions())
                     .doOnNext(event -> {
                         throwIfCancelled(control);
@@ -359,6 +427,7 @@ public class ChatOrchestrator {
                         );
                     })
                     .blockLast();
+            completeBackendCall(traceContext, agentStreamCallId, Map.of("eventTypeCounts", toEventTypeCountPayload(streamState.eventTypeCounts)));
             throwIfCancelled(control);
 
             if (answerBuilder.isEmpty() && streamState.finalMessage != null) {
@@ -375,15 +444,30 @@ public class ChatOrchestrator {
                 }
             }
 
-            List<String> toolCalls = ChatExchangeContext.toolCalls();
+            List<String> toolCalls = exchangeRuntime.toolCalls();
             if (toolCalls.isEmpty()) {
                 toolCalls = !streamState.toolCalls.isEmpty()
                         ? new ArrayList<>(streamState.toolCalls)
                         : extractToolCalls(streamState.finalMessage);
             }
-            List<RetrievedChunk> retrievedChunks = ChatExchangeContext.retrievals();
+            List<RetrievedChunk> retrievedChunks = exchangeRuntime.retrievals();
             if (shouldRunFallbackRetrieval(routingDecision.enableKnowledgeBase(), retrievedChunks)) {
-                retrievedChunks = knowledgeBaseRetrievalService.search(task.query(), task.profile().getRetrievalTopK());
+                String fallbackRetrievalCallId = startBackendCall(
+                        traceContext,
+                        rootBackendCallId,
+                        "KnowledgeBaseRetrievalService.search",
+                        "SERVICE",
+                        "search",
+                        Map.of("query", task.query(), "topK", task.profile().getRetrievalTopK()),
+                        null
+                );
+                retrievedChunks = knowledgeBaseRetrievalService.search(
+                        task.query(),
+                        task.profile().getRetrievalTopK(),
+                        traceContext,
+                        fallbackRetrievalCallId
+                );
+                completeBackendCall(traceContext, fallbackRetrievalCallId, Map.of("hits", retrievedChunks.size(), "mode", "fallback"));
             }
             List<String> completedReasoningSteps = buildReasoningSteps(streamState.finalMessage, toolCalls, retrievedChunks);
             reasoningSteps.clear();
@@ -409,10 +493,10 @@ public class ChatOrchestrator {
                     toCitations(retrievedChunks),
                     toolCalls,
                     streamState.eventTypeCounts,
-                    routingDecision
+                    routingDecision,
+                    rootBackendCallId
             );
         } catch (ChatGenerationCancelledException exception) {
-            agentExecutionTraceService.cancelTrace(traceContext);
             log.info(
                     "Chat generation was cancelled or message removed. userId={}, sessionId={}, assistantMessageId={}",
                     task.userId(),
@@ -420,9 +504,9 @@ public class ChatOrchestrator {
                     task.assistantMessageId()
             );
             chatStreamBroker.complete(task.assistantMessageId());
+            agentExecutionTraceService.cancelTrace(traceContext);
         } catch (Exception exception) {
             if (isCancellationException(exception)) {
-                agentExecutionTraceService.cancelTrace(traceContext);
                 log.info(
                         "Chat generation interrupted by cancellation. userId={}, sessionId={}, assistantMessageId={}",
                         task.userId(),
@@ -430,6 +514,7 @@ public class ChatOrchestrator {
                         task.assistantMessageId()
                 );
                 chatStreamBroker.complete(task.assistantMessageId());
+                agentExecutionTraceService.cancelTrace(traceContext);
                 return;
             }
             if (isMessageMissing(exception)) {
@@ -440,9 +525,9 @@ public class ChatOrchestrator {
                         task.assistantMessageId()
                 );
                 chatStreamBroker.complete(task.assistantMessageId());
+                agentExecutionTraceService.cancelTrace(traceContext);
                 return;
             }
-            agentExecutionTraceService.failTrace(traceContext, exception);
             log.error(
                     "Chat generation failed. userId={}, sessionId={}, assistantMessageId={}, chatModel={}",
                     task.userId(),
@@ -452,6 +537,15 @@ public class ChatOrchestrator {
                     exception
             );
             try {
+                String failPersistCallId = startBackendCall(
+                        traceContext,
+                        rootBackendCallId,
+                        "ConversationMemoryService.failAssistantMessage",
+                        "PERSISTENCE",
+                        "failAssistantMessage",
+                        Map.of("assistantMessageId", task.assistantMessageId()),
+                        null
+                );
                 conversationMemoryService.failAssistantMessage(
                         task.userId(),
                         task.sessionId(),
@@ -459,6 +553,16 @@ public class ChatOrchestrator {
                         answerBuilder.toString(),
                         reasoningSteps,
                         "回答生成失败，请稍后重试"
+                );
+                completeBackendCall(traceContext, failPersistCallId, Map.of("status", ChatMessageStatus.FAILED.name()));
+                String publishErrorCallId = startBackendCall(
+                        traceContext,
+                        rootBackendCallId,
+                        "ChatStreamBroker.publish",
+                        "DELIVERY",
+                        "publish",
+                        Map.of("eventName", "error"),
+                        null
                 );
                 chatStreamBroker.publish(
                         task.assistantMessageId(),
@@ -477,15 +581,26 @@ public class ChatOrchestrator {
                                 "回答生成失败，请稍后重试"
                         )
                 );
+                completeBackendCall(traceContext, publishErrorCallId, Map.of("eventName", "error"));
             } catch (Exception updateException) {
                 if (!isMessageMissing(updateException) && !isCancellationException(updateException)) {
                     throw updateException;
                 }
             }
+            String completeErrorCallId = startBackendCall(
+                    traceContext,
+                    rootBackendCallId,
+                    "ChatStreamBroker.complete",
+                    "DELIVERY",
+                    "complete",
+                    Map.of("assistantMessageId", task.assistantMessageId()),
+                    null
+            );
             chatStreamBroker.complete(task.assistantMessageId());
+            completeBackendCall(traceContext, completeErrorCallId, Map.of("completed", true));
+            agentExecutionTraceService.failTrace(traceContext, exception);
         } finally {
             runningTasks.remove(task.assistantMessageId());
-            ChatExchangeContext.clear();
             agentExecutionTraceService.clearMdc();
         }
     }
@@ -498,8 +613,18 @@ public class ChatOrchestrator {
             List<ChatCitationView> citations,
             List<String> toolCalls,
             Map<EventType, Integer> eventTypeCounts,
-            QueryRoutingDecision routingDecision
+            QueryRoutingDecision routingDecision,
+            String rootBackendCallId
     ) {
+        String persistCallId = startBackendCall(
+                traceContext,
+                rootBackendCallId,
+                "ConversationMemoryService.completeAssistantMessage",
+                "PERSISTENCE",
+                "completeAssistantMessage",
+                Map.of("assistantMessageId", task.assistantMessageId()),
+                null
+        );
         conversationMemoryService.completeAssistantMessage(
                 task.userId(),
                 task.sessionId(),
@@ -509,6 +634,7 @@ public class ChatOrchestrator {
                 citations,
                 toolCalls
         );
+        completeBackendCall(traceContext, persistCallId, Map.of("status", ChatMessageStatus.COMPLETED.name(), "answerLength", answer.length()));
         Map<String, Object> answerTracePayload = new LinkedHashMap<>();
         answerTracePayload.put("toolCalls", toolCalls);
         answerTracePayload.put("citations", citations.size());
@@ -547,7 +673,15 @@ public class ChatOrchestrator {
                 Map.of(),
                 null
         );
-        agentExecutionTraceService.completeTrace(traceContext, answerTracePayload);
+        String publishDoneCallId = startBackendCall(
+                traceContext,
+                rootBackendCallId,
+                "ChatStreamBroker.publish",
+                "DELIVERY",
+                "publish",
+                Map.of("eventName", "done"),
+                null
+        );
         chatStreamBroker.publish(
                 task.assistantMessageId(),
                 "done",
@@ -565,7 +699,78 @@ public class ChatOrchestrator {
                         null
                 )
         );
+        completeBackendCall(traceContext, publishDoneCallId, Map.of("eventName", "done"));
+        String completeStreamCallId = startBackendCall(
+                traceContext,
+                rootBackendCallId,
+                "ChatStreamBroker.complete",
+                "DELIVERY",
+                "complete",
+                Map.of("assistantMessageId", task.assistantMessageId()),
+                null
+        );
         chatStreamBroker.complete(task.assistantMessageId());
+        completeBackendCall(traceContext, completeStreamCallId, Map.of("completed", true));
+        agentExecutionTraceService.completeTrace(traceContext, answerTracePayload);
+    }
+
+    private String startBackendCall(
+            AgentExecutionTraceContext traceContext,
+            String parentCallId,
+            String callName,
+            String callType,
+            String methodName,
+            Map<String, ?> input,
+            String relatedSpanId
+    ) {
+        if (traceContext == null) {
+            return null;
+        }
+        String callId = agentExecutionTraceService.nextBackendSpanIdValue();
+        agentExecutionTraceService.startBackendSpan(
+                traceContext,
+                parentCallId,
+                callId,
+                callName,
+                callType,
+                getServiceClass(callName),
+                methodName,
+                input,
+                relatedSpanId
+        );
+        return callId;
+    }
+
+    private void completeBackendCall(AgentExecutionTraceContext traceContext, String callId, Map<String, ?> output) {
+        if (traceContext == null || callId == null) {
+            return;
+        }
+        agentExecutionTraceService.endBackendSpan(
+                traceContext,
+                callId,
+                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
+                output,
+                null
+        );
+    }
+
+    private String getServiceClass(String callName) {
+        int separator = callName.indexOf('.');
+        if (separator <= 0) {
+            return callName;
+        }
+        return callName.substring(0, separator);
+    }
+
+    private Map<String, Object> requestInput(StreamTask task) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sessionCode", task.sessionId());
+        payload.put("assistantMessageId", task.assistantMessageId());
+        payload.put("clientMessageId", task.clientMessageId());
+        payload.put("query", task.query());
+        payload.put("profileCode", task.profileCode());
+        payload.put("chatModel", task.chatModelCode());
+        return payload;
     }
 
     private void updateProgress(
@@ -828,7 +1033,8 @@ public class ChatOrchestrator {
             AgentProfileVersion profile,
             String chatModelCode,
             boolean enableKnowledgeBaseTool,
-            AgentExecutionTraceContext traceContext
+            AgentExecutionTraceContext traceContext,
+            ChatExchangeRuntime exchangeRuntime
     ) {
         AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(
                 profile.getId(),
@@ -848,6 +1054,7 @@ public class ChatOrchestrator {
                 hooks,
                 ToolExecutionContext.builder()
                         .register(AgentExecutionTraceContext.class, traceContext)
+                        .register(ChatExchangeRuntime.class, exchangeRuntime)
                         .build()
         );
     }

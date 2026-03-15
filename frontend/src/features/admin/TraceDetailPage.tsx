@@ -1,11 +1,11 @@
 import { DeleteOutlined } from '@ant-design/icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, App, Button, Card, Collapse, Descriptions, Empty, List, Popconfirm, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, App, Button, Card, Collapse, Descriptions, Empty, List, Popconfirm, Space, Spin, Tabs, Tag, Typography } from 'antd';
 import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import { AgentExecutionEvent, AgentExecutionSpan } from '../../lib/types';
+import { AgentExecutionBackendSpan, AgentExecutionEvent, AgentExecutionSpan, AgentExecutionTimelineItem } from '../../lib/types';
 
 const SPAN_TYPE_LABELS: Record<string, string> = {
   REQUEST: '接收请求',
@@ -24,6 +24,24 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   'tool.end': '工具结束',
   'agent.error': 'Agent 异常',
   'query.routed': '路由完成',
+  'request.received': '接收请求',
+  'tool.result': '工具结果回注',
+  hint: '上下文提示',
+  'agent.result': 'Agent 结果',
+  'final.response': '最终响应',
+};
+
+const TIMELINE_TYPE_LABELS: Record<string, string> = {
+  REQUEST: '接收请求',
+  ROUTING: '查询路由',
+  AGENT_CALL: 'Agent 调用',
+  PROMPT: 'Prompt 注入',
+  TOOL_CALL: '工具调用',
+  TOOL_RESULT: '工具结果回注',
+  HINT: '上下文提示',
+  AGENT_RESULT: 'Agent 输出',
+  FINAL_RESPONSE: '最终响应',
+  ERROR: '异常',
 };
 
 function formatDateTime(value?: string | null) {
@@ -76,7 +94,10 @@ function statusColor(status?: string | null) {
   if (status === 'CANCELLED') {
     return 'orange';
   }
-  return 'processing';
+  if (status === 'RUNNING') {
+    return 'processing';
+  }
+  return 'default';
 }
 
 function normalizeDisplayValue(value: unknown): string | null {
@@ -110,11 +131,17 @@ function normalizeDisplayValue(value: unknown): string | null {
     if (typeof objectValue.query === 'string') {
       return normalizeDisplayValue(objectValue.query);
     }
+    if (typeof objectValue.answer === 'string') {
+      return normalizeDisplayValue(objectValue.answer);
+    }
+    if (typeof objectValue.message === 'string') {
+      return normalizeDisplayValue(objectValue.message);
+    }
   }
   return null;
 }
 
-function trimPreview(value: string | null, limit = 72) {
+function trimPreview(value: string | null, limit = 96) {
   if (!value) {
     return null;
   }
@@ -228,8 +255,8 @@ function summarizeEvent(event: AgentExecutionEvent) {
     return parts.length ? parts.join(' | ') : null;
   }
   return trimPreview(
-    pickSummaryValue(objectPayload, ['message', 'exceptionClass', 'toolName', 'source', 'phase', 'query']),
-    72,
+    pickSummaryValue(objectPayload, ['message', 'answer', 'exceptionClass', 'toolName', 'source', 'phase', 'query', 'text']),
+    96,
   );
 }
 
@@ -239,6 +266,118 @@ function describeSpan(span: AgentExecutionSpan) {
     return `${typeLabel} · ${span.spanName}`;
   }
   return span.spanName ? `${typeLabel} · ${span.spanName}` : typeLabel;
+}
+
+function summarizeTimelineItem(item: AgentExecutionTimelineItem) {
+  const payload = parseJsonValue(item.payloadJson);
+  const input = parseJsonValue(item.inputJson);
+  const output = parseJsonValue(item.outputJson);
+  if (item.itemType === 'REQUEST') {
+    return trimPreview(pickSummaryValue(payload, ['query', 'chatModel', 'profile']), 96);
+  }
+  if (item.itemType === 'PROMPT') {
+    const objectPayload = payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
+    if (!objectPayload) {
+      return null;
+    }
+    const parts = [
+      normalizeDisplayValue(objectPayload.phase),
+      normalizeDisplayValue(objectPayload.modelName),
+      Array.isArray(objectPayload.inputMessages) ? `消息:${objectPayload.inputMessages.length} 条` : null,
+    ].filter((value): value is string => Boolean(value));
+    return parts.join(' | ') || null;
+  }
+  if (item.itemType === 'TOOL_CALL') {
+    return trimPreview(pickSummaryValue(input, ['toolName', 'toolInput']), 96);
+  }
+  if (item.itemType === 'TOOL_RESULT') {
+    return trimPreview(pickSummaryValue(payload, ['toolName', 'message']), 96);
+  }
+  if (item.itemType === 'AGENT_RESULT' || item.itemType === 'FINAL_RESPONSE') {
+    return trimPreview(pickSummaryValue(payload, ['answer', 'message']), 96);
+  }
+  if (item.itemType === 'ROUTING') {
+    return trimPreview(pickSummaryValue(output, ['reason', 'source']), 96);
+  }
+  return trimPreview(
+    pickSummaryValue(payload ?? input ?? output, ['message', 'query', 'text', 'exceptionClass', 'reason']),
+    96,
+  );
+}
+
+function summarizeTimelineInput(item: AgentExecutionTimelineItem) {
+  const input = parseJsonValue(item.inputJson);
+  const summary = trimPreview(
+    pickSummaryValue(input, ['query', 'toolName', 'toolInput', 'phase', 'modelName', 'source', 'reason', 'message', 'text']),
+    96,
+  );
+  return summary ?? summarizeTimelineItem(item);
+}
+
+function summarizeTimelineOutput(item: AgentExecutionTimelineItem) {
+  const output = parseJsonValue(item.outputJson);
+  return trimPreview(
+    pickSummaryValue(output, ['answer', 'message', 'reason', 'source', 'toolName', 'status', 'text']),
+    96,
+  );
+}
+
+function summarizeBackendInput(span: AgentExecutionBackendSpan) {
+  const input = parseJsonValue(span.inputJson);
+  if (!input) {
+    return null;
+  }
+  const summary = pickSummaryValue(input, ['query', 'assistantMessageId', 'sessionCode', 'eventName', 'chatModel']);
+  return trimPreview(summary, 96);
+}
+
+function summarizeBackendOutput(span: AgentExecutionBackendSpan) {
+  const output = parseJsonValue(span.outputJson);
+  if (!output || typeof output !== 'object' || Array.isArray(output)) {
+    return trimPreview(pickSummaryValue(output, ['message', 'status']), 96);
+  }
+  const objectOutput = output as Record<string, unknown>;
+  const parts = [
+    objectOutput.hits == null ? null : `命中:${objectOutput.hits}`,
+    normalizeDisplayValue(objectOutput.strategy),
+    normalizeDisplayValue(objectOutput.mode),
+    normalizeDisplayValue(objectOutput.status),
+    objectOutput.answerLength == null ? null : `回答:${objectOutput.answerLength}`,
+    normalizeDisplayValue(objectOutput.eventName),
+  ].filter((item): item is string => Boolean(item));
+  return parts.length ? parts.join(' | ') : trimPreview(pickSummaryValue(objectOutput, ['message']), 96);
+}
+
+function computeBackendDepths(spans: AgentExecutionBackendSpan[]) {
+  const spanById = new Map(spans.map((span) => [span.callId, span]));
+  const depthById = new Map<string, number>();
+  const visit = (callId: string): number => {
+    const cached = depthById.get(callId);
+    if (cached != null) {
+      return cached;
+    }
+    const span = spanById.get(callId);
+    if (!span || !span.parentCallId || !spanById.has(span.parentCallId)) {
+      depthById.set(callId, 0);
+      return 0;
+    }
+    const depth = visit(span.parentCallId) + 1;
+    depthById.set(callId, depth);
+    return depth;
+  };
+  for (const span of spans) {
+    visit(span.callId);
+  }
+  return depthById;
+}
+
+function offsetFromTraceStart(traceStartedAt: string, startedAt: string) {
+  const traceStartMs = new Date(traceStartedAt).getTime();
+  const startedMs = new Date(startedAt).getTime();
+  if (Number.isNaN(traceStartMs) || Number.isNaN(startedMs)) {
+    return 0;
+  }
+  return Math.max(0, startedMs - traceStartMs);
 }
 
 function JsonBlock({ title, value }: { title: string; value?: string | null }) {
@@ -296,8 +435,9 @@ function StepHeader({
   globalSequenceNo,
   durationMs,
   startedAt,
-  eventCount,
+  metaText,
   extraTag,
+  visual,
 }: {
   title: string;
   subtitle?: string;
@@ -308,8 +448,9 @@ function StepHeader({
   globalSequenceNo?: number | null;
   durationMs?: number | null;
   startedAt?: string | null;
-  eventCount: number;
+  metaText?: string | null;
   extraTag?: string;
+  visual?: React.ReactNode;
 }) {
   return (
     <div className="trace-step-header">
@@ -317,7 +458,7 @@ function StepHeader({
         <Space wrap>
           <Tag color="blue">步骤 {stepNo}</Tag>
           {extraTag ? <Tag>{extraTag}</Tag> : null}
-          <Tag color={statusColor(status)}>{status ?? 'UNKNOWN'}</Tag>
+          {status ? <Tag color={statusColor(status)}>{status}</Tag> : null}
           <Typography.Text strong>{title}</Typography.Text>
         </Space>
         {subtitle ? (
@@ -335,12 +476,13 @@ function StepHeader({
             输出：{outputSummary}
           </Typography.Text>
         ) : null}
+        {visual}
       </div>
       <div className="trace-step-header-meta">
         {globalSequenceNo != null ? <span>全局序号 #{globalSequenceNo}</span> : null}
         <span>{formatDuration(durationMs)}</span>
         <span>{formatDateTime(startedAt)}</span>
-        <span>{eventCount} events</span>
+        {metaText ? <span>{metaText}</span> : null}
       </div>
     </div>
   );
@@ -368,6 +510,52 @@ function SpanPanelBody({ span, events }: { span: AgentExecutionSpan; events: Age
         <Typography.Text strong>Events</Typography.Text>
         <EventList events={events} />
       </div>
+    </Space>
+  );
+}
+
+function TimelineItemBody({ item }: { item: AgentExecutionTimelineItem }) {
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Descriptions size="small" column={2} bordered>
+        <Descriptions.Item label="itemId">{item.itemId}</Descriptions.Item>
+        <Descriptions.Item label="来源类型">{item.sourceType}</Descriptions.Item>
+        <Descriptions.Item label="时间线类型">{TIMELINE_TYPE_LABELS[item.itemType] ?? item.itemType}</Descriptions.Item>
+        <Descriptions.Item label="全局序号">#{item.sequenceNo}</Descriptions.Item>
+        <Descriptions.Item label="关联 span">{item.relatedSpanId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="关联 event">{item.relatedEventId ?? '-'}</Descriptions.Item>
+        <Descriptions.Item label="开始时间">{formatDateTime(item.startedAt)}</Descriptions.Item>
+        <Descriptions.Item label="结束时间">{formatDateTime(item.endedAt)}</Descriptions.Item>
+        <Descriptions.Item label="耗时">{formatDuration(item.durationMs)}</Descriptions.Item>
+        <Descriptions.Item label="状态">{item.status || '-'}</Descriptions.Item>
+      </Descriptions>
+      <JsonBlock title="Input" value={item.inputJson} />
+      <JsonBlock title="Output" value={item.outputJson} />
+      <JsonBlock title="Payload" value={item.payloadJson} />
+    </Space>
+  );
+}
+
+function BackendSpanBody({ span, offsetMs }: { span: AgentExecutionBackendSpan; offsetMs: number }) {
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Descriptions size="small" column={2} bordered>
+        <Descriptions.Item label="callId">{span.callId}</Descriptions.Item>
+        <Descriptions.Item label="parentCallId">{span.parentCallId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="service">{span.serviceClass || '-'}</Descriptions.Item>
+        <Descriptions.Item label="method">{span.methodName || '-'}</Descriptions.Item>
+        <Descriptions.Item label="全局序号">#{span.sequenceNo}</Descriptions.Item>
+        <Descriptions.Item label="关联 Agent Span">{span.relatedSpanId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="开始偏移">+{offsetMs} ms</Descriptions.Item>
+        <Descriptions.Item label="attempt">{span.attemptNo}</Descriptions.Item>
+        <Descriptions.Item label="开始时间">{formatDateTime(span.startedAt)}</Descriptions.Item>
+        <Descriptions.Item label="结束时间">{formatDateTime(span.endedAt)}</Descriptions.Item>
+        <Descriptions.Item label="耗时">{formatDuration(span.durationMs)}</Descriptions.Item>
+        <Descriptions.Item label="状态">{span.status}</Descriptions.Item>
+      </Descriptions>
+      <JsonBlock title="Input" value={span.inputJson} />
+      <JsonBlock title="Output" value={span.outputJson} />
+      <JsonBlock title="Error" value={span.errorJson} />
     </Space>
   );
 }
@@ -456,8 +644,17 @@ export function TraceDetailPage() {
     return <Alert type="error" showIcon message="加载 trace 详情失败" description={buildErrorSummary(traceQuery.error, '请稍后重试')} />;
   }
 
-  const { trace, spans } = traceQuery.data;
+  const { trace, spans, events, agentTimeline, backendSpans } = traceQuery.data;
   const orderedSpans = [...spans].sort((left, right) => left.sequenceNo - right.sequenceNo);
+  const orderedTimeline = [...agentTimeline].sort((left, right) => left.sequenceNo - right.sequenceNo);
+  const orderedBackendSpans = [...backendSpans].sort((left, right) => left.sequenceNo - right.sequenceNo);
+  const backendDepths = computeBackendDepths(orderedBackendSpans);
+  const backendSpanExtent = Math.max(...orderedBackendSpans.map((span) => {
+    const offset = offsetFromTraceStart(trace.startedAt, span.startedAt);
+    return offset + (span.durationMs ?? 0);
+  }), 1);
+  const totalDuration = Math.max(trace.durationMs ?? 0, backendSpanExtent, 1);
+  const deleteDisabled = trace.status === 'RUNNING';
 
   return (
     <div className="page-stack">
@@ -466,17 +663,14 @@ export function TraceDetailPage() {
           <Link to="/admin/traces">返回运行追踪</Link>
           <Popconfirm
             title="删除这条 Trace？"
-            description="删除后对应的 span 和 event 会一并清除，无法恢复。"
+            description={deleteDisabled ? '运行中的 Trace 不能删除，请等待执行结束。' : '删除后对应的 span 和 event 会一并清除，无法恢复。'}
             okText="删除"
             cancelText="取消"
             okButtonProps={{ danger: true, loading: deleteTraceMutation.isPending }}
             onConfirm={() => deleteTraceMutation.mutate(traceId)}
+            disabled={deleteDisabled}
           >
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              loading={deleteTraceMutation.isPending}
-            >
+            <Button danger icon={<DeleteOutlined />} loading={deleteTraceMutation.isPending} disabled={deleteDisabled}>
               删除 Trace
             </Button>
           </Popconfirm>
@@ -505,69 +699,180 @@ export function TraceDetailPage() {
             </Descriptions.Item>
           </Descriptions>
         </Card>
-        <Card title="执行时间线">
-          <Alert
-            type="info"
-            showIcon
-            message="编号说明"
-            description="步骤号和事件号是当前页面按时间线重新编号后的顺序编号；“全局序号”是后端在整条 trace 内统一递增的原始链路序号，所以会因为中间穿插 event 而跳号。"
-            style={{ marginBottom: 16 }}
-          />
-          {orderedSpans.length || orphanEvents.length ? (
-            <div className="trace-step-list">
-              {orderedSpans.map((span, index) => {
-                const events = (eventsBySpan.get(span.spanId) ?? []).sort((left, right) => left.sequenceNo - right.sequenceNo);
-                return (
-                  <StepCard
-                    key={span.spanId}
-                    panelKey={span.spanId}
-                    header={
-                      <StepHeader
-                        title={describeSpan(span)}
-                        subtitle={span.parentSpanId ? `父步骤: ${span.parentSpanId}` : undefined}
-                        inputSummary={summarizeSpanInput(span)}
-                        outputSummary={summarizeSpanOutput(span)}
-                        status={span.status}
-                        stepNo={index + 1}
-                        globalSequenceNo={span.sequenceNo}
-                        durationMs={span.durationMs}
-                        startedAt={span.startedAt}
-                        eventCount={events.length}
-                        extraTag={SPAN_TYPE_LABELS[span.spanType] ?? span.spanType}
-                      />
-                    }
-                  >
-                    <SpanPanelBody span={span} events={events} />
-                  </StepCard>
-                );
-              })}
-
-              {orphanEvents.length ? (
-                <StepCard
-                  panelKey="orphan-events"
-                  header={
-                    <StepHeader
-                      title="未绑定 Span 的事件"
-                      subtitle="这些事件没有对应的 spanId，通常表示链路异常或落库不完整。"
-                      inputSummary={null}
-                      outputSummary={null}
-                      status="UNKNOWN"
-                      stepNo="?"
-                      globalSequenceNo={null}
-                      durationMs={null}
-                      startedAt={orphanEvents[0]?.occurredAt}
-                      eventCount={orphanEvents.length}
-                    />
-                  }
-                >
-                  <EventList events={orphanEvents} />
-                </StepCard>
-              ) : null}
-            </div>
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前 trace 暂无 span 数据" />
-          )}
-        </Card>
+        <Tabs
+          items={[
+            {
+              key: 'agent-timeline',
+              label: 'Agent 时间线',
+              children: (
+                <Card title="Agent 时间线">
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="这一层只展示 ReActAgent 的核心执行语义"
+                    description="按统一时间轴顺序展示接收请求、路由、Prompt 注入、工具调用、工具结果回注、Agent 最终消息与最终响应，不再直接暴露 chat.request 这类技术根 span 作为主阅读入口。"
+                  />
+                  {orderedTimeline.length ? (
+                    <div className="trace-step-list">
+                      {orderedTimeline.map((item, index) => (
+                        <StepCard
+                          key={item.itemId}
+                          panelKey={item.itemId}
+                          header={
+                            <StepHeader
+                              title={item.title}
+                              subtitle={item.relatedSpanId ? `关联 span: ${item.relatedSpanId}` : undefined}
+                              inputSummary={summarizeTimelineInput(item)}
+                              outputSummary={summarizeTimelineOutput(item)}
+                              status={item.status}
+                              stepNo={index + 1}
+                              globalSequenceNo={item.sequenceNo}
+                              durationMs={item.durationMs}
+                              startedAt={item.startedAt}
+                              metaText={TIMELINE_TYPE_LABELS[item.itemType] ?? item.itemType}
+                              extraTag={item.sourceType}
+                            />
+                          }
+                        >
+                          <TimelineItemBody item={item} />
+                        </StepCard>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty description="当前 trace 暂无可展示的 Agent 时间线" />
+                  )}
+                </Card>
+              ),
+            },
+            {
+              key: 'backend-waterfall',
+              label: '后端调用瀑布',
+              children: (
+                <Card title="后端调用瀑布">
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="这一层展示关键服务方法的调用链和耗时"
+                    description="仅保留聊天链路中的关键服务节点，避免全方法 AOP 带来的噪声。每个调用块会展示父子关系、开始偏移与耗时条，便于快速定位慢点。"
+                  />
+                  {orderedBackendSpans.length ? (
+                    <div className="trace-step-list">
+                      {orderedBackendSpans.map((span, index) => {
+                        const depth = backendDepths.get(span.callId) ?? 0;
+                        const offsetMs = offsetFromTraceStart(trace.startedAt, span.startedAt);
+                        const offsetPercent = Math.min(100, (offsetMs / Math.max(totalDuration, 1)) * 100);
+                        const widthPercent = Math.max(2, ((span.durationMs ?? 0) / Math.max(totalDuration, 1)) * 100);
+                        return (
+                          <StepCard
+                            key={span.callId}
+                            panelKey={span.callId}
+                            header={
+                              <StepHeader
+                                title={span.callName}
+                                subtitle={span.parentCallId ? `父调用: ${span.parentCallId}` : '根调用'}
+                                inputSummary={summarizeBackendInput(span)}
+                                outputSummary={summarizeBackendOutput(span)}
+                                status={span.status}
+                                stepNo={index + 1}
+                                globalSequenceNo={span.sequenceNo}
+                                durationMs={span.durationMs}
+                                startedAt={span.startedAt}
+                                metaText={`+${offsetMs} ms`}
+                                extraTag={span.callType}
+                                visual={
+                                  <div className="trace-waterfall-visual" style={{ marginLeft: depth * 18 }}>
+                                    <div className="trace-waterfall-track">
+                                      <div
+                                        className="trace-waterfall-bar"
+                                        style={{ marginLeft: `${offsetPercent}%`, width: `${Math.min(100 - offsetPercent, widthPercent)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                }
+                              />
+                            }
+                          >
+                            <BackendSpanBody span={span} offsetMs={offsetMs} />
+                          </StepCard>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Empty description="当前 trace 暂无后端调用瀑布数据" />
+                  )}
+                </Card>
+              ),
+            },
+            {
+              key: 'raw-logs',
+              label: '原始日志',
+              children: (
+                <Card title="原始日志">
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="编号说明"
+                    description="步骤号和事件号是当前页面按时间线重新编号后的顺序编号；全局序号是后端在整条 trace 内统一递增的原始链路序号，所以会因为中间穿插 event 而跳号。"
+                    style={{ marginBottom: 16 }}
+                  />
+                  {orderedSpans.length || orphanEvents.length ? (
+                    <div className="trace-step-list">
+                      {orderedSpans.map((span, index) => {
+                        const currentEvents = (eventsBySpan.get(span.spanId) ?? []).sort((left, right) => left.sequenceNo - right.sequenceNo);
+                        return (
+                          <StepCard
+                            key={span.spanId}
+                            panelKey={span.spanId}
+                            header={
+                              <StepHeader
+                                title={describeSpan(span)}
+                                subtitle={span.parentSpanId ? `父步骤: ${span.parentSpanId}` : undefined}
+                                inputSummary={summarizeSpanInput(span)}
+                                outputSummary={summarizeSpanOutput(span)}
+                                status={span.status}
+                                stepNo={index + 1}
+                                globalSequenceNo={span.sequenceNo}
+                                durationMs={span.durationMs}
+                                startedAt={span.startedAt}
+                                metaText={`${currentEvents.length} events`}
+                                extraTag={SPAN_TYPE_LABELS[span.spanType] ?? span.spanType}
+                              />
+                            }
+                          >
+                            <SpanPanelBody span={span} events={currentEvents} />
+                          </StepCard>
+                        );
+                      })}
+                      {orphanEvents.length ? (
+                        <StepCard
+                          panelKey="orphan-events"
+                          header={
+                            <StepHeader
+                              title="未绑定 Span 的事件"
+                              subtitle="这些事件没有对应的 spanId，通常表示链路异常或落库不完整。"
+                              status="INFO"
+                              stepNo="?"
+                              globalSequenceNo={null}
+                              durationMs={null}
+                              startedAt={orphanEvents[0]?.occurredAt}
+                              metaText={`${orphanEvents.length} events`}
+                            />
+                          }
+                        >
+                          <EventList events={orphanEvents} />
+                        </StepCard>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <Empty description="当前 trace 暂无步骤数据" />
+                  )}
+                </Card>
+              ),
+            },
+          ]}
+        />
       </Space>
     </div>
   );

@@ -276,8 +276,46 @@ export type AgentExecutionEvent = {
   payloadJson: string | null;
 };
 
+export type AgentExecutionTimelineItem = {
+  itemId: string;
+  itemType: string;
+  sourceType: 'SPAN' | 'EVENT' | (string & {});
+  title: string;
+  status: AgentExecutionTraceStatus | 'INFO' | string;
+  sequenceNo: number;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  inputJson: string | null;
+  outputJson: string | null;
+  payloadJson: string | null;
+  relatedSpanId: string | null;
+  relatedEventId: number | null;
+};
+
+export type AgentExecutionBackendSpan = {
+  callId: string;
+  parentCallId: string | null;
+  callName: string;
+  callType: string;
+  serviceClass: string | null;
+  methodName: string | null;
+  status: AgentExecutionTraceStatus;
+  sequenceNo: number;
+  attemptNo: number;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  inputJson: string | null;
+  outputJson: string | null;
+  errorJson: string | null;
+  relatedSpanId: string | null;
+};
+
 export type AgentExecutionTraceDetail = {
   trace: AgentExecutionTraceSummary;
+  agentTimeline: AgentExecutionTimelineItem[];
+  backendSpans: AgentExecutionBackendSpan[];
   spans: AgentExecutionSpan[];
   events: AgentExecutionEvent[];
 };

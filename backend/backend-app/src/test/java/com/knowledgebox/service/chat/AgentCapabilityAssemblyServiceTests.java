@@ -56,7 +56,8 @@ class AgentCapabilityAssemblyServiceTests {
     void setUp() {
         KnowledgeBaseSearchTool knowledgeBaseSearchTool = new KnowledgeBaseSearchTool(
                 mock(KnowledgeBaseRetrievalService.class),
-                mock(AgentTraceService.class)
+                mock(AgentTraceService.class),
+                mock(AgentExecutionTraceService.class)
         );
         service = new AgentCapabilityAssemblyService(
                 toolBindingRepository,

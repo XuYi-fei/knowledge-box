@@ -9,27 +9,21 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class KnowledgeBaseSearchToolTests {
-
-    @AfterEach
-    void tearDown() {
-        ChatExchangeContext.clear();
-    }
 
     @Test
     void shouldTraceToolExecutionWhenSessionCodePresent() {
         KnowledgeBaseRetrievalService retrievalService = mock(KnowledgeBaseRetrievalService.class);
         AgentTraceService agentTraceService = mock(AgentTraceService.class);
-        KnowledgeBaseSearchTool tool = new KnowledgeBaseSearchTool(retrievalService, agentTraceService);
+        KnowledgeBaseSearchTool tool = new KnowledgeBaseSearchTool(retrievalService, agentTraceService, mock(AgentExecutionTraceService.class));
         List<RetrievedChunk> chunks = List.of(new RetrievedChunk(1L, "doc", "h", "a", "snippet", 0.8, true));
-        when(retrievalService.search("query", 3)).thenReturn(chunks);
+        when(retrievalService.search(eq("query"), eq(3), eq(null), eq(null))).thenReturn(chunks);
         when(retrievalService.renderToolPayload(chunks)).thenReturn("payload");
-        ChatExchangeContext.sessionCode("session-1");
+        ChatExchangeRuntime exchangeRuntime = new ChatExchangeRuntime("session-1");
 
-        String output = tool.searchKnowledgeBase("query", 3);
+        String output = tool.searchKnowledgeBase("query", 3, null, exchangeRuntime);
 
         assertThat(output).isEqualTo("payload");
         verify(agentTraceService).trace(eq("session-1"), eq("RETRIEVAL_TOOL_EXECUTED"), anyMap());
@@ -39,13 +33,13 @@ class KnowledgeBaseSearchToolTests {
     void shouldSkipTraceWhenSessionCodeMissing() {
         KnowledgeBaseRetrievalService retrievalService = mock(KnowledgeBaseRetrievalService.class);
         AgentTraceService agentTraceService = mock(AgentTraceService.class);
-        KnowledgeBaseSearchTool tool = new KnowledgeBaseSearchTool(retrievalService, agentTraceService);
+        KnowledgeBaseSearchTool tool = new KnowledgeBaseSearchTool(retrievalService, agentTraceService, mock(AgentExecutionTraceService.class));
         List<RetrievedChunk> chunks = List.of(new RetrievedChunk(1L, "doc", "h", "a", "snippet", 0.8, true));
-        when(retrievalService.search("query", 3)).thenReturn(chunks);
+        when(retrievalService.search(eq("query"), eq(3), eq(null), eq(null))).thenReturn(chunks);
         when(retrievalService.renderToolPayload(chunks)).thenReturn("payload");
-        ChatExchangeContext.clear();
+        ChatExchangeRuntime exchangeRuntime = new ChatExchangeRuntime(null);
 
-        String output = tool.searchKnowledgeBase("query", 3);
+        String output = tool.searchKnowledgeBase("query", 3, null, exchangeRuntime);
 
         assertThat(output).isEqualTo("payload");
         verifyNoInteractions(agentTraceService);

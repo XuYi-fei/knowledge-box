@@ -1,9 +1,11 @@
 package com.knowledgebox.service.chat;
 
 import com.knowledgebox.config.KnowledgeBoxProperties;
+import com.knowledgebox.domain.chat.AgentExecutionStatus;
 import com.knowledgebox.domain.document.DocumentChunk;
 import com.knowledgebox.domain.document.DocumentVisibilityType;
 import com.knowledgebox.repository.DocumentChunkRepository;
+import jakarta.annotation.Nullable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,29 +26,93 @@ public class KnowledgeBaseRetrievalService {
     private final ObjectProvider<VectorStore> vectorStoreProvider;
     private final DocumentChunkRepository documentChunkRepository;
     private final KnowledgeBoxProperties properties;
+    private final AgentExecutionTraceService agentExecutionTraceService;
 
     public KnowledgeBaseRetrievalService(
             ObjectProvider<VectorStore> vectorStoreProvider,
             DocumentChunkRepository documentChunkRepository,
-            KnowledgeBoxProperties properties
+            KnowledgeBoxProperties properties,
+            AgentExecutionTraceService agentExecutionTraceService
     ) {
         this.vectorStoreProvider = vectorStoreProvider;
         this.documentChunkRepository = documentChunkRepository;
         this.properties = properties;
+        this.agentExecutionTraceService = agentExecutionTraceService;
     }
 
     @Transactional(readOnly = true)
     public List<RetrievedChunk> search(String query, Integer topK) {
+        return search(query, topK, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RetrievedChunk> search(
+            String query,
+            Integer topK,
+            @Nullable AgentExecutionTraceContext traceContext,
+            @Nullable String parentCallId
+    ) {
         int size = topK == null || topK <= 0 ? properties.getRetrieval().getTopK() : topK;
-        List<RetrievedChunk> vectorHits = safeVectorHits(query, size);
-        if (!vectorHits.isEmpty()) {
-            return vectorHits;
+        String callId = null;
+        if (traceContext != null) {
+            callId = agentExecutionTraceService.nextBackendSpanIdValue();
+            Map<String, Object> input = new LinkedHashMap<>();
+            input.put("query", query);
+            input.put("topK", size);
+            agentExecutionTraceService.startBackendSpan(
+                    traceContext,
+                    parentCallId,
+                    callId,
+                    "KnowledgeBaseRetrievalService.search",
+                    "SERVICE",
+                    getClass().getSimpleName(),
+                    "search",
+                    input,
+                    null
+            );
         }
-        List<RetrievedChunk> textHits = safeTextHits(query, size);
-        if (!textHits.isEmpty()) {
-            return textHits;
+        try {
+            List<RetrievedChunk> vectorHits = safeVectorHits(query, size);
+            if (!vectorHits.isEmpty()) {
+                completeBackendSpan(traceContext, callId, "vector", vectorHits.size());
+                return vectorHits;
+            }
+            List<RetrievedChunk> textHits = safeTextHits(query, size);
+            if (!textHits.isEmpty()) {
+                completeBackendSpan(traceContext, callId, "text", textHits.size());
+                return textHits;
+            }
+            List<RetrievedChunk> memoryHits = inMemoryHits(query, size);
+            completeBackendSpan(traceContext, callId, "memory", memoryHits.size());
+            return memoryHits;
+        } catch (RuntimeException exception) {
+            if (traceContext != null && callId != null) {
+                Map<String, Object> error = new LinkedHashMap<>();
+                error.put("exceptionClass", exception.getClass().getName());
+                error.put("message", exception.getMessage());
+                agentExecutionTraceService.endBackendSpan(
+                        traceContext,
+                        callId,
+                        AgentExecutionStatus.FAILED,
+                        Map.of(),
+                        error
+                );
+            }
+            throw exception;
         }
-        return inMemoryHits(query, size);
+    }
+
+    private void completeBackendSpan(AgentExecutionTraceContext traceContext, String callId, String strategy, int hits) {
+        if (traceContext == null || callId == null) {
+            return;
+        }
+        agentExecutionTraceService.endBackendSpan(
+                traceContext,
+                callId,
+                AgentExecutionStatus.COMPLETED,
+                Map.of("strategy", strategy, "hits", hits),
+                null
+        );
     }
 
     private List<RetrievedChunk> safeVectorHits(String query, int topK) {

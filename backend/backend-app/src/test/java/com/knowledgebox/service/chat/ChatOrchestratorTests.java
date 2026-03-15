@@ -28,13 +28,11 @@ import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.message.ToolResultBlock;
 import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.tool.Toolkit;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +45,7 @@ class ChatOrchestratorTests {
     private static final String FORCE_DISABLE_MODEL_QUERY_REGEX =
             "(?i).*(你是什么模型|你是(什么|哪个)|你用的什么模型|what model are you|which model are you|who are you|what are you).*";
 
+    private KnowledgeBoxProperties properties;
     private ConversationMemoryService conversationMemoryService;
     private ChatStreamBroker chatStreamBroker;
     private AgentEventStreamService agentEventStreamService;
@@ -55,7 +54,8 @@ class ChatOrchestratorTests {
 
     @BeforeEach
     void setUp() {
-        KnowledgeBoxProperties properties = new KnowledgeBoxProperties();
+        properties = new KnowledgeBoxProperties();
+        properties.getChat().setRetrievalTriggerMode(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED);
         properties.getChat().getKnowledgeBaseRouting().setForceDisableRegexes(List.of(FORCE_DISABLE_MODEL_QUERY_REGEX));
         conversationMemoryService = mock(ConversationMemoryService.class);
         chatStreamBroker = mock(ChatStreamBroker.class);
@@ -91,23 +91,19 @@ class ChatOrchestratorTests {
         boolean enableKnowledgeBase = (boolean) invokeNoArg(routingDecision, "enableKnowledgeBase");
         String source = (String) invokeNoArg(routingDecision, "source");
         String routingModel = (String) invokeNoArg(routingDecision, "routingModel");
-
-        boolean shouldFallback = (boolean) invokePrivateMethod(
-                "shouldRunFallbackRetrieval",
-                new Class<?>[]{boolean.class, List.class},
-                enableKnowledgeBase,
-                List.of()
-        );
+        String retrievalTriggerMode = requiredRoutingTriggerMode(routingDecision);
+        boolean shouldFallback = shouldRunFallbackRetrieval(routingDecision, List.of());
 
         assertThat(enableKnowledgeBase).isFalse();
         assertThat(source).isEqualTo("rule");
         assertThat(routingModel).isEqualTo("qwen-plus");
+        assertThat(retrievalTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
         assertThat(shouldFallback).isFalse();
         assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isZero();
     }
 
     @Test
-    void shouldUseRoutingModelDecisionWhenNoRegexMatched() throws Exception {
+    void shouldPreRetrieveButSkipFallbackWhenRoutingModelReturnsNoKb() throws Exception {
         probeChatOrchestrator.setRoutingModelOutput(NO_KB);
         AgentProfileVersion profile = new AgentProfileVersion();
         profile.setRoutingModel("qwen-plus");
@@ -123,18 +119,23 @@ class ChatOrchestratorTests {
         String reason = (String) invokeNoArg(routingDecision, "reason");
         String routingModel = (String) invokeNoArg(routingDecision, "routingModel");
         String routingModelOutput = (String) invokeNoArg(routingDecision, "routingModelOutput");
-        boolean shouldFallback = (boolean) invokePrivateMethod(
-                "shouldRunFallbackRetrieval",
-                new Class<?>[]{boolean.class, List.class},
-                enableKnowledgeBase,
-                List.of()
+        String retrievalTriggerMode = requiredRoutingTriggerMode(routingDecision);
+        Object ruleDecision = invokePrivateMethod(
+                "routeQuery",
+                new Class<?>[]{String.class, AgentProfileVersion.class},
+                "你是什么模型",
+                profile
         );
+        String disabledTriggerMode = requiredRoutingTriggerMode(ruleDecision);
+        boolean shouldFallback = shouldRunFallbackRetrieval(routingDecision, List.of());
 
         assertThat(enableKnowledgeBase).isFalse();
         assertThat(source).isEqualTo("model");
         assertThat(reason).isEqualTo("routing-model-classifier");
         assertThat(routingModel).isEqualTo("qwen-plus");
         assertThat(routingModelOutput).isEqualTo(NO_KB);
+        assertThat(retrievalTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
+        assertThat(disabledTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
         assertThat(shouldFallback).isFalse();
         assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isEqualTo(1);
     }
@@ -155,19 +156,45 @@ class ChatOrchestratorTests {
         String source = (String) invokeNoArg(routingDecision, "source");
         String reason = (String) invokeNoArg(routingDecision, "reason");
         String routingModelOutput = (String) invokeNoArg(routingDecision, "routingModelOutput");
-        boolean shouldFallback = (boolean) invokePrivateMethod(
-                "shouldRunFallbackRetrieval",
-                new Class<?>[]{boolean.class, List.class},
-                enableKnowledgeBase,
-                List.of()
+        String retrievalTriggerMode = requiredRoutingTriggerMode(routingDecision);
+        probeChatOrchestrator.setRoutingModelOutput(NO_KB);
+        Object noKbDecision = invokePrivateMethod(
+                "routeQuery",
+                new Class<?>[]{String.class, AgentProfileVersion.class},
+                "如何设计幂等接口？",
+                profile
         );
+        String noKbTriggerMode = requiredRoutingTriggerMode(noKbDecision);
+        boolean shouldFallback = shouldRunFallbackRetrieval(routingDecision, List.of());
 
         assertThat(enableKnowledgeBase).isTrue();
         assertThat(source).isEqualTo("model-fallback");
         assertThat(reason).isEqualTo("routing-model-invalid-output");
         assertThat(routingModelOutput).isEqualTo("UNKNOWN");
+        assertThat(retrievalTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
+        assertThat(noKbTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
         assertThat(shouldFallback).isTrue();
-        assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isEqualTo(1);
+        assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isEqualTo(2);
+    }
+
+    @Test
+    void shouldSkipFallbackWhenAlwaysPreRetrieveModeIsEnabled() throws Exception {
+        properties.getChat().setRetrievalTriggerMode(KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE);
+
+        boolean shouldFallback = shouldRunFallbackRetrieval(
+                new QueryRoutingDecision(
+                        true,
+                        "ALWAYS_PRE_RETRIEVE",
+                        "chat.retrieval-trigger-mode=ALWAYS_PRE_RETRIEVE",
+                        "pre-retrieval",
+                        null,
+                        "NO_HIT",
+                        KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE
+                ),
+                List.of()
+        );
+
+        assertThat(shouldFallback).isFalse();
     }
 
     @Test
@@ -334,6 +361,39 @@ class ChatOrchestratorTests {
         Method method = target.getClass().getDeclaredMethod(methodName);
         method.setAccessible(true);
         return method.invoke(target);
+    }
+
+    private String requiredRoutingTriggerMode(Object routingDecision) throws Exception {
+        try {
+            Object value = invokeNoArg(routingDecision, "retrievalTriggerMode");
+            assertThat(value).as("routingDecision.retrievalTriggerMode").isNotNull();
+            return String.valueOf(value);
+        } catch (NoSuchMethodException exception) {
+            throw new AssertionError("QueryRoutingDecision should expose retrievalTriggerMode for pre-retrieval semantics", exception);
+        }
+    }
+
+    private boolean shouldRunFallbackRetrieval(Object routingDecision, List<RetrievedChunk> retrievedChunks) throws Exception {
+        for (Method method : ChatOrchestrator.class.getDeclaredMethods()) {
+            if (!"shouldRunFallbackRetrieval".equals(method.getName())) {
+                continue;
+            }
+            method.setAccessible(true);
+            Class<?>[] parameterTypes = method.getParameterTypes();
+            if (parameterTypes.length != 2 || !List.class.isAssignableFrom(parameterTypes[1])) {
+                continue;
+            }
+            if (parameterTypes[0] == boolean.class || parameterTypes[0] == Boolean.class) {
+                return (boolean) method.invoke(orchestrator, invokeNoArg(routingDecision, "enableKnowledgeBase"), retrievedChunks);
+            }
+            if (parameterTypes[0] == String.class) {
+                return (boolean) method.invoke(orchestrator, requiredRoutingTriggerMode(routingDecision), retrievedChunks);
+            }
+            if (parameterTypes[0].isInstance(routingDecision)) {
+                return (boolean) method.invoke(orchestrator, routingDecision, retrievedChunks);
+            }
+        }
+        throw new AssertionError("Unable to invoke shouldRunFallbackRetrieval with current ChatOrchestrator signature");
     }
 
     private Object readField(Object target, String fieldName) throws Exception {

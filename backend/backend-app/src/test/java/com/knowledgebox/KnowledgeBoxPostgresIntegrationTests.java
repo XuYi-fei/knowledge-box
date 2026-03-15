@@ -160,6 +160,48 @@ class KnowledgeBoxPostgresIntegrationTests {
     }
 
     @Test
+    void shouldReturnCitationForAbbreviationStyleMcpQuery() {
+        seedPublicDocument(
+                "12. MCP",
+                "mcp.md",
+                """
+                        # 12. MCP
+
+                        MCP 是 Model Context Protocol，用于把模型与外部工具、资源和上下文连接起来。
+                        在这个系统里，MCP 主要用于把 Agent 能力扩展到外部服务。
+                        """,
+                "12. MCP / 协议定义",
+                "mcp-intro",
+                "MCP 是 Model Context Protocol（模型上下文协议），用于把大模型与外部工具、资源和上下文连接起来，统一暴露调用接口。"
+        );
+        String accessToken = createUserToken("chat-mcp@example.com", "password123");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+
+        ResponseEntity<ChatResponse> chatResponse = testRestTemplate.exchange(
+                RequestEntity.post(java.net.URI.create("http://localhost:" + port + "/api/app/chat/messages"))
+                        .headers(headers)
+                        .body(Map.of(
+                                "sessionId", "session-it-mcp-001",
+                                "clientTraceId", "msg-it-mcp-001",
+                                "query", "讲一下mcp是什么",
+                                "chatModel", "qwen-plus"
+                        )),
+                ChatResponse.class
+        );
+
+        assertThat(chatResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(chatResponse.getBody()).isNotNull();
+        assertThat(chatResponse.getBody().answer()).isNotBlank();
+        assertThat(chatResponse.getBody().citations())
+                .as("abbreviation-style MCP query should still retrieve grounded citations")
+                .isNotEmpty()
+                .anyMatch(citation -> "12. MCP".equals(citation.documentTitle())
+                        || containsIgnoreCase(citation.headingPath(), "mcp")
+                        || containsIgnoreCase(citation.snippet(), "mcp"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void shouldPersistAgentExecutionTraceAndExposeAdminTraceDetail() {
         String accessToken = createUserToken("trace-user@example.com", "password123");
@@ -820,6 +862,49 @@ class KnowledgeBoxPostgresIntegrationTests {
                     return userAccountRepository.save(created);
                 });
         return jwtTokenService.issue(userAccount).token();
+    }
+
+    private void seedPublicDocument(
+            String title,
+            String sourceFilename,
+            String sourceMarkdown,
+            String headingPath,
+            String anchor,
+            String content
+    ) {
+        Long documentId = jdbcTemplate.queryForObject("""
+                INSERT INTO knowledge_document (
+                    title,
+                    source_filename,
+                    uploader_type,
+                    visibility_type,
+                    status,
+                    normalized_markdown_path,
+                    source_markdown,
+                    extension_json,
+                    vector_config_json,
+                    tags
+                )
+                VALUES (?, ?, 'ADMIN', 'PUBLIC', 'READY', ?, ?, '{}', '{}', '["mcp"]')
+                RETURNING id
+                """, Long.class, title, sourceFilename, "/uploads/docs/" + sourceFilename, sourceMarkdown);
+
+        jdbcTemplate.update("""
+                INSERT INTO document_chunk (
+                    document_id,
+                    chunk_index,
+                    heading_path,
+                    anchor,
+                    content,
+                    metadata_json
+                )
+                VALUES (?, 0, ?, ?, ?, ?)
+                """, documentId, headingPath, anchor, content,
+                "{\"documentTitle\":\"" + title + "\",\"headingPath\":\"" + headingPath + "\",\"chunkIndex\":0}");
+    }
+
+    private boolean containsIgnoreCase(String value, String needle) {
+        return value != null && needle != null && value.toLowerCase().contains(needle.toLowerCase());
     }
 
     private Map waitForReviewStatus(Long reviewRequestId, String expectedStatus, int maxAttempts, long sleepMs) throws InterruptedException {

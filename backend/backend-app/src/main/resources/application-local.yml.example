@@ -78,6 +78,7 @@ knowledge-box:
     history-turns: ${KB_CHAT_HISTORY_TURNS:12}
     stub-responses: ${KB_CHAT_STUB_RESPONSES:false}
     stream-delay: ${KB_CHAT_STREAM_DELAY:150ms}
+    retrieval-trigger-mode: ${KB_CHAT_RETRIEVAL_TRIGGER_MODE:ALWAYS_PRE_RETRIEVE}
     knowledge-base-routing:
       enabled: ${KB_CHAT_KB_ROUTING_ENABLED:true}
       force-enable-regexes: []

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="031-001-chat-pre-retrieval-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.15',
+                '问答默认前置检索并增强缩写召回',
+                '公开问答链路默认先检索知识库，并补充对 MCP 这类缩写查询的召回兜底，减少漏引与空命中。',
+                E'## 本次更新\n\n- 普通问答默认先做知识库检索，不再因为路由结果为 `NO_KB` 而完全跳过检索\n- 检索链路补充缩写关键词召回兜底，像 `MCP` 这类简称问题更容易命中文档\n- 命中知识片段后会更稳定地返回引用来源，降低“回答了但没有依据”的情况',
+                TIMESTAMPTZ '2026-03-15 23:30:00+08',
+                -7,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.15'
+                   AND title = '问答默认前置检索并增强缩写召回'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

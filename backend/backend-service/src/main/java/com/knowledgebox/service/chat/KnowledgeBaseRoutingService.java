@@ -51,7 +51,8 @@ final class KnowledgeBaseRoutingService {
                     "chat.knowledge-base-routing.enabled=false",
                     "config",
                     routingModelCode,
-                    null
+                    null,
+                    KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
             );
         }
         String normalized = query == null ? "" : query.strip();
@@ -66,7 +67,8 @@ final class KnowledgeBaseRoutingService {
                         "force-enable-regex",
                         "rule",
                         routingModelCode,
-                        null
+                        null,
+                        KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
                 );
             }
         }
@@ -79,7 +81,8 @@ final class KnowledgeBaseRoutingService {
                         "force-disable-regex",
                         "rule",
                         routingModelCode,
-                        null
+                        null,
+                        KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
                 );
             }
         }
@@ -120,7 +123,8 @@ final class KnowledgeBaseRoutingService {
                     "routing-model-classifier",
                     "model",
                     routingModelCode,
-                    rawOutput
+                    rawOutput,
+                    KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
             );
         }
         if (ROUTING_DECISION_NO_KB.equals(rawOutput)) {
@@ -130,7 +134,8 @@ final class KnowledgeBaseRoutingService {
                     "routing-model-classifier",
                     "model",
                     routingModelCode,
-                    rawOutput
+                    rawOutput,
+                    KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
             );
         }
         log.warn(
@@ -144,7 +149,8 @@ final class KnowledgeBaseRoutingService {
                 "routing-model-invalid-output",
                 "model-fallback",
                 routingModelCode,
-                rawOutput
+                rawOutput,
+                KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
         );
     }
 

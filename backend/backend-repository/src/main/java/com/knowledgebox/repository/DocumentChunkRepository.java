@@ -16,12 +16,13 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
     void deleteByDocument_Id(Long documentId);
 
     @Query(value = """
-            SELECT *
+            SELECT dc.*
             FROM document_chunk dc
-            WHERE to_tsvector('simple', coalesce(dc.heading_path, '') || ' ' || dc.content)
+            JOIN knowledge_document kd ON kd.id = dc.document_id
+            WHERE to_tsvector('simple', coalesce(kd.title, '') || ' ' || coalesce(dc.heading_path, '') || ' ' || dc.content)
                 @@ websearch_to_tsquery('simple', :query)
             ORDER BY ts_rank(
-                to_tsvector('simple', coalesce(dc.heading_path, '') || ' ' || dc.content),
+                to_tsvector('simple', coalesce(kd.title, '') || ' ' || coalesce(dc.heading_path, '') || ' ' || dc.content),
                 websearch_to_tsquery('simple', :query)
             ) DESC, dc.chunk_index ASC
             LIMIT :limit

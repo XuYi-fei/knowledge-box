@@ -313,7 +313,8 @@ public class ChatOrchestrator {
                                 "stub-responses-enabled",
                                 "stub",
                                 resolveRoutingModel(task.profile()),
-                                null
+                                null,
+                                resolveRetrievalTriggerMode()
                         ),
                         rootBackendCallId
                 );
@@ -323,47 +324,17 @@ public class ChatOrchestrator {
             reasoningSteps.add("已装载历史上下文，准备执行 ReAct Agent");
             updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
 
-            String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
-            agentExecutionTraceService.startSpan(
-                    traceContext,
-                    traceContext.requestSpanId(),
-                    routingSpanId,
-                    "query.route",
-                    com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
-                    Map.of("query", task.query()),
-                    Map.of()
-            );
-            String routeCallId = startBackendCall(
-                    traceContext,
-                    rootBackendCallId,
-                    "KnowledgeBaseRoutingService.routeQuery",
-                    "SERVICE",
-                    "routeQuery",
-                    Map.of("query", task.query()),
-                    routingSpanId
-            );
-            QueryRoutingDecision routingDecision = routeQuery(task.query(), task.profile());
-            completeBackendCall(traceContext, routeCallId, routingPayload(routingDecision));
-            agentExecutionTraceService.endSpan(
-                    traceContext,
-                    routingSpanId,
-                    com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
-                    routingPayload(routingDecision),
-                    Map.of(),
-                    null
-            );
-            reasoningSteps.add("查询路由[" + routingDecision.source() + "]："
-                    + (routingDecision.enableKnowledgeBase() ? "启用知识库工具" : "跳过知识库工具"));
+            QueryExecutionPlan executionPlan = prepareExecutionPlan(task, traceContext, rootBackendCallId);
+            QueryRoutingDecision routingDecision = executionPlan.routingDecision();
+            if (executionPlan.retrievalAttempted()) {
+                reasoningSteps.add(executionPlan.retrievedChunks().isEmpty()
+                        ? "已执行前置知识库检索，但未命中足够相关的公开文档"
+                        : "已执行前置知识库检索，命中 " + executionPlan.retrievedChunks().size() + " 条公开知识片段");
+            } else {
+                reasoningSteps.add("查询路由[" + routingDecision.source() + "]："
+                        + (routingDecision.enableKnowledgeBase() ? "启用知识库工具" : "跳过知识库工具"));
+            }
             updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
-            agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", Map.of(
-                    "query", task.query(),
-                    "enableKnowledgeBase", routingDecision.enableKnowledgeBase(),
-                    "matchedRule", routingDecision.matchedRule(),
-                    "reason", routingDecision.reason(),
-                    "source", routingDecision.source(),
-                    "routingModel", routingDecision.routingModel(),
-                    "routingModelOutput", routingDecision.routingModelOutput() == null ? "" : routingDecision.routingModelOutput()
-            ));
 
             String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
             traceContext.setAnswerStreamSpanId(answerStreamSpanId);
@@ -375,8 +346,11 @@ public class ChatOrchestrator {
                     com.knowledgebox.domain.chat.AgentExecutionSpanType.STREAM,
                     Map.of(
                             "chatModel", task.chatModelCode(),
-                            "enableKnowledgeBase", routingDecision.enableKnowledgeBase(),
-                            "historyTurns", history.size()
+                            "enableKnowledgeBase", executionPlan.enableKnowledgeBaseTool(),
+                            "historyTurns", history.size(),
+                            "retrievalTriggerMode", resolveRetrievalTriggerMode().name(),
+                            "preRetrievedHits", executionPlan.retrievedChunks().size(),
+                            "retrievalAttempted", executionPlan.retrievalAttempted()
                     ),
                     Map.of()
             );
@@ -389,14 +363,18 @@ public class ChatOrchestrator {
                     "createReActAgent",
                     Map.of(
                             "chatModel", task.chatModelCode(),
-                            "enableKnowledgeBase", routingDecision.enableKnowledgeBase()
+                            "enableKnowledgeBase", executionPlan.enableKnowledgeBaseTool(),
+                            "preRetrievedHits", executionPlan.retrievedChunks().size(),
+                            "retrievalAttempted", executionPlan.retrievalAttempted()
                     ),
                     answerStreamSpanId
             );
             ReActAgent agent = createReActAgent(
                     task.profile(),
                     task.chatModelCode(),
-                    routingDecision.enableKnowledgeBase(),
+                    executionPlan.enableKnowledgeBaseTool(),
+                    !executionPlan.retrievedChunks().isEmpty(),
+                    executionPlan.retrievalAttempted() && executionPlan.retrievedChunks().isEmpty(),
                     traceContext,
                     exchangeRuntime
             );
@@ -409,10 +387,14 @@ public class ChatOrchestrator {
                     "ReActAgent.stream",
                     "STREAM",
                     "stream",
-                    Map.of("historyTurns", history.size(), "chatModel", task.chatModelCode()),
+                    Map.of(
+                            "historyTurns", history.size(),
+                            "chatModel", task.chatModelCode(),
+                            "preRetrievedHits", executionPlan.retrievedChunks().size()
+                    ),
                     answerStreamSpanId
             );
-            agent.stream(toAgentScopeHistory(history), buildStreamOptions())
+            agent.stream(toAgentScopeHistory(history, executionPlan), buildStreamOptions())
                     .doOnNext(event -> {
                         throwIfCancelled(control);
                         agentExecutionTraceService.bindMdc(activeTraceContext, activeTraceContext.answerStreamSpanId());
@@ -450,8 +432,11 @@ public class ChatOrchestrator {
                         ? new ArrayList<>(streamState.toolCalls)
                         : extractToolCalls(streamState.finalMessage);
             }
-            List<RetrievedChunk> retrievedChunks = exchangeRuntime.retrievals();
-            if (shouldRunFallbackRetrieval(routingDecision.enableKnowledgeBase(), retrievedChunks)) {
+            List<RetrievedChunk> retrievedChunks = mergeRetrievedChunks(
+                    executionPlan.retrievedChunks(),
+                    exchangeRuntime.retrievals()
+            );
+            if (shouldRunFallbackRetrieval(executionPlan, exchangeRuntime.retrievals())) {
                 String fallbackRetrievalCallId = startBackendCall(
                         traceContext,
                         rootBackendCallId,
@@ -473,6 +458,11 @@ public class ChatOrchestrator {
             reasoningSteps.clear();
             reasoningSteps.addAll(completedReasoningSteps);
             throwIfCancelled(control);
+            String finalAnswer = finalizeAnswer(answerBuilder.toString(), executionPlan, retrievedChunks);
+            if (!finalAnswer.equals(answerBuilder.toString())) {
+                answerBuilder.setLength(0);
+                answerBuilder.append(finalAnswer);
+            }
             agentExecutionTraceService.endSpan(
                     traceContext,
                     answerStreamSpanId,
@@ -488,7 +478,7 @@ public class ChatOrchestrator {
             finishSuccessfully(
                     task,
                     traceContext,
-                    answerBuilder.toString(),
+                    finalAnswer,
                     reasoningSteps,
                     toCitations(retrievedChunks),
                     toolCalls,
@@ -1033,6 +1023,8 @@ public class ChatOrchestrator {
             AgentProfileVersion profile,
             String chatModelCode,
             boolean enableKnowledgeBaseTool,
+            boolean hasInjectedKnowledgeContext,
+            boolean retrievalAttemptedWithoutEvidence,
             AgentExecutionTraceContext traceContext,
             ChatExchangeRuntime exchangeRuntime
     ) {
@@ -1049,6 +1041,8 @@ public class ChatOrchestrator {
                 profile,
                 chatModelCode,
                 enableKnowledgeBaseTool,
+                hasInjectedKnowledgeContext,
+                retrievalAttemptedWithoutEvidence,
                 capabilities.toolkit(),
                 capabilities.skillBox(),
                 hooks,
@@ -1059,8 +1053,15 @@ public class ChatOrchestrator {
         );
     }
 
-    private List<Msg> toAgentScopeHistory(List<ChatTurn> history) {
+    private List<Msg> toAgentScopeHistory(List<ChatTurn> history, QueryExecutionPlan executionPlan) {
         List<Msg> messages = new ArrayList<>();
+        if (executionPlan.retrievalAttempted()) {
+            messages.add(Msg.builder()
+                    .name("knowledge-base-context")
+                    .role(MsgRole.SYSTEM)
+                    .textContent(renderInjectedKnowledgeContext(executionPlan))
+                    .build());
+        }
         for (ChatTurn turn : history) {
             MsgRole role = switch (turn.getRole()) {
                 case "user" -> MsgRole.USER;
@@ -1145,11 +1146,202 @@ public class ChatOrchestrator {
         payload.put("source", routingDecision.source());
         payload.put("routingModel", routingDecision.routingModel());
         payload.put("routingModelOutput", routingDecision.routingModelOutput());
+        payload.put(
+                "retrievalTriggerMode",
+                routingDecision.retrievalTriggerMode() == null ? null : routingDecision.retrievalTriggerMode().name()
+        );
         return payload;
     }
 
+    private QueryExecutionPlan prepareExecutionPlan(
+            StreamTask task,
+            AgentExecutionTraceContext traceContext,
+            String rootBackendCallId
+    ) {
+        if (resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE) {
+            return prepareAlwaysPreRetrievePlan(task, traceContext, rootBackendCallId);
+        }
+        return prepareModelRoutedPlan(task, traceContext, rootBackendCallId);
+    }
+
+    private QueryExecutionPlan prepareAlwaysPreRetrievePlan(
+            StreamTask task,
+            AgentExecutionTraceContext traceContext,
+            String rootBackendCallId
+    ) {
+        String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
+        agentExecutionTraceService.startSpan(
+                traceContext,
+                traceContext.requestSpanId(),
+                routingSpanId,
+                "query.route",
+                com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
+                Map.of(
+                        "query", task.query(),
+                        "retrievalTriggerMode", KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name()
+                ),
+                Map.of()
+        );
+        String preRetrieveCallId = startBackendCall(
+                traceContext,
+                rootBackendCallId,
+                "KnowledgeBaseRetrievalService.search",
+                "SERVICE",
+                "search",
+                Map.of(
+                        "query", task.query(),
+                        "topK", task.profile().getRetrievalTopK(),
+                        "mode", "pre-retrieval"
+                ),
+                routingSpanId
+        );
+        List<RetrievedChunk> retrievedChunks = knowledgeBaseRetrievalService.search(
+                task.query(),
+                task.profile().getRetrievalTopK(),
+                traceContext,
+                preRetrieveCallId
+        );
+        completeBackendCall(traceContext, preRetrieveCallId, Map.of("hits", retrievedChunks.size(), "mode", "pre-retrieval"));
+        QueryRoutingDecision routingDecision = new QueryRoutingDecision(
+                !retrievedChunks.isEmpty(),
+                KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name(),
+                "chat.retrieval-trigger-mode=ALWAYS_PRE_RETRIEVE",
+                "pre-retrieval",
+                null,
+                retrievedChunks.isEmpty() ? "NO_HIT" : "HIT",
+                KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE
+        );
+        Map<String, Object> routePayload = routingPayload(routingDecision);
+        routePayload.put("retrievalTriggerMode", KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name());
+        routePayload.put("preRetrievedHits", retrievedChunks.size());
+        agentExecutionTraceService.endSpan(
+                traceContext,
+                routingSpanId,
+                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
+                routePayload,
+                Map.of(),
+                null
+        );
+        agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
+        return new QueryExecutionPlan(routingDecision, retrievedChunks, false, true);
+    }
+
+    private QueryExecutionPlan prepareModelRoutedPlan(
+            StreamTask task,
+            AgentExecutionTraceContext traceContext,
+            String rootBackendCallId
+    ) {
+        String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
+        agentExecutionTraceService.startSpan(
+                traceContext,
+                traceContext.requestSpanId(),
+                routingSpanId,
+                "query.route",
+                com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
+                Map.of("query", task.query()),
+                Map.of()
+        );
+        String routeCallId = startBackendCall(
+                traceContext,
+                rootBackendCallId,
+                "KnowledgeBaseRoutingService.routeQuery",
+                "SERVICE",
+                "routeQuery",
+                Map.of("query", task.query()),
+                routingSpanId
+        );
+        QueryRoutingDecision routingDecision = routeQuery(task.query(), task.profile());
+        completeBackendCall(traceContext, routeCallId, routingPayload(routingDecision));
+        agentExecutionTraceService.endSpan(
+                traceContext,
+                routingSpanId,
+                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
+                routingPayload(routingDecision),
+                Map.of(),
+                null
+        );
+        Map<String, Object> routePayload = routingPayload(routingDecision);
+        routePayload.put("query", task.query());
+        agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
+        return new QueryExecutionPlan(routingDecision, List.of(), routingDecision.enableKnowledgeBase(), false);
+    }
+
+    private KnowledgeBoxProperties.RetrievalTriggerMode resolveRetrievalTriggerMode() {
+        KnowledgeBoxProperties.RetrievalTriggerMode mode = properties.getChat().getRetrievalTriggerMode();
+        return mode == null ? KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE : mode;
+    }
+
+    private String renderInjectedKnowledgeContext(QueryExecutionPlan executionPlan) {
+        if (!executionPlan.retrievalAttempted()) {
+            return "";
+        }
+        if (executionPlan.retrievedChunks().isEmpty()) {
+            return """
+                    A knowledge-base retrieval was executed for the current user request before model generation.
+                    Result: no sufficiently relevant public snippets were found.
+                    If you answer from general knowledge, explicitly mention that the current knowledge base did not provide supporting evidence in this round.
+                    """;
+        }
+        StringBuilder builder = new StringBuilder("""
+                The following knowledge-base snippets were retrieved before model generation.
+                Use them as the primary evidence for repository-specific facts.
+
+                """);
+        for (int index = 0; index < executionPlan.retrievedChunks().size(); index++) {
+            RetrievedChunk chunk = executionPlan.retrievedChunks().get(index);
+            builder.append(index + 1)
+                    .append(". [")
+                    .append(chunk.documentTitle())
+                    .append("] ")
+                    .append(chunk.headingPath())
+                    .append(" #")
+                    .append(chunk.anchor())
+                    .append('\n')
+                    .append(chunk.snippet())
+                    .append("\n\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private List<RetrievedChunk> mergeRetrievedChunks(List<RetrievedChunk> preRetrieved, List<RetrievedChunk> runtimeRetrieved) {
+        LinkedHashMap<String, RetrievedChunk> merged = new LinkedHashMap<>();
+        if (preRetrieved != null) {
+            for (RetrievedChunk chunk : preRetrieved) {
+                merged.put(chunk.documentId() + "::" + chunk.anchor(), chunk);
+            }
+        }
+        if (runtimeRetrieved != null) {
+            for (RetrievedChunk chunk : runtimeRetrieved) {
+                merged.put(chunk.documentId() + "::" + chunk.anchor(), chunk);
+            }
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private boolean shouldRunFallbackRetrieval(QueryExecutionPlan executionPlan, List<RetrievedChunk> runtimeRetrievedChunks) {
+        return resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
+                && executionPlan.enableKnowledgeBaseTool()
+                && (runtimeRetrievedChunks == null || runtimeRetrievedChunks.isEmpty());
+    }
+
     private boolean shouldRunFallbackRetrieval(boolean enableKnowledgeBase, List<RetrievedChunk> retrievedChunks) {
-        return enableKnowledgeBase && (retrievedChunks == null || retrievedChunks.isEmpty());
+        return resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
+                && enableKnowledgeBase
+                && (retrievedChunks == null || retrievedChunks.isEmpty());
+    }
+
+    private String finalizeAnswer(String answer, QueryExecutionPlan executionPlan, List<RetrievedChunk> retrievedChunks) {
+        if (answer == null) {
+            return "";
+        }
+        if (!executionPlan.retrievalAttempted() || (retrievedChunks != null && !retrievedChunks.isEmpty())) {
+            return answer;
+        }
+        String normalized = answer.replaceAll("\\s+", "");
+        if (normalized.contains("知识库") && (normalized.contains("未检索到") || normalized.contains("证据不足") || normalized.contains("未提供支持"))) {
+            return answer;
+        }
+        return "当前知识库未检索到足够相关的公开文档，以下回答基于通用知识给出，仅供参考。\n\n" + answer;
     }
 
     private void sleep(Duration duration) {
@@ -1198,6 +1390,14 @@ public class ChatOrchestrator {
         private Thread worker() {
             return worker;
         }
+    }
+
+    private record QueryExecutionPlan(
+            QueryRoutingDecision routingDecision,
+            List<RetrievedChunk> retrievedChunks,
+            boolean enableKnowledgeBaseTool,
+            boolean retrievalAttempted
+    ) {
     }
 
 }

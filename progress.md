@@ -10,6 +10,8 @@
 - 后端已建立 Spring Boot + Liquibase + PostgreSQL/pgvector 基础工程，并已拆分为 `backend-app/service/repository/domain` 四个 Maven 子模块。
 - 大模型主链路已切换到 AgentScope Java ReActAgent，并接入 tool calling、查询路由、reasoning/tool/citation 展示与 trace。
 - 聊天主链路已修正 AgentScope 流式事件订阅，最终回答正文恢复走 `SUMMARY -> delta/fullContent` 主输出区，thinking/tool 仅留在小字摘要区。
+- 聊天主链路已切换为默认“前置知识库检索”模式：每次问答会先做一次公开知识片段检索，再把命中内容注入回答上下文；若未命中足够证据，仍允许通用回答，但会明确提示知识库未提供支持证据。
+- 知识检索已增强 query variant 召回：对 `讲一下mcp是什么` 这类中英混合缩写问题，会自动提取缩写关键词并融合向量/全文/内存检索结果，且在检索阶段就过滤 `AGENT_ONLY` 文档，避免无效引用进入 prompt 和 citations。
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理与动态 Tool/MCP/Skill 绑定管理。
 - 管理端 Trace 已升级为管理员专属的 Agent 调用链日志系统：后端按 `trace/span/event` 持久化 prompt 注入、thinking/summary、工具调用、最终回复与耗时，前端支持列表筛选与详情时间线查看。
 - 管理端 Trace 现支持删除单条已结束的执行链路；列表页和详情页都可删除，并会级联清理对应的 span/event 明细。
@@ -60,6 +62,8 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含 trace 详情页 Agent 时间线树形分层与后端瀑布统一层级缩进改造）。
 - 前端验证：`npm --prefix frontend run build` 通过（含 Trace 详情页 `专业视图 / 通俗解读` 切换，以及可读解释树/瀑布渲染）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过。
+- 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含 `MODEL_ROUTED` 与 `ALWAYS_PRE_RETRIEVE` 两种检索触发模式的 fallback 语义回归）。
+- 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxPostgresIntegrationTests,KnowledgeBoxProductionLiquibaseIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（需放开本机 PostgreSQL 访问；含 MCP 缩写查询引用回归与 `db.changelog-031-chat-pre-retrieval-release-note.xml` 生产 Liquibase 回归）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 trace readable DTO、后端语义映射与详情接口扩展）。
 - 后端打包验证：`mvn -q -pl backend/backend-app -am -DskipTests package` 通过。
 - 本地启动验证：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 通过，启动日志显示 `[DOCUMENT-BOOTSTRAP]` 已扫描 `backend/bootstrap/document-seed.json` 与 `tmp/yuque-batch/bootstrap-seeds/yuque-batch.seed.json`，总计 `created=0 skipped=91 failed=0`（当前库内已存在对应 `importKey`，因此全部按幂等跳过）。

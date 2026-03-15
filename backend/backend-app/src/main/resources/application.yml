@@ -46,6 +46,7 @@ knowledge-box:
     from-address: ${KB_MAIL_FROM_ADDRESS:}
     from-personal: ${KB_MAIL_FROM_PERSONAL:}
   chat:
+    retrieval-trigger-mode: ${KB_CHAT_RETRIEVAL_TRIGGER_MODE:ALWAYS_PRE_RETRIEVE}
     knowledge-base-routing:
       # 路由优先级：
       # 1) force-enable-regexes

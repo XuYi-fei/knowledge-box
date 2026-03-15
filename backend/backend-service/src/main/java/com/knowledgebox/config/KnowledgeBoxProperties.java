@@ -341,6 +341,7 @@ public class KnowledgeBoxProperties {
         private int historyTurns = 12;
         private boolean stubResponses = false;
         private Duration streamDelay = Duration.ofMillis(150);
+        private RetrievalTriggerMode retrievalTriggerMode = RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE;
         private final KnowledgeBaseRouting knowledgeBaseRouting = new KnowledgeBaseRouting();
         private final DashScopeCompatible dashScopeCompatible = new DashScopeCompatible();
 
@@ -376,6 +377,16 @@ public class KnowledgeBoxProperties {
             this.streamDelay = streamDelay;
         }
 
+        public RetrievalTriggerMode getRetrievalTriggerMode() {
+            return retrievalTriggerMode;
+        }
+
+        public void setRetrievalTriggerMode(RetrievalTriggerMode retrievalTriggerMode) {
+            this.retrievalTriggerMode = retrievalTriggerMode == null
+                    ? RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE
+                    : retrievalTriggerMode;
+        }
+
         public KnowledgeBaseRouting getKnowledgeBaseRouting() {
             return knowledgeBaseRouting;
         }
@@ -383,6 +394,11 @@ public class KnowledgeBoxProperties {
         public DashScopeCompatible getDashScopeCompatible() {
             return dashScopeCompatible;
         }
+    }
+
+    public enum RetrievalTriggerMode {
+        ALWAYS_PRE_RETRIEVE,
+        MODEL_ROUTED
     }
 
     public static class DashScopeCompatible {

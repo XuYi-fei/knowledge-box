@@ -37,6 +37,8 @@ final class ChatModelFactory {
             AgentProfileVersion profile,
             String chatModelCode,
             boolean enableKnowledgeBaseTool,
+            boolean hasInjectedKnowledgeContext,
+            boolean retrievalAttemptedWithoutEvidence,
             Toolkit toolkit,
             SkillBox skillBox,
             List<Hook> hooks,
@@ -45,7 +47,12 @@ final class ChatModelFactory {
         ReActAgent.Builder builder = ReActAgent.builder()
                 .name("knowledge-box-react-agent")
                 .description("Knowledge Box public chat agent")
-                .sysPrompt(buildSystemPrompt(profile, enableKnowledgeBaseTool))
+                .sysPrompt(buildSystemPrompt(
+                        profile,
+                        enableKnowledgeBaseTool,
+                        hasInjectedKnowledgeContext,
+                        retrievalAttemptedWithoutEvidence
+                ))
                 .model(buildChatModel(profile, chatModelCode))
                 .toolkit(toolkit == null ? new Toolkit() : toolkit)
                 .maxIters(8);
@@ -157,7 +164,12 @@ final class ChatModelFactory {
         return options.build();
     }
 
-    private String buildSystemPrompt(AgentProfileVersion profile, boolean enableKnowledgeBaseTool) {
+    private String buildSystemPrompt(
+            AgentProfileVersion profile,
+            boolean enableKnowledgeBaseTool,
+            boolean hasInjectedKnowledgeContext,
+            boolean retrievalAttemptedWithoutEvidence
+    ) {
         String profilePrompt = profile.getSystemPrompt() == null ? "" : profile.getSystemPrompt().trim();
         if (enableKnowledgeBaseTool) {
             return profilePrompt + """
@@ -166,6 +178,28 @@ final class ChatModelFactory {
                     - For factual or system-specific questions, call the searchKnowledgeBase tool before writing the final answer.
                     - Base the final answer strictly on retrieved evidence when available.
                     - If evidence is insufficient, state the uncertainty clearly instead of fabricating details.
+                    - Do not expose hidden chain-of-thought.
+                    - Keep the final answer concise and structured.
+                    """;
+        }
+        if (hasInjectedKnowledgeContext) {
+            return profilePrompt + """
+
+                    You operate in ReAct mode.
+                    - Knowledge base tools are disabled because this request already has pre-retrieved knowledge snippets injected into the context.
+                    - Treat the injected snippets as the primary evidence for repository-specific facts.
+                    - If the injected evidence is incomplete, state the limitation clearly instead of fabricating details.
+                    - Do not expose hidden chain-of-thought.
+                    - Keep the final answer concise and structured.
+                    """;
+        }
+        if (retrievalAttemptedWithoutEvidence) {
+            return profilePrompt + """
+
+                    You operate in ReAct mode.
+                    - A knowledge-base retrieval was executed before this answer, but no sufficiently relevant public snippets were found.
+                    - You may still answer with general knowledge and current conversation context.
+                    - Explicitly mention that the current knowledge base did not provide supporting evidence for this answer.
                     - Do not expose hidden chain-of-thought.
                     - Keep the final answer concise and structured.
                     """;

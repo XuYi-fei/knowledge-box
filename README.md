@@ -195,6 +195,7 @@ knowledge-box:
   chat:
     top-k: 6
     stream-delay: 150ms
+    retrieval-trigger-mode: ALWAYS_PRE_RETRIEVE
     knowledge-base-routing:
       enabled: true
       force-enable-regexes: []
@@ -239,6 +240,7 @@ knowledge-box:
 - `knowledge-box.storage.oss.path-prefix`: OSS 对象前缀目录
 - `knowledge-box.chat.top-k`: 默认检索 TopK
 - `knowledge-box.chat.stream-delay`: SSE 分块输出节奏
+- `knowledge-box.chat.retrieval-trigger-mode`: 问答触发检索的方式，默认 `ALWAYS_PRE_RETRIEVE`，表示每次回答前都先做一次知识库检索；如需恢复旧的“规则 + routing model”模式，可切到 `MODEL_ROUTED`
 - `knowledge-box.chat.knowledge-base-routing.enabled`: 是否开启“通用问题跳过知识库”路由
 - `knowledge-box.chat.knowledge-base-routing.force-enable-regexes`: 命中后强制启用知识库工具
 - `knowledge-box.chat.knowledge-base-routing.force-disable-regexes`: 命中后强制禁用知识库工具和 fallback 检索（适合通用编程问答）

@@ -870,6 +870,7 @@ a {
 .document-detail-page {
   min-height: 100%;
   padding: 18px;
+  overflow-x: hidden;
 }
 
 .document-detail-card {
@@ -927,6 +928,41 @@ a {
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(15, 118, 110, 0.08);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.document-detail-markdown .admin-markdown,
+.document-detail-markdown .chat-markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.document-detail-markdown .admin-markdown pre,
+.document-detail-markdown .chat-markdown pre,
+.document-detail-markdown .admin-markdown table,
+.document-detail-markdown .chat-markdown table {
+  max-width: 100%;
+}
+
+.document-detail-markdown .admin-markdown table,
+.document-detail-markdown .chat-markdown table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.document-detail-markdown .admin-markdown img,
+.document-detail-markdown .admin-markdown .admin-markdown-image img,
+.document-detail-markdown .chat-markdown img {
+  display: block;
+  max-width: min(100%, 820px);
+  max-height: min(46vh, 460px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+  margin: 10px 0;
 }
 
 .chat-markdown {

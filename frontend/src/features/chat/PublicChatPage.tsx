@@ -320,6 +320,14 @@ function buildCitationWindowUrl(citation: ChatCitation) {
   return url.toString();
 }
 
+function buildCitationWindowFeatures() {
+  const width = Math.max(720, Math.min(window.outerWidth - 64, 1280));
+  const height = Math.max(620, Math.min(window.outerHeight - 64, 920));
+  const left = Math.max(window.screenX + Math.round((window.outerWidth - width) / 2), 0);
+  const top = Math.max(window.screenY + Math.round((window.outerHeight - height) / 2), 0);
+  return `noopener,noreferrer,width=${width},height=${height},left=${left},top=${top}`;
+}
+
 function scheduleScrollToBottom(
   messagesContainerRef: { current: HTMLDivElement | null },
   messagesEndRef: { current: HTMLDivElement | null },
@@ -895,7 +903,7 @@ export function PublicChatPage() {
   const activeStreaming = Boolean(activeSessionId && streamingSessions[activeSessionId]);
 
   function openCitationDetail(citation: ChatCitation) {
-    window.open(buildCitationWindowUrl(citation), '_blank', 'noopener,noreferrer,width=1120,height=840');
+    window.open(buildCitationWindowUrl(citation), '_blank', buildCitationWindowFeatures());
   }
 
   useEffect(() => {

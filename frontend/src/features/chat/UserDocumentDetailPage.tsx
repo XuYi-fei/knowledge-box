@@ -4,7 +4,7 @@ import { Alert, Button, Card, Empty, Space, Spin, Tag, Typography } from 'antd';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import { MarkdownMessage } from './MarkdownMessage';
+import { MarkdownRenderer } from '../admin/components/MarkdownRenderer';
 
 function parseTagNames(tags: string) {
   return tags
@@ -101,7 +101,7 @@ export function UserDocumentDetailPage() {
             </div>
 
             <div className="document-detail-markdown">
-              <MarkdownMessage content={document.sourceMarkdown} />
+              <MarkdownRenderer content={document.sourceMarkdown} />
             </div>
           </div>
         ) : documentQuery.isLoading ? (

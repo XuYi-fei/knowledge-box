@@ -14,6 +14,7 @@ const HooksPage = lazy(() => import('../features/admin/HooksPage').then((module)
 const TracesPage = lazy(() => import('../features/admin/TracesPage').then((module) => ({ default: module.TracesPage })));
 const TraceDetailPage = lazy(() => import('../features/admin/TraceDetailPage').then((module) => ({ default: module.TraceDetailPage })));
 const PublicChatPage = lazy(() => import('../features/chat/PublicChatPage').then((module) => ({ default: module.PublicChatPage })));
+const UserDocumentDetailPage = lazy(() => import('../features/chat/UserDocumentDetailPage').then((module) => ({ default: module.UserDocumentDetailPage })));
 const UserLoginPage = lazy(() => import('../features/auth/UserLoginPage').then((module) => ({ default: module.UserLoginPage })));
 
 function withSuspense(element: ReactNode) {
@@ -42,6 +43,14 @@ export const router = createBrowserRouter([
     element: withSuspense(
       <RequireUserAuth>
         <PublicChatPage />
+      </RequireUserAuth>,
+    ),
+  },
+  {
+    path: '/documents/:documentId',
+    element: withSuspense(
+      <RequireUserAuth>
+        <UserDocumentDetailPage />
       </RequireUserAuth>,
     ),
   },

@@ -889,4 +889,31 @@
             );
         ]]></sql>
     </changeSet>
+    <changeSet id="it-032-chat-inline-citation-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.16',
+                '对话引用改为消息内展示并支持新窗口查看原文',
+                '聊天页移除右侧关联文件栏，引用来源直接挂在每条回答下方，并可新开窗口查看文档全文。',
+                E'## 本次更新\n\n- 问答主界面移除右侧 `关联文件` 侧栏，主对话区域获得完整宽度\n- 每条 Assistant 回答下方会直接展示本次命中的引用文档、章节路径与片段摘要\n- 点击引用后会新开独立窗口查看公开文档全文，当前对话窗口不会被覆盖',
+                TIMESTAMPTZ '2026-03-16 18:20:00+08',
+                -8,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.16'
+                   AND title = '对话引用改为消息内展示并支持新窗口查看原文'
+            );
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

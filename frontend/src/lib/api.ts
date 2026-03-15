@@ -259,6 +259,9 @@ export const api = {
   async aboutReleaseNotes() {
     return requestJson<AboutReleaseNote[]>('/api/app/about/release-notes', undefined, 'user');
   },
+  async userDocumentDetail(id: number) {
+    return requestJson<KnowledgeDocument>(`/api/app/documents/${id}`, undefined, 'user');
+  },
   async userChatOptions() {
     return requestJson<PublicChatOptions>('/api/app/chat/options', undefined, 'user');
   },

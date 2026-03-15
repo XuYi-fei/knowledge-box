@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { App, Button, Card, Collapse, Empty, Input, List, Popconfirm, Select, Space, Spin, Tag, Typography } from 'antd';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, buildApiUrl, buildUserAuthHeaders } from '../../lib/api';
 import { clearUserAuthSession, getUserLastSessionId, setUserLastSessionId } from '../../lib/auth';
@@ -70,10 +70,6 @@ function hasPendingAssistant(messages: UserChatMessage[]) {
   return messages.some(
     (message) => message.role === 'assistant' && (message.status === 'PENDING' || message.status === 'STREAMING'),
   );
-}
-
-function findLatestCitations(messages: UserChatMessage[]) {
-  return [...messages].reverse().find((message) => message.citations.length)?.citations ?? [];
 }
 
 function findResumableAssistant(messages: UserChatMessage[]) {
@@ -263,6 +259,20 @@ function compactReasoningLabel(steps: string[]) {
   const compact = latest.replace(/\s+/g, ' ');
   const preview = compact.length > 44 ? `${compact.slice(0, 44)}...` : compact;
   return `思考摘要 · ${preview}`;
+}
+
+function buildCitationWindowUrl(citation: ChatCitation) {
+  const url = new URL(`/documents/${citation.documentId}`, window.location.origin);
+  if (citation.headingPath) {
+    url.searchParams.set('headingPath', citation.headingPath);
+  }
+  if (citation.anchor) {
+    url.searchParams.set('anchor', citation.anchor);
+  }
+  if (citation.snippet) {
+    url.searchParams.set('snippet', citation.snippet);
+  }
+  return url.toString();
 }
 
 function scheduleScrollToBottom(
@@ -829,17 +839,15 @@ export function PublicChatPage() {
   }
 
   const activeDetail = activeSessionId ? sessionDetails[activeSessionId] : null;
-  const latestCitations = useMemo(
-    () => findLatestCitations(activeDetail?.messages ?? []),
-    [activeDetail?.messages],
-  );
   const releaseNotes = aboutReleaseNotesQuery.data ?? [];
-  const latestRelease = releaseNotes[0] ?? null;
-  const highlightedReleaseCount = releaseNotes.filter((item) => item.highlighted).length;
   const hasConversation = Boolean(activeDetail?.messages.length);
   const selectedChatModel =
     activeDetail?.selectedChatModel ?? chatOptionsQuery.data?.defaultChatModel ?? chatOptionsQuery.data?.activeChatModel;
   const activeStreaming = Boolean(activeSessionId && streamingSessions[activeSessionId]);
+
+  function openCitationDetail(citation: ChatCitation) {
+    window.open(buildCitationWindowUrl(citation), '_blank', 'noopener,noreferrer,width=1120,height=840');
+  }
 
   useEffect(() => {
     if (workspaceTab !== 'chat' || !activeSessionId) {
@@ -1095,6 +1103,28 @@ export function PublicChatPage() {
                                     ))}
                                   </Space>
                                 ) : null}
+
+                                {item.role === 'assistant' && item.citations.length ? (
+                                  <div className="message-citations">
+                                    <div className="message-citations-label">关联资料</div>
+                                    <div className="message-citation-list">
+                                      {item.citations.map((citation, index) => (
+                                        <button
+                                          key={`${item.messageId}-citation-${citation.documentId}-${citation.anchor || index}`}
+                                          type="button"
+                                          className="message-citation-item"
+                                          onClick={() => openCitationDetail(citation)}
+                                        >
+                                          <span className="message-citation-title">{citation.documentTitle}</span>
+                                          <span className="message-citation-meta">
+                                            {[citation.headingPath, citation.anchor ? `#${citation.anchor}` : null].filter(Boolean).join(' · ')}
+                                          </span>
+                                          <span className="message-citation-snippet">{citation.snippet}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
 
                               {item.role === 'user' ? (
@@ -1248,65 +1278,6 @@ export function PublicChatPage() {
           )}
         </main>
 
-        <aside className="chat-reference">
-          {workspaceTab === 'chat' ? (
-            <Card className="citation-panel citation-card" title="关联文件">
-              <div className="citation-list">
-                <List
-                  dataSource={latestCitations}
-                  locale={{ emptyText: '提问后将在这里展示命中文档和片段。' }}
-                  renderItem={(citation: ChatCitation) => (
-                    <List.Item>
-                      <div>
-                        <Typography.Text strong>{citation.documentTitle}</Typography.Text>
-                        <Typography.Paragraph type="secondary" style={{ margin: '4px 0' }}>
-                          {citation.headingPath} · #{citation.anchor}
-                        </Typography.Paragraph>
-                        <Typography.Paragraph style={{ marginBottom: 0 }}>{citation.snippet}</Typography.Paragraph>
-                      </div>
-                    </List.Item>
-                  )}
-                />
-              </div>
-            </Card>
-          ) : (
-            <Card className="citation-panel citation-card" title="版本摘要">
-              <div className="about-side-panel">
-                <div className="about-side-block">
-                  <Typography.Text type="secondary">当前产品</Typography.Text>
-                  <Typography.Title level={4}>Knowledge Box</Typography.Title>
-                  <Typography.Paragraph type="secondary">
-                    面向知识库问答与管理闭环的统一工作区，包含登录态、持久化会话、流式 ReAct 编排与后台配置能力。
-                  </Typography.Paragraph>
-                </div>
-
-                <div className="about-side-block">
-                  <Typography.Text type="secondary">日志统计</Typography.Text>
-                  <Space wrap>
-                    <Tag color="blue" bordered={false}>总记录 {releaseNotes.length}</Tag>
-                    <Tag color="gold" bordered={false}>重点更新 {highlightedReleaseCount}</Tag>
-                  </Space>
-                </div>
-
-                <div className="about-side-block">
-                  <Typography.Text type="secondary">最新版本</Typography.Text>
-                  {latestRelease ? (
-                    <>
-                      <Typography.Text strong>{latestRelease.versionLabel}</Typography.Text>
-                      <Typography.Paragraph style={{ marginBottom: 0 }}>
-                        {latestRelease.title}
-                      </Typography.Paragraph>
-                    </>
-                  ) : (
-                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                      暂无版本信息
-                    </Typography.Paragraph>
-                  )}
-                </div>
-              </div>
-            </Card>
-          )}
-        </aside>
       </div>
     </div>
   );

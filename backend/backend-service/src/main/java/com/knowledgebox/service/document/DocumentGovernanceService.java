@@ -171,6 +171,20 @@ public class DocumentGovernanceService {
     }
 
     @Transactional(readOnly = true)
+    public KnowledgeDocumentView userVisibleDocumentDetail(Long id) {
+        KnowledgeDocument document = knowledgeDocumentRepository.findByIdWithCategoryAndVisibilityTypeAndStatus(
+                        id,
+                        DocumentVisibilityType.PUBLIC,
+                        DocumentStatus.READY
+                )
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "DOCUMENT_NOT_FOUND", "文档不存在或暂不可查看"));
+        List<String> tags = documentTagBindingRepository.findByDocument_IdOrderByIdAsc(id).stream()
+                .map(binding -> binding.getTag().getName())
+                .toList();
+        return toDocumentView(document, tags);
+    }
+
+    @Transactional(readOnly = true)
     public List<DocumentCategoryView> categories() {
         return documentCategoryRepository.findAllByOrderByNameAsc().stream()
                 .map(category -> new DocumentCategoryView(category.getId(), category.getName(), category.getSource()))

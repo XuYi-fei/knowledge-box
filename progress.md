@@ -16,6 +16,7 @@
 - 管理端 Trace 详情页已把“页面步骤号”与“后端全局序号”分开展示，并补齐阶段说明、输入摘要、输出摘要与事件摘要，便于管理员快速读懂链路。
 - 管理端 Trace 详情页已升级为双层分析视图：`Agent 时间线` 严格按时间顺序展示请求/Prompt/工具/最终回复等语义步骤，`后端调用瀑布` 展示关键服务调用的父子关系、开始偏移与耗时条，同时保留 `原始日志` 视图做深度排障。
 - 聊天工具执行链路已改为通过 AgentScope `ToolExecutionContext` 显式注入 trace/runtime 上下文，不再依赖 `ThreadLocal sessionCode` 反查，避免工具切线程时 trace/backend waterfall 丢 span 或串链。
+- 管理端 `Agent 时间线` 已修正事件状态语义：`agent.call.start` 等瞬时事件不再显示误导性的 `RUNNING/COMPLETED` 状态标签，仅在异常事件上显示 `FAILED`。
 - 文档治理链路已落地：文档上传、审核流、分类标签、索引重建、Markdown 预览/编辑、图片转存、向量写入与 bootstrap 初始化导入。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com`，可直接用 `admin123` 登录用户侧首页。
 - 前端已补齐全局后端可用性提示（改为右侧悬浮卡片，不阻断页面渲染）、底部备案 footer（工信部链接）和文档审核更新时间秒级展示。
@@ -55,6 +56,7 @@
 - 后端打包验证：`mvn -q -pl backend/backend-app -am -DskipTests package` 通过。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 Agent execution trace 实体、服务、管理端查询接口与清理任务）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含双层 trace 视图、后端瀑布 span 落库，以及 ToolExecutionContext 显式上下文修正）。
+- 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 Agent 时间线事件状态语义修正，避免把 `agent.call.start` 误显示为 `RUNNING`）。
 - 后端单测抽样：`mvn -q -pl backend/backend-app -am -Dtest=AgentCapabilityAssemblyServiceTests -Dsurefire.failIfNoSpecifiedTests=false test` 与 `AgentProfileBindingServiceTests` 通过。
 - 一键回归脚本验证：`bash scripts/quick-regression.sh` 通过（后端编译 + 关键单测 + 前端构建）。
 - 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxPostgresIntegrationTests,KnowledgeBoxProductionLiquibaseIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含 `admin@example.com` 初始化账号与前台密码登录回归）。

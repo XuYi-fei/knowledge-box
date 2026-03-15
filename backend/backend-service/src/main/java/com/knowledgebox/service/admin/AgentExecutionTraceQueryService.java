@@ -296,12 +296,9 @@ public class AgentExecutionTraceQueryService {
     }
 
     private String timelineStatus(String eventType) {
-        if ("agent.call.start".equals(eventType)) {
-            return "RUNNING";
-        }
         if ("agent.error".equals(eventType)) {
             return "FAILED";
         }
-        return "COMPLETED";
+        return null;
     }
 }

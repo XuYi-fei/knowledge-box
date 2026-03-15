@@ -4,11 +4,18 @@ import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Image } from 'antd';
-import type { CSSProperties } from 'react';
+import { createElement, type CSSProperties, type ReactNode } from 'react';
 
 type MarkdownRendererProps = {
   content: string;
   className?: string;
+  headingIdPrefix?: string;
+};
+
+export type MarkdownOutlineItem = {
+  id: string;
+  text: string;
+  level: number;
 };
 
 function decodeBasicHtmlEntities(value: string) {
@@ -70,6 +77,80 @@ function parseInlineStyle(style: unknown) {
   return Object.keys(result).length > 0 ? (result as CSSProperties) : undefined;
 }
 
+function normalizeHeadingText(text: string) {
+  return decodeBasicHtmlEntities(text)
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')
+    .replace(/[*_~>#-]/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function slugifyHeading(text: string) {
+  const normalized = normalizeHeadingText(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || 'section';
+}
+
+function resolveHeadingId(base: string, counter: Map<string, number>) {
+  const current = counter.get(base) ?? 0;
+  counter.set(base, current + 1);
+  return current === 0 ? base : `${base}-${current + 1}`;
+}
+
+function flattenNodeText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') {
+    return '';
+  }
+  if (typeof node === 'string' || typeof node === 'number') {
+    return String(node);
+  }
+  if (Array.isArray(node)) {
+    return node.map((item) => flattenNodeText(item)).join('');
+  }
+  if (typeof node === 'object' && 'props' in node) {
+    const candidate = node as { props?: { children?: ReactNode } };
+    return flattenNodeText(candidate.props?.children);
+  }
+  return '';
+}
+
+export function extractMarkdownOutline(content: string, headingIdPrefix = 'markdown-heading'): MarkdownOutlineItem[] {
+  const lines = content.split(/\r?\n/);
+  const outline: MarkdownOutlineItem[] = [];
+  const counter = new Map<string, number>();
+  let inCodeFence = false;
+
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inCodeFence = !inCodeFence;
+      continue;
+    }
+    if (inCodeFence) {
+      continue;
+    }
+    const match = line.match(/^\s*(#{1,6})\s+(.*)$/);
+    if (!match) {
+      continue;
+    }
+    const rawText = normalizeHeadingText(match[2] ?? '');
+    if (!rawText) {
+      continue;
+    }
+    const baseId = `${headingIdPrefix}-${slugifyHeading(rawText)}`;
+    outline.push({
+      id: resolveHeadingId(baseId, counter),
+      text: rawText,
+      level: match[1].length,
+    });
+  }
+
+  return outline;
+}
+
 type ParsedInlineFontCode = {
   style?: CSSProperties;
   text: string;
@@ -103,8 +184,16 @@ function parseInlineFontCode(code: string): ParsedInlineFontCode | null {
   };
 }
 
-export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content, className, headingIdPrefix = 'markdown-heading' }: MarkdownRendererProps) {
   const normalizedContent = normalizeFontMarkup(content);
+  const headingIdCounter = new Map<string, number>();
+  const renderHeading = (level: number, children: ReactNode) => {
+    const tagName = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+    const headingText = flattenNodeText(children);
+    const baseId = `${headingIdPrefix}-${slugifyHeading(headingText)}`;
+    const id = resolveHeadingId(baseId, headingIdCounter);
+    return createElement(tagName, { id }, children);
+  };
   const components = {
     font: ({ style, color, children }: any) => {
       const mergedStyle = {
@@ -123,6 +212,12 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
         {children}
       </a>
     ),
+    h1: ({ children }: any) => renderHeading(1, children),
+    h2: ({ children }: any) => renderHeading(2, children),
+    h3: ({ children }: any) => renderHeading(3, children),
+    h4: ({ children }: any) => renderHeading(4, children),
+    h5: ({ children }: any) => renderHeading(5, children),
+    h6: ({ children }: any) => renderHeading(6, children),
     img: ({ src, alt }: any) => {
       if (!src) {
         return null;

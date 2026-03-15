@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { App, Button, Card, Col, Form, Input, List, Pagination, Progress, Row, Select, Space, Tag, Typography } from 'antd';
+import { App, Button, Card, Checkbox, Col, Form, Input, List, Pagination, Progress, Row, Select, Space, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
@@ -65,6 +65,7 @@ export function DocumentReviewsPage() {
   const queryClient = useQueryClient();
   const [taxonomyForm] = Form.useForm<TaxonomyFormValues>();
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedReviewIds, setSelectedReviewIds] = useState<number[]>([]);
   const [filterStatus, setFilterStatus] = useState<ReviewFilterStatus>('ALL');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -96,6 +97,19 @@ export function DocumentReviewsPage() {
     () => reviews.find((item) => item.id === selectedId) ?? null,
     [reviews, selectedId],
   );
+  const currentPendingReviewIds = useMemo(
+    () => reviews.filter((item) => item.status === 'PENDING_REVIEW').map((item) => item.id),
+    [reviews],
+  );
+
+  useEffect(() => {
+    const selectableReviewIds = new Set(currentPendingReviewIds);
+    setSelectedReviewIds((current) => current.filter((id) => selectableReviewIds.has(id)));
+  }, [currentPendingReviewIds]);
+
+  const selectedPendingReviewCount = selectedReviewIds.length;
+  const allPendingOnPageSelected =
+    currentPendingReviewIds.length > 0 && currentPendingReviewIds.every((id) => selectedReviewIds.includes(id));
 
   const { data: detail } = useQuery({
     queryKey: ['documentReviewDetail', selectedId],
@@ -162,6 +176,23 @@ export function DocumentReviewsPage() {
     },
   });
 
+  const batchApproveMutation = useMutation({
+    mutationFn: (reason?: string) => api.batchApproveDocumentReviews(selectedReviewIds, reason),
+    onSuccess: (result) => {
+      message.success(`批量审核通过完成，已发布 ${result.processedCount} 条文档`);
+      setSelectedReviewIds([]);
+      void queryClient.invalidateQueries({ queryKey: ['documentReviews'] });
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
+      void queryClient.invalidateQueries({ queryKey: ['documentReviewDetail', selectedId] });
+    },
+    onError: (error) => {
+      modal.error({
+        title: '批量审核失败',
+        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '批量审核通过操作失败')}</pre>,
+      });
+    },
+  });
+
   const rejectMutation = useMutation({
     mutationFn: (reason?: string) => api.rejectDocumentReview(selectedId!, reason),
     onSuccess: () => {
@@ -211,6 +242,32 @@ export function DocumentReviewsPage() {
     });
   };
 
+  const openBatchApproveConfirm = () => {
+    let reason = '';
+    modal.confirm({
+      title: `确认批量通过已选 ${selectedPendingReviewCount} 条审核单？`,
+      content: (
+        <Input.TextArea
+          rows={4}
+          placeholder="可选：填写本次批量审核备注"
+          onChange={(event) => {
+            reason = event.target.value;
+          }}
+        />
+      ),
+      onOk: async () => batchApproveMutation.mutateAsync(reason),
+    });
+  };
+
+  const toggleReviewSelection = (reviewId: number, checked: boolean) => {
+    setSelectedReviewIds((current) => {
+      if (checked) {
+        return current.includes(reviewId) ? current : [...current, reviewId];
+      }
+      return current.filter((id) => id !== reviewId);
+    });
+  };
+
   const reviewPending = detail?.status === 'PENDING_REVIEW';
 
   return (
@@ -233,6 +290,27 @@ export function DocumentReviewsPage() {
                 />
                 <Typography.Text type="secondary">共 {totalReviews} 条</Typography.Text>
               </Space>
+              <Space wrap>
+                <Typography.Text type="secondary">当前页待审核 {currentPendingReviewIds.length} 条</Typography.Text>
+                <Typography.Text type="secondary">已选 {selectedPendingReviewCount} 条</Typography.Text>
+                <Button
+                  onClick={() => setSelectedReviewIds(currentPendingReviewIds)}
+                  disabled={currentPendingReviewIds.length === 0 || allPendingOnPageSelected}
+                >
+                  全选当前页待审核
+                </Button>
+                <Button onClick={() => setSelectedReviewIds([])} disabled={selectedPendingReviewCount === 0}>
+                  清空选择
+                </Button>
+                <Button
+                  type="primary"
+                  onClick={openBatchApproveConfirm}
+                  loading={batchApproveMutation.isPending}
+                  disabled={selectedPendingReviewCount === 0}
+                >
+                  批量审核通过
+                </Button>
+              </Space>
             <List
               dataSource={reviews}
               locale={{ emptyText: '暂无审核请求' }}
@@ -248,6 +326,12 @@ export function DocumentReviewsPage() {
                 >
                   <Space direction="vertical" size={4} style={{ width: '100%' }}>
                     <Space>
+                      <Checkbox
+                        checked={selectedReviewIds.includes(item.id)}
+                        disabled={item.status !== 'PENDING_REVIEW'}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => toggleReviewSelection(item.id, event.target.checked)}
+                      />
                       <Typography.Text strong>{item.title}</Typography.Text>
                       <Tag color={reviewStatusTagColor(item.status)}>{item.status}</Tag>
                     </Space>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="030-001-about-release-note-document-review-batch-approve" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.15',
+                '文档审核支持批量通过',
+                '管理员可在文档审核队列中批量勾选待审核记录，一次性通过并发布多篇文档。',
+                E'## 本次更新\n\n- 文档审核列表支持勾选多条待审核记录\n- 支持全选当前页待审核项并批量通过\n- 批量操作沿用单条审核发布链路，保持分类、标签、资产与向量索引写入一致',
+                TIMESTAMPTZ '2026-03-15 22:00:00+08',
+                -6,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.15'
+                   AND title = '文档审核支持批量通过'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

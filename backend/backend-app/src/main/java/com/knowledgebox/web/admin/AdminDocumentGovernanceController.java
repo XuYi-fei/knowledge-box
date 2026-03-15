@@ -1,5 +1,7 @@
 package com.knowledgebox.web.admin;
 
+import com.knowledgebox.api.BatchDocumentReviewActionResultView;
+import com.knowledgebox.api.BatchReviewActionRequest;
 import com.knowledgebox.api.DocumentCategoryView;
 import com.knowledgebox.api.DocumentIndexRebuildJobView;
 import com.knowledgebox.api.DocumentReviewRequestPageView;
@@ -95,6 +97,15 @@ public class AdminDocumentGovernanceController {
     ) {
         Long operatorId = adminOperatorService.resolveOperatorId(principal == null ? "admin" : principal.getName());
         return documentGovernanceService.approveReview(id, operatorId, request == null ? null : request.reason());
+    }
+
+    @PostMapping("/document-reviews/batch/approve")
+    public BatchDocumentReviewActionResultView batchApproveReviews(
+            @Valid @RequestBody BatchReviewActionRequest request,
+            Principal principal
+    ) {
+        Long operatorId = adminOperatorService.resolveOperatorId(principal == null ? "admin" : principal.getName());
+        return documentGovernanceService.batchApproveReviews(request.reviewIds(), operatorId, request.reason());
     }
 
     @PostMapping("/document-reviews/{id}/reject")

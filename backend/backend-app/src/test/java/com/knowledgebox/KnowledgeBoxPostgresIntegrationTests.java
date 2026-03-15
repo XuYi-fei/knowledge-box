@@ -552,6 +552,49 @@ class KnowledgeBoxPostgresIntegrationTests {
     }
 
     @Test
+    void shouldBatchApproveReviewRequests() throws Exception {
+        Long firstReviewId = createJsonReviewAndWaitPending(
+                "批量审核测试-1",
+                "batch-review-1.md",
+                "# 批量审核测试 1\n\n第一条待审核文档。"
+        );
+        Long secondReviewId = createJsonReviewAndWaitPending(
+                "批量审核测试-2",
+                "batch-review-2.md",
+                "# 批量审核测试 2\n\n第二条待审核文档。"
+        );
+
+        ResponseEntity<Map> approveResponse = testRestTemplate
+                .withBasicAuth("admin-it", "admin-it-pass")
+                .postForEntity(
+                        "http://localhost:" + port + "/api/admin/document-reviews/batch/approve",
+                        Map.of(
+                                "reviewIds", List.of(firstReviewId, secondReviewId, firstReviewId),
+                                "reason", "批量审核通过测试"
+                        ),
+                        Map.class
+                );
+
+        assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(approveResponse.getBody()).isNotNull();
+        assertThat(approveResponse.getBody()).containsEntry("processedCount", 2);
+        List<Map<String, Object>> items = (List<Map<String, Object>>) approveResponse.getBody().get("items");
+        assertThat(items).hasSize(2);
+        assertThat(items).allMatch(item -> "APPROVED".equals(item.get("status")));
+        assertThat(items.stream().map(item -> ((Number) item.get("id")).longValue()))
+                .containsExactly(firstReviewId, secondReviewId);
+
+        ResponseEntity<Map[]> documentsResponse = testRestTemplate
+                .withBasicAuth("admin-it", "admin-it-pass")
+                .getForEntity("http://localhost:" + port + "/api/admin/documents", Map[].class);
+        assertThat(documentsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(documentsResponse.getBody()).isNotNull();
+        assertThat(java.util.Arrays.stream(documentsResponse.getBody())
+                .map(document -> String.valueOf(document.get("title"))))
+                .contains("批量审核测试-1", "批量审核测试-2");
+    }
+
+    @Test
     void shouldCreateReviewRequestFromJsonUpload() throws Exception {
         Map<String, Object> payload = Map.of(
                 "title", "填写式上传文档测试",

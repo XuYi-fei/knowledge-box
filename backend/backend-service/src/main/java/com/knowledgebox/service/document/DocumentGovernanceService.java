@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knowledgebox.api.BatchDocumentReviewActionResultView;
 import com.knowledgebox.api.CreateDocumentReviewRequest;
 import com.knowledgebox.api.DocumentAssetView;
 import com.knowledgebox.api.DocumentCategoryView;
@@ -55,9 +56,11 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -374,92 +377,17 @@ public class DocumentGovernanceService {
     @Transactional
     public DocumentReviewRequestSummaryView approveReview(Long reviewId, Long operatorId, @Nullable String reason) {
         DocumentReviewRequest review = loadReviewRequest(reviewId);
-        ensureReviewPending(review);
+        return toReviewSummaryView(approveReviewInternal(review, operatorId, reason));
+    }
 
-        String categoryName = StringUtils.hasText(review.getSelectedCategoryName())
-                ? review.getSelectedCategoryName().trim()
-                : review.getSuggestedCategoryName();
-        List<String> tagNames = parseTagNames(review.getSelectedTagsJson());
-        if (tagNames.isEmpty()) {
-            tagNames = parseTagNames(review.getSuggestedTagsJson());
-        }
-
-        DocumentCategory category = ensureCategory(categoryName, DocumentTaxonomySource.MANUAL);
-        List<DocumentTag> tags = ensureTags(tagNames, DocumentTaxonomySource.MANUAL);
-
-        KnowledgeDocument published = review.getSourceDocument() == null
-                ? new KnowledgeDocument()
-                : review.getSourceDocument();
-        published.setTitle(review.getTitle());
-        published.setSourceFilename(review.getSourceFilename());
-        published.setUploaderType(review.getUploaderType());
-        published.setUploaderUserId(review.getUploaderUserId());
-        published.setVisibilityType(review.getVisibilityType());
-        published.setStatus(DocumentStatus.READY);
-        published.setNormalizedMarkdownPath(review.getNormalizedMarkdownPath() == null ? "" : review.getNormalizedMarkdownPath());
-        published.setSourceMarkdown(review.getSourceMarkdown());
-        published.setExtensionJson(review.getExtensionJson());
-        published.setVectorConfigJson(review.getVectorConfigJson());
-        published.setCategory(category);
-        published.setTags(writeJson(tagNames));
-        published = knowledgeDocumentRepository.save(published);
-        final KnowledgeDocument publishedDocument = published;
-
-        List<DocumentChunk> oldChunks = documentChunkRepository.findByDocument_IdOrderByChunkIndexAsc(publishedDocument.getId());
-        knowledgeBaseIndexingService.delete(oldChunks);
-        documentChunkRepository.deleteByDocument_Id(publishedDocument.getId());
-        documentAssetRepository.deleteByDocument_Id(publishedDocument.getId());
-        documentTagBindingRepository.deleteByDocument_Id(publishedDocument.getId());
-        documentTagBindingRepository.flush();
-
-        List<DocumentAsset> assets = documentReviewAssetRepository.findByReviewRequest_IdOrderByIdAsc(reviewId).stream()
-                .map(asset -> {
-                    DocumentAsset created = new DocumentAsset();
-                    created.setDocument(publishedDocument);
-                    created.setOriginalPath(asset.getOriginalPath());
-                    created.setStoredUrl(asset.getStoredUrl());
-                    created.setProvider(asset.getProvider());
-                    created.setObjectKey(asset.getObjectKey());
-                    created.setContentType(asset.getContentType());
-                    created.setContentLength(asset.getContentLength());
-                    return created;
-                })
+    @Transactional
+    public BatchDocumentReviewActionResultView batchApproveReviews(List<Long> reviewIds, Long operatorId, @Nullable String reason) {
+        List<Long> normalizedReviewIds = normalizeReviewIds(reviewIds);
+        List<DocumentReviewRequestSummaryView> items = normalizedReviewIds.stream()
+                .map(this::loadReviewRequest)
+                .map(review -> toReviewSummaryView(approveReviewInternal(review, operatorId, reason)))
                 .toList();
-        documentAssetRepository.saveAll(assets);
-
-        List<DocumentChunk> chunks = documentReviewChunkRepository.findByReviewRequest_IdOrderByChunkIndexAsc(reviewId).stream()
-                .map(chunk -> {
-                    DocumentChunk created = new DocumentChunk();
-                    created.setDocument(publishedDocument);
-                    created.setChunkIndex(chunk.getChunkIndex());
-                    created.setHeadingPath(chunk.getHeadingPath());
-                    created.setAnchor(chunk.getAnchor());
-                    created.setContent(chunk.getContent());
-                    created.setMetadataJson(chunk.getMetadataJson());
-                    return created;
-                })
-                .toList();
-        List<DocumentChunk> savedChunks = documentChunkRepository.saveAll(chunks);
-        knowledgeBaseIndexingService.index(savedChunks);
-
-        List<DocumentTagBinding> bindings = tags.stream()
-                .map(tag -> {
-                    DocumentTagBinding binding = new DocumentTagBinding();
-                    binding.setDocument(publishedDocument);
-                    binding.setTag(tag);
-                    return binding;
-                })
-                .toList();
-        documentTagBindingRepository.saveAll(bindings);
-
-        review.setPublishedDocument(publishedDocument);
-        review.setStatus(DocumentReviewStatus.APPROVED);
-        review.setStage("APPROVED");
-        review.setProgressPercent(100);
-        review.setReviewedByUserId(operatorId);
-        review.setReviewedAt(OffsetDateTime.now());
-        review.setReviewReason(reason);
-        return toReviewSummaryView(documentReviewRequestRepository.save(review));
+        return new BatchDocumentReviewActionResultView(items.size(), items);
     }
 
     @Transactional
@@ -961,6 +889,109 @@ public class DocumentGovernanceService {
         if (review.getStatus() != DocumentReviewStatus.PENDING_REVIEW) {
             throw new ApiException(HttpStatus.CONFLICT, "REVIEW_STATUS_INVALID", "当前审核单状态不允许此操作");
         }
+    }
+
+    private DocumentReviewRequest approveReviewInternal(DocumentReviewRequest review, Long operatorId, @Nullable String reason) {
+        ensureReviewPending(review);
+
+        String categoryName = StringUtils.hasText(review.getSelectedCategoryName())
+                ? review.getSelectedCategoryName().trim()
+                : review.getSuggestedCategoryName();
+        List<String> tagNames = parseTagNames(review.getSelectedTagsJson());
+        if (tagNames.isEmpty()) {
+            tagNames = parseTagNames(review.getSuggestedTagsJson());
+        }
+
+        DocumentCategory category = ensureCategory(categoryName, DocumentTaxonomySource.MANUAL);
+        List<DocumentTag> tags = ensureTags(tagNames, DocumentTaxonomySource.MANUAL);
+
+        KnowledgeDocument published = review.getSourceDocument() == null
+                ? new KnowledgeDocument()
+                : review.getSourceDocument();
+        published.setTitle(review.getTitle());
+        published.setSourceFilename(review.getSourceFilename());
+        published.setUploaderType(review.getUploaderType());
+        published.setUploaderUserId(review.getUploaderUserId());
+        published.setVisibilityType(review.getVisibilityType());
+        published.setStatus(DocumentStatus.READY);
+        published.setNormalizedMarkdownPath(review.getNormalizedMarkdownPath() == null ? "" : review.getNormalizedMarkdownPath());
+        published.setSourceMarkdown(review.getSourceMarkdown());
+        published.setExtensionJson(review.getExtensionJson());
+        published.setVectorConfigJson(review.getVectorConfigJson());
+        published.setCategory(category);
+        published.setTags(writeJson(tagNames));
+        published = knowledgeDocumentRepository.save(published);
+        final KnowledgeDocument publishedDocument = published;
+
+        List<DocumentChunk> oldChunks = documentChunkRepository.findByDocument_IdOrderByChunkIndexAsc(publishedDocument.getId());
+        knowledgeBaseIndexingService.delete(oldChunks);
+        documentChunkRepository.deleteByDocument_Id(publishedDocument.getId());
+        documentAssetRepository.deleteByDocument_Id(publishedDocument.getId());
+        documentTagBindingRepository.deleteByDocument_Id(publishedDocument.getId());
+        documentTagBindingRepository.flush();
+
+        List<DocumentAsset> assets = documentReviewAssetRepository.findByReviewRequest_IdOrderByIdAsc(review.getId()).stream()
+                .map(asset -> {
+                    DocumentAsset created = new DocumentAsset();
+                    created.setDocument(publishedDocument);
+                    created.setOriginalPath(asset.getOriginalPath());
+                    created.setStoredUrl(asset.getStoredUrl());
+                    created.setProvider(asset.getProvider());
+                    created.setObjectKey(asset.getObjectKey());
+                    created.setContentType(asset.getContentType());
+                    created.setContentLength(asset.getContentLength());
+                    return created;
+                })
+                .toList();
+        documentAssetRepository.saveAll(assets);
+
+        List<DocumentChunk> chunks = documentReviewChunkRepository.findByReviewRequest_IdOrderByChunkIndexAsc(review.getId()).stream()
+                .map(chunk -> {
+                    DocumentChunk created = new DocumentChunk();
+                    created.setDocument(publishedDocument);
+                    created.setChunkIndex(chunk.getChunkIndex());
+                    created.setHeadingPath(chunk.getHeadingPath());
+                    created.setAnchor(chunk.getAnchor());
+                    created.setContent(chunk.getContent());
+                    created.setMetadataJson(chunk.getMetadataJson());
+                    return created;
+                })
+                .toList();
+        List<DocumentChunk> savedChunks = documentChunkRepository.saveAll(chunks);
+        knowledgeBaseIndexingService.index(savedChunks);
+
+        List<DocumentTagBinding> bindings = tags.stream()
+                .map(tag -> {
+                    DocumentTagBinding binding = new DocumentTagBinding();
+                    binding.setDocument(publishedDocument);
+                    binding.setTag(tag);
+                    return binding;
+                })
+                .toList();
+        documentTagBindingRepository.saveAll(bindings);
+
+        review.setPublishedDocument(publishedDocument);
+        review.setStatus(DocumentReviewStatus.APPROVED);
+        review.setStage("APPROVED");
+        review.setProgressPercent(100);
+        review.setReviewedByUserId(operatorId);
+        review.setReviewedAt(OffsetDateTime.now());
+        review.setReviewReason(reason);
+        return documentReviewRequestRepository.save(review);
+    }
+
+    private List<Long> normalizeReviewIds(List<Long> reviewIds) {
+        if (reviewIds == null || reviewIds.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "REVIEW_IDS_REQUIRED", "请至少选择一条审核单");
+        }
+        Set<Long> normalized = new LinkedHashSet<>();
+        for (Long reviewId : reviewIds) {
+            if (reviewId == null) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "REVIEW_ID_INVALID", "审核单 ID 不能为空");
+            }
+            normalized.add(reviewId);
+        }
+        return List.copyOf(normalized);
     }
 
     private DocumentReviewRequest loadReviewRequest(Long id) {

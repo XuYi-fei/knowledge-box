@@ -1,5 +1,6 @@
 import {
   AboutReleaseNote,
+  BatchDocumentReviewActionResult,
   AgentExecutionTraceDetail,
   AgentExecutionTracePage,
   AgentExecutionTraceSummary,
@@ -450,6 +451,16 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify({ reason: reason ?? '' }),
+      },
+      'admin',
+    );
+  },
+  async batchApproveDocumentReviews(reviewIds: number[], reason?: string) {
+    return requestJson<BatchDocumentReviewActionResult>(
+      '/api/admin/document-reviews/batch/approve',
+      {
+        method: 'POST',
+        body: JSON.stringify({ reviewIds, reason: reason ?? '' }),
       },
       'admin',
     );

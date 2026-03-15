@@ -402,6 +402,11 @@ export type DocumentReviewRequestPage = {
   pageSize: number;
 };
 
+export type BatchDocumentReviewActionResult = {
+  processedCount: number;
+  items: DocumentReviewRequestSummary[];
+};
+
 export type DocumentReviewAsset = {
   id: number;
   originalPath: string;

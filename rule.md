@@ -55,6 +55,7 @@
 - 语雀文档迁移/粘贴图片链路若包含大图，需显式配置 `spring.servlet.multipart.max-file-size` 与 `max-request-size`；Spring 默认 1MB 会导致 `/api/admin/documents/paste-image` 抛 `MaxUploadSizeExceededException`。
 - 对带唯一键的“绑定表”执行同事务“删除旧绑定+插入新绑定”时，优先使用 JPQL bulk delete（`@Modifying @Query`）或显式 flush，避免 Hibernate 写入顺序触发唯一键冲突。
 - 后端已拆分为 `backend-app/service/repository/domain` 多模块；日常编译/测试/启动建议以 `backend/backend-app` 为目标模块并加 `-am` 联动依赖模块。
+- 文档 bootstrap 的 `seed-file` / `seed-directory` 相对路径是按 JVM 当前工作目录解析，不是按配置文件所在目录解析；本地启动时应使用仓库根目录下可直接命中的路径。
 - 前端健康探测不要直接依赖 `/actuator/health` 聚合状态；邮件等依赖异常会误报 `DOWN`。优先使用业务可用性端点 `/api/public/system/availability`。
 - 测试专用 `db.changelog-it.xml` 若追加 `about_release_note` 相关 release note 变更，需先同步建表基线，否则 PostgreSQL 集成测试会在 Liquibase 迁移阶段直接失败。
 - AgentScope Hook 事件对象的部分调试字段（如 `generateOptions`）允许为 `null`；记录 trace/debug payload 时不要直接用 `Map.of(...)` 组装可空值。

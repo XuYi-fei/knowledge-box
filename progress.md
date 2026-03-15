@@ -21,6 +21,7 @@
 - 管理端 Trace 详情页已新增 `通俗解读` 视图：后端对 Agent 事件与后端调用做统一语义映射，前端可切换查看 `Agent 过程解读` 与 `后端调用解读`，用更直白的标题/输入/输出解释整条链路。
 - 文档治理链路已落地：文档上传、审核流、分类标签、索引重建、Markdown 预览/编辑、图片转存、向量写入与 bootstrap 初始化导入。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com`，可直接用 `admin123` 登录用户侧首页。
+- 本地 profile 的文档 bootstrap 导入路径已修正为仓库根目录可直接解析的 `backend/bootstrap/document-seed.json` 与 `tmp/yuque-batch/bootstrap-seeds`，启动时可自动扫描并导入语雀批量 seed。
 - 前端已补齐全局后端可用性提示（改为右侧悬浮卡片，不阻断页面渲染）、底部备案 footer（工信部链接）和文档审核更新时间秒级展示。
 - 前端后端可用性探测已改为“页面加载时单次探测”；探测失败仅提示一次，不再自动轮询重试，避免浏览器资源被持续占用。
 - 后端新增独立可用性接口 `/api/public/system/availability`，用于前端健康探测，不再依赖 actuator 聚合健康状态。
@@ -59,6 +60,8 @@
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 trace readable DTO、后端语义映射与详情接口扩展）。
 - 后端打包验证：`mvn -q -pl backend/backend-app -am -DskipTests package` 通过。
+- 本地启动验证：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 通过，启动日志显示 `[DOCUMENT-BOOTSTRAP]` 已扫描 `backend/bootstrap/document-seed.json` 与 `tmp/yuque-batch/bootstrap-seeds/yuque-batch.seed.json`，总计 `created=0 skipped=91 failed=0`（当前库内已存在对应 `importKey`，因此全部按幂等跳过）。
+- 本地数据库验证：`psql -d knowledge_box ...` 查询通过，`document_review_request` 中 `importKey` 记录数为 `91`，示例 `yuque:70111390:243374419` 已存在 1 条；HTTP 可用性 `curl -s http://127.0.0.1:18081/api/public/system/availability` 返回 `{\"status\":\"UP\",\"reachable\":true,...}`。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 Agent execution trace 实体、服务、管理端查询接口与清理任务）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含双层 trace 视图、后端瀑布 span 落库，以及 ToolExecutionContext 显式上下文修正）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 Agent 时间线事件状态语义修正，避免把 `agent.call.start` 误显示为 `RUNNING`）。

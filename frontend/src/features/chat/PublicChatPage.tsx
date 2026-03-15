@@ -176,6 +176,51 @@ function sameCitations(left: ChatCitation[], right: ChatCitation[]) {
   });
 }
 
+function summarizeCitationValues(values: string[], fallback = '') {
+  const normalized = Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+  if (!normalized.length) {
+    return fallback;
+  }
+  if (normalized.length === 1) {
+    return normalized[0];
+  }
+  const preview = normalized.slice(0, 2).join(' / ');
+  return normalized.length > 2 ? `${preview} 等${normalized.length}处` : preview;
+}
+
+function mergeCitationsByDocument(citations: ChatCitation[]) {
+  const grouped = new Map<number, ChatCitation[]>();
+  for (const citation of citations) {
+    const existing = grouped.get(citation.documentId);
+    if (existing) {
+      existing.push(citation);
+      continue;
+    }
+    grouped.set(citation.documentId, [citation]);
+  }
+  return Array.from(grouped.values()).map((group) => {
+    const first = group[0];
+    return {
+      documentId: first.documentId,
+      documentTitle: first.documentTitle,
+      headingPath: summarizeCitationValues(group.map((item) => item.headingPath), '未分节'),
+      anchor: group.find((item) => item.anchor?.trim())?.anchor ?? first.anchor,
+      snippet: summarizeCitationValues(group.map((item) => item.snippet)),
+    } satisfies ChatCitation;
+  });
+}
+
+function normalizeMessageCitations(messages: UserChatMessage[]) {
+  return messages.map((message) =>
+    message.citations.length
+      ? {
+          ...message,
+          citations: mergeCitationsByDocument(message.citations),
+        }
+      : message,
+  );
+}
+
 function sameAssistantMessage(left: UserChatMessage, right: UserChatMessage) {
   return (
     left.messageId === right.messageId &&
@@ -242,7 +287,7 @@ function normalizeStreamEvent(eventName: string, raw: ChatStreamEvent): Normaliz
     messageId: typeof raw.messageId === 'string' ? raw.messageId : null,
     content: fullContent,
     reasoningSteps: Array.isArray(raw.reasoningSteps) ? raw.reasoningSteps.filter((item) => typeof item === 'string') : null,
-    citations: Array.isArray(raw.citations) ? (raw.citations as ChatCitation[]) : null,
+    citations: Array.isArray(raw.citations) ? mergeCitationsByDocument(raw.citations as ChatCitation[]) : null,
     toolCalls: Array.isArray(raw.toolCalls) ? raw.toolCalls.filter((item) => typeof item === 'string') : null,
     status: raw.status ?? statusFromType,
     chatModel: raw.chatModel ?? null,
@@ -443,19 +488,23 @@ export function PublicChatPage() {
     setLoadingSessionId(sessionId);
     try {
       const detail = await api.userChatSessionDetail(sessionId);
+      const normalizedDetail = {
+        ...detail,
+        messages: normalizeMessageCitations(detail.messages),
+      } satisfies UserChatSessionDetail;
       setSessionDetails((current) => ({
         ...current,
-        [sessionId]: detail,
+        [sessionId]: normalizedDetail,
       }));
       upsertSessionSummary({
-        ...buildSessionSummary(detail, false),
+        ...buildSessionSummary(normalizedDetail, false),
         localOnly: false,
       });
-      const resumableAssistant = resumePending ? findResumableAssistant(detail.messages) : null;
+      const resumableAssistant = resumePending ? findResumableAssistant(normalizedDetail.messages) : null;
       if (resumePending && resumableAssistant) {
         void resumeStream(sessionId, resumableAssistant.messageId);
       }
-      return detail;
+      return normalizedDetail;
     } finally {
       setLoadingSessionId((current) => (current === sessionId ? null : current));
     }

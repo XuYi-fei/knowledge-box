@@ -13,6 +13,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.knowledgebox.api.ChatCitationView;
 import com.knowledgebox.api.ChatStreamEvent;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
@@ -349,6 +350,29 @@ class ChatOrchestratorTests {
         assertThat(reasoningSteps).isEmpty();
         assertThat(answerBuilder).isEmpty();
         assertThat(streamState.finalMessage).isNotNull();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldMergeCitationsByDocumentWhenMultipleChunksHitSameDocument() throws Exception {
+        List<RetrievedChunk> chunks = List.of(
+                new RetrievedChunk(1L, "MCP 指南", "MCP 简介", "mcp-intro", "第一段摘要", 0.92, true),
+                new RetrievedChunk(1L, "MCP 指南", "MCP 工作流", "mcp-flow", "第二段摘要", 0.88, true),
+                new RetrievedChunk(2L, "Agent 总览", "Agent 基础", "agent-basic", "第三段摘要", 0.80, true)
+        );
+
+        List<ChatCitationView> citations = (List<ChatCitationView>) invokePrivateMethod(
+                "toCitations",
+                new Class<?>[]{List.class},
+                chunks
+        );
+
+        assertThat(citations).hasSize(2);
+        assertThat(citations.get(0).documentId()).isEqualTo(1L);
+        assertThat(citations.get(0).documentTitle()).isEqualTo("MCP 指南");
+        assertThat(citations.get(0).headingPath()).contains("MCP 简介").contains("MCP 工作流");
+        assertThat(citations.get(0).snippet()).contains("第一段摘要").contains("第二段摘要");
+        assertThat(citations.get(0).anchor()).isEqualTo("mcp-intro");
     }
 
     private Object invokePrivateMethod(String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {

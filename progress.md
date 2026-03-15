@@ -13,6 +13,7 @@
 - 聊天主链路已切换为默认“前置知识库检索”模式：每次问答会先做一次公开知识片段检索，再把命中内容注入回答上下文；若未命中足够证据，仍允许通用回答，但会明确提示知识库未提供支持证据。
 - 知识检索已增强 query variant 召回：对 `讲一下mcp是什么` 这类中英混合缩写问题，会自动提取缩写关键词并融合向量/全文/内存检索结果，且在检索阶段就过滤 `AGENT_ONLY` 文档，避免无效引用进入 prompt 和 citations。
 - 用户侧聊天页已移除右侧“关联文件”侧栏；引用来源改为挂在每条 Assistant 回答下方，并支持新开独立窗口查看公开文档全文，不覆盖当前对话窗口。
+- 用户侧聊天引用已改为按文档聚合展示；同一回答命中同一文档的多段内容时，会合并成一条引用并汇总章节/摘要，避免重复出现同一文档。
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理与动态 Tool/MCP/Skill 绑定管理。
 - 管理端 Trace 已升级为管理员专属的 Agent 调用链日志系统：后端按 `trace/span/event` 持久化 prompt 注入、thinking/summary、工具调用、最终回复与耗时，前端支持列表筛选与详情时间线查看。
 - 管理端 Trace 现支持删除单条已结束的执行链路；列表页和详情页都可删除，并会级联清理对应的 span/event 明细。
@@ -72,8 +73,10 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含文档审核队列多选、当前页全选/清空与批量审核通过入口）。
 - 前端验证：`npm --prefix frontend run build` 通过（修复文档审核页批量选择同步引起的 `Maximum update depth exceeded` 死循环）。
 - 前端验证：`npm --prefix frontend run build` 通过（含聊天页移除右侧关联文件栏、回答内联引用展示与用户侧文档详情页）。
+- 前端验证：`npm --prefix frontend run build` 通过（含回答引用按文档聚合展示，历史消息与流式消息都不再重复显示同一文档）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含批量审核通过接口、批量请求/响应 DTO 与审核服务复用单条发布链路）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含用户侧公开文档详情接口与聊天引用新窗口查看链路）。
+- 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含同一文档多段命中时 citation 按文档聚合回归）。
 - 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxProductionLiquibaseIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含 `db.changelog-032-chat-inline-citation-release-note.xml` 生产 Liquibase 迁移回归）。
 - 后端集成验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxPostgresIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含批量审核通过接口成功发布两条待审核文档；测试日志中仍有文档审核分类 Agent 的 DashScope 401 背景噪声，但未影响用例通过）。
 - 后端 Liquibase 验证：`mvn -q -pl backend/backend-app -am -Dtest=KnowledgeBoxProductionLiquibaseIntegrationTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含 `db.changelog-030-document-review-batch-approve-release-note.xml` 关于页更新日志变更集）。

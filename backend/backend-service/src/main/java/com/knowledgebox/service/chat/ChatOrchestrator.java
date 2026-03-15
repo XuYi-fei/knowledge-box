@@ -30,8 +30,9 @@ import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1102,16 +1103,70 @@ public class ChatOrchestrator {
     }
 
     private List<ChatCitationView> toCitations(List<RetrievedChunk> chunks) {
-        return chunks.stream()
-                .filter(RetrievedChunk::publicVisible)
-                .map(chunk -> new ChatCitationView(
-                        chunk.documentId(),
-                        chunk.documentTitle(),
-                        chunk.headingPath(),
-                        chunk.anchor(),
-                        chunk.snippet()
+        record CitationAggregate(
+                Long documentId,
+                String documentTitle,
+                LinkedHashSet<String> headingPaths,
+                String firstAnchor,
+                LinkedHashSet<String> snippets
+        ) {
+        }
+
+        Map<Long, CitationAggregate> aggregates = new LinkedHashMap<>();
+        for (RetrievedChunk chunk : chunks) {
+            if (!chunk.publicVisible()) {
+                continue;
+            }
+            CitationAggregate aggregate = aggregates.computeIfAbsent(
+                    chunk.documentId(),
+                    ignored -> new CitationAggregate(
+                            chunk.documentId(),
+                            chunk.documentTitle(),
+                            new LinkedHashSet<>(),
+                            chunk.anchor(),
+                            new LinkedHashSet<>()
+                    )
+            );
+            if (hasText(chunk.headingPath())) {
+                aggregate.headingPaths().add(chunk.headingPath().trim());
+            }
+            if (hasText(chunk.snippet())) {
+                aggregate.snippets().add(chunk.snippet().trim());
+            }
+        }
+
+        return aggregates.values().stream()
+                .map(aggregate -> new ChatCitationView(
+                        aggregate.documentId(),
+                        aggregate.documentTitle(),
+                        summarizeCitationText(aggregate.headingPaths(), "未分节"),
+                        aggregate.firstAnchor(),
+                        summarizeCitationText(aggregate.snippets(), "")
                 ))
                 .toList();
+    }
+
+    private String summarizeCitationText(LinkedHashSet<String> values, String fallback) {
+        if (values.isEmpty()) {
+            return fallback;
+        }
+        List<String> orderedValues = new ArrayList<>(values);
+        if (orderedValues.size() == 1) {
+            return orderedValues.getFirst();
+        }
+        StringBuilder builder = new StringBuilder(orderedValues.getFirst());
+        int previewCount = Math.min(orderedValues.size(), 2);
+        for (int index = 1; index < previewCount; index++) {
+            builder.append(" / ").append(orderedValues.get(index));
+        }
+        if (orderedValues.size() > previewCount) {
+            builder.append(" 等").append(orderedValues.size()).append("处");
+        }
+        return builder.toString();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private QueryRoutingDecision routeQuery(String query, AgentProfileVersion profile) {

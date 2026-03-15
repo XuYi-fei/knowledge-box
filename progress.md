@@ -17,6 +17,7 @@
 - 管理端 Trace 详情页已升级为双层分析视图：`Agent 时间线` 严格按时间顺序展示请求/Prompt/工具/最终回复等语义步骤，`后端调用瀑布` 展示关键服务调用的父子关系、开始偏移与耗时条，同时保留 `原始日志` 视图做深度排障。
 - 聊天工具执行链路已改为通过 AgentScope `ToolExecutionContext` 显式注入 trace/runtime 上下文，不再依赖 `ThreadLocal sessionCode` 反查，避免工具切线程时 trace/backend waterfall 丢 span 或串链。
 - 管理端 `Agent 时间线` 已修正事件状态语义：`agent.call.start` 等瞬时事件不再显示误导性的 `RUNNING/COMPLETED` 状态标签，仅在异常事件上显示 `FAILED`。
+- 管理端 Trace 详情页现支持真正的分层展示：`Agent 时间线` 按请求/span/event 构造成可折叠树，工具调用与路由步骤会在父阶段下缩进展开；`后端调用瀑布` 也按 `parentCallId` 递归缩进，保持同层一致的视觉层级。
 - 文档治理链路已落地：文档上传、审核流、分类标签、索引重建、Markdown 预览/编辑、图片转存、向量写入与 bootstrap 初始化导入。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com`，可直接用 `admin123` 登录用户侧首页。
 - 前端已补齐全局后端可用性提示（改为右侧悬浮卡片，不阻断页面渲染）、底部备案 footer（工信部链接）和文档审核更新时间秒级展示。
@@ -52,6 +53,7 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含管理员 trace 列表页 / 详情页删除单条 trace 的操作入口）。
 - 前端验证：`npm --prefix frontend run build` 通过（含 trace 详情页步骤号/全局序号分离展示，以及阶段/输入/输出/事件摘要优化）。
 - 前端验证：`npm --prefix frontend run build` 通过（含 trace 详情双层分析视图、RUNNING trace 禁删保护、时间线摘要回退与后端瀑布比例修正）。
+- 前端验证：`npm --prefix frontend run build` 通过（含 trace 详情页 Agent 时间线树形分层与后端瀑布统一层级缩进改造）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过。
 - 后端打包验证：`mvn -q -pl backend/backend-app -am -DskipTests package` 通过。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含 Agent execution trace 实体、服务、管理端查询接口与清理任务）。

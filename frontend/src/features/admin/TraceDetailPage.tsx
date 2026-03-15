@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import { AgentExecutionBackendSpan, AgentExecutionEvent, AgentExecutionSpan, AgentExecutionTimelineItem } from '../../lib/types';
+import { AgentExecutionBackendSpan, AgentExecutionEvent, AgentExecutionSpan } from '../../lib/types';
 
 const SPAN_TYPE_LABELS: Record<string, string> = {
   REQUEST: '接收请求',
@@ -29,19 +29,6 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   hint: '上下文提示',
   'agent.result': 'Agent 结果',
   'final.response': '最终响应',
-};
-
-const TIMELINE_TYPE_LABELS: Record<string, string> = {
-  REQUEST: '接收请求',
-  ROUTING: '查询路由',
-  AGENT_CALL: 'Agent 调用',
-  PROMPT: 'Prompt 注入',
-  TOOL_CALL: '工具调用',
-  TOOL_RESULT: '工具结果回注',
-  HINT: '上下文提示',
-  AGENT_RESULT: 'Agent 输出',
-  FINAL_RESPONSE: '最终响应',
-  ERROR: '异常',
 };
 
 function formatDateTime(value?: string | null) {
@@ -268,60 +255,6 @@ function describeSpan(span: AgentExecutionSpan) {
   return span.spanName ? `${typeLabel} · ${span.spanName}` : typeLabel;
 }
 
-function summarizeTimelineItem(item: AgentExecutionTimelineItem) {
-  const payload = parseJsonValue(item.payloadJson);
-  const input = parseJsonValue(item.inputJson);
-  const output = parseJsonValue(item.outputJson);
-  if (item.itemType === 'REQUEST') {
-    return trimPreview(pickSummaryValue(payload, ['query', 'chatModel', 'profile']), 96);
-  }
-  if (item.itemType === 'PROMPT') {
-    const objectPayload = payload && typeof payload === 'object' && !Array.isArray(payload) ? (payload as Record<string, unknown>) : null;
-    if (!objectPayload) {
-      return null;
-    }
-    const parts = [
-      normalizeDisplayValue(objectPayload.phase),
-      normalizeDisplayValue(objectPayload.modelName),
-      Array.isArray(objectPayload.inputMessages) ? `消息:${objectPayload.inputMessages.length} 条` : null,
-    ].filter((value): value is string => Boolean(value));
-    return parts.join(' | ') || null;
-  }
-  if (item.itemType === 'TOOL_CALL') {
-    return trimPreview(pickSummaryValue(input, ['toolName', 'toolInput']), 96);
-  }
-  if (item.itemType === 'TOOL_RESULT') {
-    return trimPreview(pickSummaryValue(payload, ['toolName', 'message']), 96);
-  }
-  if (item.itemType === 'AGENT_RESULT' || item.itemType === 'FINAL_RESPONSE') {
-    return trimPreview(pickSummaryValue(payload, ['answer', 'message']), 96);
-  }
-  if (item.itemType === 'ROUTING') {
-    return trimPreview(pickSummaryValue(output, ['reason', 'source']), 96);
-  }
-  return trimPreview(
-    pickSummaryValue(payload ?? input ?? output, ['message', 'query', 'text', 'exceptionClass', 'reason']),
-    96,
-  );
-}
-
-function summarizeTimelineInput(item: AgentExecutionTimelineItem) {
-  const input = parseJsonValue(item.inputJson);
-  const summary = trimPreview(
-    pickSummaryValue(input, ['query', 'toolName', 'toolInput', 'phase', 'modelName', 'source', 'reason', 'message', 'text']),
-    96,
-  );
-  return summary ?? summarizeTimelineItem(item);
-}
-
-function summarizeTimelineOutput(item: AgentExecutionTimelineItem) {
-  const output = parseJsonValue(item.outputJson);
-  return trimPreview(
-    pickSummaryValue(output, ['answer', 'message', 'reason', 'source', 'toolName', 'status', 'text']),
-    96,
-  );
-}
-
 function summarizeBackendInput(span: AgentExecutionBackendSpan) {
   const input = parseJsonValue(span.inputJson);
   if (!input) {
@@ -348,29 +281,6 @@ function summarizeBackendOutput(span: AgentExecutionBackendSpan) {
   return parts.length ? parts.join(' | ') : trimPreview(pickSummaryValue(objectOutput, ['message']), 96);
 }
 
-function computeBackendDepths(spans: AgentExecutionBackendSpan[]) {
-  const spanById = new Map(spans.map((span) => [span.callId, span]));
-  const depthById = new Map<string, number>();
-  const visit = (callId: string): number => {
-    const cached = depthById.get(callId);
-    if (cached != null) {
-      return cached;
-    }
-    const span = spanById.get(callId);
-    if (!span || !span.parentCallId || !spanById.has(span.parentCallId)) {
-      depthById.set(callId, 0);
-      return 0;
-    }
-    const depth = visit(span.parentCallId) + 1;
-    depthById.set(callId, depth);
-    return depth;
-  };
-  for (const span of spans) {
-    visit(span.callId);
-  }
-  return depthById;
-}
-
 function offsetFromTraceStart(traceStartedAt: string, startedAt: string) {
   const traceStartMs = new Date(traceStartedAt).getTime();
   const startedMs = new Date(startedAt).getTime();
@@ -378,6 +288,239 @@ function offsetFromTraceStart(traceStartedAt: string, startedAt: string) {
     return 0;
   }
   return Math.max(0, startedMs - traceStartMs);
+}
+
+type AgentTimelineTreeNode =
+  | {
+    key: string;
+    kind: 'span';
+    title: string;
+    status?: string | null;
+    sequenceNo: number;
+    startedAt?: string | null;
+    endedAt?: string | null;
+    durationMs?: number | null;
+    metaText?: string | null;
+    subtitle?: string | null;
+    extraTag?: string | null;
+    inputSummary?: string | null;
+    outputSummary?: string | null;
+    span: AgentExecutionSpan;
+    children: AgentTimelineTreeNode[];
+  }
+  | {
+    key: string;
+    kind: 'event';
+    title: string;
+    status?: string | null;
+    sequenceNo: number;
+    startedAt?: string | null;
+    endedAt?: string | null;
+    durationMs?: number | null;
+    metaText?: string | null;
+    subtitle?: string | null;
+    extraTag?: string | null;
+    inputSummary?: string | null;
+    outputSummary?: string | null;
+    event: AgentExecutionEvent;
+    children: AgentTimelineTreeNode[];
+  };
+
+type BackendTreeNode = {
+  key: string;
+  span: AgentExecutionBackendSpan;
+  children: BackendTreeNode[];
+};
+
+function semanticSpanTitle(span: AgentExecutionSpan) {
+  if (span.spanType === 'REQUEST') {
+    return '接收请求';
+  }
+  if (span.spanType === 'ROUTING') {
+    return '查询路由';
+  }
+  if (span.spanType === 'STREAM') {
+    return 'Agent 执行';
+  }
+  if (span.spanType === 'FINALIZE') {
+    return '最终响应整理';
+  }
+  if (span.spanType === 'TOOL') {
+    return '工具调用';
+  }
+  return describeSpan(span);
+}
+
+function timelineEventStatus(eventType?: string | null) {
+  if (eventType === 'agent.error') {
+    return 'FAILED';
+  }
+  return null;
+}
+
+function shouldDisplayAgentTimelineEvent(eventType?: string | null) {
+  return Boolean(eventType && [
+    'request.received',
+    'query.routed',
+    'agent.call.start',
+    'agent.call.end',
+    'prompt.injected',
+    'tool.start',
+    'tool.chunk',
+    'tool.end',
+    'tool.result',
+    'hint',
+    'agent.result',
+    'final.response',
+    'agent.error',
+  ].includes(eventType));
+}
+
+function buildAgentTimelineTree(spans: AgentExecutionSpan[], events: AgentExecutionEvent[]) {
+  const orderedSpans = [...spans].sort((left, right) => left.sequenceNo - right.sequenceNo);
+  const orderedEvents = [...events].sort((left, right) => left.sequenceNo - right.sequenceNo);
+  const spanNodeById = new Map<string, AgentTimelineTreeNode>();
+  const roots: AgentTimelineTreeNode[] = [];
+  const requestSpan = orderedSpans.find((span) => span.spanType === 'REQUEST') ?? null;
+  const routingSpan = orderedSpans.find((span) => span.spanType === 'ROUTING' || span.spanName === 'query.route') ?? null;
+  const streamSpan = orderedSpans.find((span) => span.spanType === 'STREAM') ?? null;
+  const finalizeSpan = orderedSpans.find((span) => span.spanType === 'FINALIZE') ?? null;
+
+  for (const span of orderedSpans) {
+    const node: AgentTimelineTreeNode = {
+      key: `span:${span.spanId}`,
+      kind: 'span',
+      title: semanticSpanTitle(span),
+      status: span.status,
+      sequenceNo: span.sequenceNo,
+      startedAt: span.startedAt,
+      endedAt: span.endedAt,
+      durationMs: span.durationMs,
+      metaText: SPAN_TYPE_LABELS[span.spanType] ?? span.spanType,
+      subtitle: span.parentSpanId ? `父阶段: ${span.parentSpanId}` : null,
+      extraTag: 'SPAN',
+      inputSummary: summarizeSpanInput(span),
+      outputSummary: summarizeSpanOutput(span),
+      span,
+      children: [],
+    };
+    spanNodeById.set(span.spanId, node);
+  }
+
+  for (const span of orderedSpans) {
+    const node = spanNodeById.get(span.spanId);
+    if (!node) {
+      continue;
+    }
+    if (span.parentSpanId && spanNodeById.has(span.parentSpanId)) {
+      spanNodeById.get(span.parentSpanId)?.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  const attachEvent = (parentSpanId: string | null, event: AgentExecutionEvent) => {
+    const parentNode = parentSpanId ? spanNodeById.get(parentSpanId) : null;
+    const eventNode: AgentTimelineTreeNode = {
+      key: `event:${event.id}`,
+      kind: 'event',
+      title: EVENT_TYPE_LABELS[event.eventType ?? ''] ?? event.eventType ?? '事件',
+      status: timelineEventStatus(event.eventType),
+      sequenceNo: event.sequenceNo,
+      startedAt: event.occurredAt,
+      endedAt: event.occurredAt,
+      durationMs: null,
+      metaText: '事件',
+      subtitle: parentSpanId ? `归属阶段: ${parentSpanId}` : null,
+      extraTag: 'EVENT',
+      inputSummary: summarizeEvent(event),
+      outputSummary: null,
+      event,
+      children: [],
+    };
+    if (parentNode) {
+      parentNode.children.push(eventNode);
+    } else if (roots.length) {
+      roots[0]?.children.push(eventNode);
+    } else {
+      roots.push(eventNode);
+    }
+  };
+
+  for (const event of orderedEvents) {
+    if (!shouldDisplayAgentTimelineEvent(event.eventType)) {
+      continue;
+    }
+    let parentSpanId = event.spanId;
+    switch (event.eventType) {
+      case 'request.received':
+        parentSpanId = requestSpan?.spanId ?? event.spanId;
+        break;
+      case 'query.routed':
+        parentSpanId = routingSpan?.spanId ?? requestSpan?.spanId ?? event.spanId;
+        break;
+      case 'agent.call.start':
+      case 'agent.call.end':
+        parentSpanId = streamSpan?.spanId ?? requestSpan?.spanId ?? event.spanId;
+        break;
+      case 'prompt.injected':
+      case 'tool.result':
+      case 'hint':
+      case 'agent.result':
+      case 'agent.error':
+        parentSpanId = streamSpan?.spanId ?? event.spanId ?? requestSpan?.spanId ?? null;
+        break;
+      case 'tool.start':
+      case 'tool.chunk':
+      case 'tool.end':
+        parentSpanId = event.spanId ?? null;
+        break;
+      case 'final.response':
+        parentSpanId = finalizeSpan?.spanId ?? event.spanId ?? requestSpan?.spanId ?? null;
+        break;
+      default:
+        break;
+    }
+    attachEvent(parentSpanId, event);
+  }
+
+  const sortRecursively = (nodes: AgentTimelineTreeNode[]) => {
+    nodes.sort((left, right) => left.sequenceNo - right.sequenceNo);
+    for (const node of nodes) {
+      sortRecursively(node.children);
+    }
+  };
+  sortRecursively(roots);
+  return roots;
+}
+
+function buildBackendSpanTree(spans: AgentExecutionBackendSpan[]) {
+  const ordered = [...spans].sort((left, right) => left.sequenceNo - right.sequenceNo);
+  const nodeById = new Map<string, BackendTreeNode>();
+  const roots: BackendTreeNode[] = [];
+  for (const span of ordered) {
+    nodeById.set(span.callId, {
+      key: span.callId,
+      span,
+      children: [],
+    });
+  }
+  for (const span of ordered) {
+    const node = nodeById.get(span.callId);
+    if (!node) {
+      continue;
+    }
+    if (span.parentCallId && nodeById.has(span.parentCallId)) {
+      nodeById.get(span.parentCallId)?.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
+}
+
+function buildStepLabel(parentLabel: string | null, index: number) {
+  return parentLabel ? `${parentLabel}.${index + 1}` : String(index + 1);
 }
 
 function JsonBlock({ title, value }: { title: string; value?: string | null }) {
@@ -514,24 +657,41 @@ function SpanPanelBody({ span, events }: { span: AgentExecutionSpan; events: Age
   );
 }
 
-function TimelineItemBody({ item }: { item: AgentExecutionTimelineItem }) {
+function TimelineSpanBody({ span }: { span: AgentExecutionSpan }) {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Descriptions size="small" column={2} bordered>
-        <Descriptions.Item label="itemId">{item.itemId}</Descriptions.Item>
-        <Descriptions.Item label="来源类型">{item.sourceType}</Descriptions.Item>
-        <Descriptions.Item label="时间线类型">{TIMELINE_TYPE_LABELS[item.itemType] ?? item.itemType}</Descriptions.Item>
-        <Descriptions.Item label="全局序号">#{item.sequenceNo}</Descriptions.Item>
-        <Descriptions.Item label="关联 span">{item.relatedSpanId || '-'}</Descriptions.Item>
-        <Descriptions.Item label="关联 event">{item.relatedEventId ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="开始时间">{formatDateTime(item.startedAt)}</Descriptions.Item>
-        <Descriptions.Item label="结束时间">{formatDateTime(item.endedAt)}</Descriptions.Item>
-        <Descriptions.Item label="耗时">{formatDuration(item.durationMs)}</Descriptions.Item>
-        <Descriptions.Item label="状态">{item.status || '-'}</Descriptions.Item>
+        <Descriptions.Item label="spanId">{span.spanId}</Descriptions.Item>
+        <Descriptions.Item label="parentSpanId">{span.parentSpanId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="阶段">{SPAN_TYPE_LABELS[span.spanType] ?? span.spanType}</Descriptions.Item>
+        <Descriptions.Item label="名称">{span.spanName || '-'}</Descriptions.Item>
+        <Descriptions.Item label="全局序号">#{span.sequenceNo}</Descriptions.Item>
+        <Descriptions.Item label="状态">{span.status}</Descriptions.Item>
+        <Descriptions.Item label="开始时间">{formatDateTime(span.startedAt)}</Descriptions.Item>
+        <Descriptions.Item label="结束时间">{formatDateTime(span.endedAt)}</Descriptions.Item>
+        <Descriptions.Item label="耗时">{formatDuration(span.durationMs)}</Descriptions.Item>
+        <Descriptions.Item label="attempt">{span.attemptNo}</Descriptions.Item>
       </Descriptions>
-      <JsonBlock title="Input" value={item.inputJson} />
-      <JsonBlock title="Output" value={item.outputJson} />
-      <JsonBlock title="Payload" value={item.payloadJson} />
+      <JsonBlock title="Input" value={span.inputJson} />
+      <JsonBlock title="Output" value={span.outputJson} />
+      <JsonBlock title="Tags" value={span.tagsJson} />
+      <JsonBlock title="Error" value={span.errorJson} />
+    </Space>
+  );
+}
+
+function TimelineEventBody({ event }: { event: AgentExecutionEvent }) {
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Descriptions size="small" column={2} bordered>
+        <Descriptions.Item label="eventId">{event.id}</Descriptions.Item>
+        <Descriptions.Item label="spanId">{event.spanId || '-'}</Descriptions.Item>
+        <Descriptions.Item label="事件类型">{EVENT_TYPE_LABELS[event.eventType ?? ''] ?? event.eventType ?? '-'}</Descriptions.Item>
+        <Descriptions.Item label="全局序号">#{event.sequenceNo}</Descriptions.Item>
+        <Descriptions.Item label="发生时间">{formatDateTime(event.occurredAt)}</Descriptions.Item>
+        <Descriptions.Item label="摘要">{summarizeEvent(event) || '-'}</Descriptions.Item>
+      </Descriptions>
+      <JsonBlock title="Payload" value={event.payloadJson} />
     </Space>
   );
 }
@@ -564,16 +724,18 @@ function StepCard({
   panelKey,
   header,
   children,
+  defaultExpanded = false,
 }: {
   panelKey: string;
   header: React.ReactNode;
   children: React.ReactNode;
+  defaultExpanded?: boolean;
 }) {
   return (
     <Card className="trace-step-card" bodyStyle={{ padding: 0 }}>
       <Collapse
         ghost
-        defaultActiveKey={[]}
+        defaultActiveKey={defaultExpanded ? [panelKey] : []}
         items={[
           {
             key: panelKey,
@@ -583,6 +745,138 @@ function StepCard({
         ]}
       />
     </Card>
+  );
+}
+
+function AgentTimelineTree({
+  nodes,
+  depth,
+  parentStepLabel,
+}: {
+  nodes: AgentTimelineTreeNode[];
+  depth: number;
+  parentStepLabel: string | null;
+}) {
+  return (
+    <div className="trace-tree-list">
+      {nodes.map((node, index) => {
+        const stepLabel = buildStepLabel(parentStepLabel, index);
+        const header = (
+          <StepHeader
+            title={node.title}
+            subtitle={node.subtitle ?? undefined}
+            inputSummary={node.inputSummary}
+            outputSummary={node.outputSummary}
+            status={node.status}
+            stepNo={stepLabel}
+            globalSequenceNo={node.sequenceNo}
+            durationMs={node.durationMs}
+            startedAt={node.startedAt}
+            metaText={node.metaText}
+            extraTag={node.extraTag ?? undefined}
+          />
+        );
+        const body = node.kind === 'span'
+          ? <TimelineSpanBody span={node.span} />
+          : <TimelineEventBody event={node.event} />;
+        return (
+          <div
+            key={node.key}
+            className="trace-tree-node"
+            style={{ ['--trace-depth' as '--trace-depth']: depth } as React.CSSProperties}
+          >
+            <StepCard panelKey={node.key} header={header} defaultExpanded={depth === 0}>
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                {body}
+                {node.children.length ? (
+                  <div className="trace-tree-children">
+                    <AgentTimelineTree nodes={node.children} depth={depth + 1} parentStepLabel={stepLabel} />
+                  </div>
+                ) : null}
+              </Space>
+            </StepCard>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function BackendWaterfallTree({
+  nodes,
+  depth,
+  parentStepLabel,
+  traceStartedAt,
+  totalDuration,
+}: {
+  nodes: BackendTreeNode[];
+  depth: number;
+  parentStepLabel: string | null;
+  traceStartedAt: string;
+  totalDuration: number;
+}) {
+  return (
+    <div className="trace-tree-list">
+      {nodes.map((node, index) => {
+        const stepLabel = buildStepLabel(parentStepLabel, index);
+        const span = node.span;
+        const offsetMs = offsetFromTraceStart(traceStartedAt, span.startedAt);
+        const offsetPercent = Math.min(100, (offsetMs / Math.max(totalDuration, 1)) * 100);
+        const widthPercent = Math.max(2, ((span.durationMs ?? 0) / Math.max(totalDuration, 1)) * 100);
+        return (
+          <div
+            key={node.key}
+            className="trace-tree-node"
+            style={{ ['--trace-depth' as '--trace-depth']: depth } as React.CSSProperties}
+          >
+            <StepCard
+              panelKey={node.key}
+              defaultExpanded={depth === 0}
+              header={(
+                <StepHeader
+                  title={span.callName}
+                  subtitle={span.parentCallId ? `父调用: ${span.parentCallId}` : '根调用'}
+                  inputSummary={summarizeBackendInput(span)}
+                  outputSummary={summarizeBackendOutput(span)}
+                  status={span.status}
+                  stepNo={stepLabel}
+                  globalSequenceNo={span.sequenceNo}
+                  durationMs={span.durationMs}
+                  startedAt={span.startedAt}
+                  metaText={`+${offsetMs} ms`}
+                  extraTag={span.callType}
+                  visual={(
+                    <div className="trace-waterfall-visual">
+                      <div className="trace-waterfall-track">
+                        <div
+                          className="trace-waterfall-bar"
+                          style={{ marginLeft: `${offsetPercent}%`, width: `${Math.min(100 - offsetPercent, widthPercent)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                />
+              )}
+            >
+              <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                <BackendSpanBody span={span} offsetMs={offsetMs} />
+                {node.children.length ? (
+                  <div className="trace-tree-children">
+                    <BackendWaterfallTree
+                      nodes={node.children}
+                      depth={depth + 1}
+                      parentStepLabel={stepLabel}
+                      traceStartedAt={traceStartedAt}
+                      totalDuration={totalDuration}
+                    />
+                  </div>
+                ) : null}
+              </Space>
+            </StepCard>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -644,11 +938,11 @@ export function TraceDetailPage() {
     return <Alert type="error" showIcon message="加载 trace 详情失败" description={buildErrorSummary(traceQuery.error, '请稍后重试')} />;
   }
 
-  const { trace, spans, events, agentTimeline, backendSpans } = traceQuery.data;
+  const { trace, spans, events, backendSpans } = traceQuery.data;
   const orderedSpans = [...spans].sort((left, right) => left.sequenceNo - right.sequenceNo);
-  const orderedTimeline = [...agentTimeline].sort((left, right) => left.sequenceNo - right.sequenceNo);
   const orderedBackendSpans = [...backendSpans].sort((left, right) => left.sequenceNo - right.sequenceNo);
-  const backendDepths = computeBackendDepths(orderedBackendSpans);
+  const agentTimelineTree = buildAgentTimelineTree(orderedSpans, events);
+  const backendSpanTree = buildBackendSpanTree(orderedBackendSpans);
   const backendSpanExtent = Math.max(...orderedBackendSpans.map((span) => {
     const offset = offsetFromTraceStart(trace.startedAt, span.startedAt);
     return offset + (span.durationMs ?? 0);
@@ -711,34 +1005,10 @@ export function TraceDetailPage() {
                     showIcon
                     style={{ marginBottom: 16 }}
                     message="这一层只展示 ReActAgent 的核心执行语义"
-                    description="按统一时间轴顺序展示接收请求、路由、Prompt 注入、工具调用、工具结果回注、Agent 最终消息与最终响应，不再直接暴露 chat.request 这类技术根 span 作为主阅读入口。"
+                    description="以接收请求为最外层，向内展开查询路由、Agent 执行、工具调用、最终响应整理等阶段；每一层都保持时间顺序，展开后可继续查看该阶段下的具体事件。"
                   />
-                  {orderedTimeline.length ? (
-                    <div className="trace-step-list">
-                      {orderedTimeline.map((item, index) => (
-                        <StepCard
-                          key={item.itemId}
-                          panelKey={item.itemId}
-                          header={
-                            <StepHeader
-                              title={item.title}
-                              subtitle={item.relatedSpanId ? `关联 span: ${item.relatedSpanId}` : undefined}
-                              inputSummary={summarizeTimelineInput(item)}
-                              outputSummary={summarizeTimelineOutput(item)}
-                              status={item.status}
-                              stepNo={index + 1}
-                              globalSequenceNo={item.sequenceNo}
-                              durationMs={item.durationMs}
-                              startedAt={item.startedAt}
-                              metaText={TIMELINE_TYPE_LABELS[item.itemType] ?? item.itemType}
-                              extraTag={item.sourceType}
-                            />
-                          }
-                        >
-                          <TimelineItemBody item={item} />
-                        </StepCard>
-                      ))}
-                    </div>
+                  {agentTimelineTree.length ? (
+                    <AgentTimelineTree nodes={agentTimelineTree} depth={0} parentStepLabel={null} />
                   ) : (
                     <Empty description="当前 trace 暂无可展示的 Agent 时间线" />
                   )}
@@ -755,50 +1025,16 @@ export function TraceDetailPage() {
                     showIcon
                     style={{ marginBottom: 16 }}
                     message="这一层展示关键服务方法的调用链和耗时"
-                    description="仅保留聊天链路中的关键服务节点，避免全方法 AOP 带来的噪声。每个调用块会展示父子关系、开始偏移与耗时条，便于快速定位慢点。"
+                    description="按父子调用关系分层展示关键服务方法；同层缩进一致，并保留开始偏移与耗时条，便于同时看清结构和性能。"
                   />
-                  {orderedBackendSpans.length ? (
-                    <div className="trace-step-list">
-                      {orderedBackendSpans.map((span, index) => {
-                        const depth = backendDepths.get(span.callId) ?? 0;
-                        const offsetMs = offsetFromTraceStart(trace.startedAt, span.startedAt);
-                        const offsetPercent = Math.min(100, (offsetMs / Math.max(totalDuration, 1)) * 100);
-                        const widthPercent = Math.max(2, ((span.durationMs ?? 0) / Math.max(totalDuration, 1)) * 100);
-                        return (
-                          <StepCard
-                            key={span.callId}
-                            panelKey={span.callId}
-                            header={
-                              <StepHeader
-                                title={span.callName}
-                                subtitle={span.parentCallId ? `父调用: ${span.parentCallId}` : '根调用'}
-                                inputSummary={summarizeBackendInput(span)}
-                                outputSummary={summarizeBackendOutput(span)}
-                                status={span.status}
-                                stepNo={index + 1}
-                                globalSequenceNo={span.sequenceNo}
-                                durationMs={span.durationMs}
-                                startedAt={span.startedAt}
-                                metaText={`+${offsetMs} ms`}
-                                extraTag={span.callType}
-                                visual={
-                                  <div className="trace-waterfall-visual" style={{ marginLeft: depth * 18 }}>
-                                    <div className="trace-waterfall-track">
-                                      <div
-                                        className="trace-waterfall-bar"
-                                        style={{ marginLeft: `${offsetPercent}%`, width: `${Math.min(100 - offsetPercent, widthPercent)}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                }
-                              />
-                            }
-                          >
-                            <BackendSpanBody span={span} offsetMs={offsetMs} />
-                          </StepCard>
-                        );
-                      })}
-                    </div>
+                  {backendSpanTree.length ? (
+                    <BackendWaterfallTree
+                      nodes={backendSpanTree}
+                      depth={0}
+                      parentStepLabel={null}
+                      traceStartedAt={trace.startedAt}
+                      totalDuration={totalDuration}
+                    />
                   ) : (
                     <Empty description="当前 trace 暂无后端调用瀑布数据" />
                   )}

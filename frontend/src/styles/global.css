@@ -505,6 +505,36 @@ a {
   gap: 12px;
 }
 
+.trace-tree-list {
+  display: grid;
+  gap: 12px;
+}
+
+.trace-tree-node {
+  --trace-indent: calc(var(--trace-depth, 0) * 24px);
+  position: relative;
+  padding-left: var(--trace-indent);
+}
+
+.trace-tree-node::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--trace-indent) - 12px);
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.24), rgba(15, 118, 110, 0.04));
+}
+
+.trace-tree-node:first-child::before {
+  top: 22px;
+}
+
+.trace-tree-children {
+  display: grid;
+  gap: 12px;
+}
+
 .trace-step-card {
   border-radius: 18px;
   border: 1px solid rgba(15, 118, 110, 0.12);

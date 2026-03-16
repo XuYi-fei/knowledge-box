@@ -121,36 +121,10 @@ function collectPathIds(nodeMap: Map<string, OutlineNode>, headingId: string | n
   return path;
 }
 
-function isDocumentScrollContainer(target: Element | null) {
-  return (
-    !target ||
-    target === globalThis.document.body ||
-    target === globalThis.document.documentElement ||
-    target === globalThis.document.scrollingElement
-  );
-}
-
-function findScrollContainer(start: HTMLElement | null) {
-  let current = start?.parentElement ?? null;
-  while (current) {
-    const style = globalThis.getComputedStyle(current);
-    const overflowY = style.overflowY;
-    const scrollable = /(auto|scroll|overlay)/.test(overflowY) && current.scrollHeight > current.clientHeight;
-    if (scrollable) {
-      return current;
-    }
-    current = current.parentElement;
-  }
-  return globalThis.document.scrollingElement ?? globalThis.document.documentElement;
-}
-
 function scrollToElementInContainer(target: HTMLElement, scrollContainer: Element | null, behavior: ScrollBehavior) {
-  if (isDocumentScrollContainer(scrollContainer)) {
+  if (!(scrollContainer instanceof HTMLElement)) {
     const top = target.getBoundingClientRect().top + globalThis.window.scrollY - 20;
     globalThis.window.scrollTo({ top, behavior });
-    return;
-  }
-  if (!(scrollContainer instanceof HTMLElement)) {
     return;
   }
   const targetTop = target.getBoundingClientRect().top;
@@ -205,7 +179,7 @@ export function UserDocumentDetailPage() {
   );
 
   useEffect(() => {
-    scrollContainerRef.current = findScrollContainer(pageRootRef.current);
+    scrollContainerRef.current = pageRootRef.current;
   }, []);
 
   useEffect(() => {
@@ -224,11 +198,9 @@ export function UserDocumentDetailPage() {
         return;
       }
       const scrollContainer = scrollContainerRef.current;
-      const threshold = isDocumentScrollContainer(scrollContainer)
-        ? 140
-        : scrollContainer instanceof HTMLElement
-          ? scrollContainer.getBoundingClientRect().top + 80
-          : 140;
+      const threshold = scrollContainer instanceof HTMLElement
+        ? scrollContainer.getBoundingClientRect().top + 80
+        : 140;
       let currentHeading = headingElements[0].id;
       for (const headingElement of headingElements) {
         if (headingElement.getBoundingClientRect().top <= threshold) {
@@ -249,7 +221,7 @@ export function UserDocumentDetailPage() {
 
     resolveActiveHeading();
     const scrollContainer = scrollContainerRef.current;
-    const scrollTarget = isDocumentScrollContainer(scrollContainer) ? globalThis.window : scrollContainer;
+    const scrollTarget = scrollContainer instanceof HTMLElement ? scrollContainer : globalThis.window;
     scrollTarget?.addEventListener('scroll', handleScroll, { passive: true } as AddEventListenerOptions);
     window.addEventListener('resize', handleScroll);
     return () => {

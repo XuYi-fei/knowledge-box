@@ -18,6 +18,7 @@
 - 用户侧文档详情页已补齐统一背景与同步大纲悬浮栏：滚动时页面底色保持一致，并会根据 Markdown 标题自动生成右侧大纲，随阅读位置同步高亮。
 - 用户侧文档详情页已支持“命中即定位”：通过引用打开时会自动滚动到匹配章节并高亮目标标题；右侧大纲升级为可折叠层级树，仅展开当前阅读位置附近的分支，降低长文档阅读噪音。
 - 用户侧文档详情页已修正滚动上下文：大纲吸顶与标题跳转现在都绑定真实滚动容器，不再依赖 `window` 假设，弹窗页内滚动和点击标题跳转均可正常生效。
+- 用户侧文档详情页已进一步显式指定自身为唯一纵向滚动容器；右侧大纲 sticky 与标题点击跳转均直接绑定该容器，避免受 `AppShell`/浏览器窗口滚动上下文差异影响。
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理与动态 Tool/MCP/Skill 绑定管理。
 - 管理端 Trace 已升级为管理员专属的 Agent 调用链日志系统：后端按 `trace/span/event` 持久化 prompt 注入、thinking/summary、工具调用、最终回复与耗时，前端支持列表筛选与详情时间线查看。
 - 管理端 Trace 现支持删除单条已结束的执行链路；列表页和详情页都可删除，并会级联清理对应的 span/event 明细。
@@ -82,6 +83,7 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含用户侧文档详情页统一背景、右侧 sticky 大纲与标题同步高亮）。
 - 前端验证：`npm --prefix frontend run build` 通过（含用户侧文档详情页命中章节自动定位高亮，以及层级折叠大纲仅展开当前分支）。
 - 前端验证：`npm --prefix frontend run build` 通过（含文档详情页大纲 sticky 修正与标题点击跳转修正）。
+- 前端验证：`npm --prefix frontend run build` 通过（含文档详情页显式滚动容器修正，sticky 与跳转不再依赖外层滚动上下文）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含批量审核通过接口、批量请求/响应 DTO 与审核服务复用单条发布链路）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含用户侧公开文档详情接口与聊天引用新窗口查看链路）。
 - 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含同一文档多段命中时 citation 按文档聚合回归）。

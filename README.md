@@ -269,19 +269,46 @@ knowledge-box:
 
 ### 前端配置
 
-复制前端环境变量样例：
+前端通过 `Vite mode/profile` 读取不同环境变量，现已支持在开发、打包、预览时通过 npm 参数选择 profile。
+
+可用 profile 约定：
+
+- `development`
+- `staging`
+- `production`
+
+复制对应 profile 的环境变量样例：
 
 ```bash
-cp frontend/.env.example frontend/.env
+cp frontend/.env.development.example frontend/.env.development
+cp frontend/.env.staging.example frontend/.env.staging
+cp frontend/.env.production.example frontend/.env.production
 ```
 
-默认内容：
+开发环境示例：
 
 ```bash
 VITE_API_BASE_URL=http://localhost:8080
 ```
 
-如果后端不是跑在 `8080` 端口，需要同步改这里。
+生产环境如果使用 nginx 同域反向代理 `/api`，可以把 `VITE_API_BASE_URL` 留空：
+
+```bash
+VITE_API_BASE_URL=
+```
+
+这时前端会直接请求相对地址 `/api/**`，由 nginx 转发给后端。
+
+支持的命令形式：
+
+```bash
+cd frontend
+npm run dev -- --profile development
+npm run build -- --profile staging
+npm run preview -- --profile production
+```
+
+如果你显式传了 `--mode xxx`，会优先使用该 mode；否则默认把 `profile` 作为 Vite mode。
 
 ## 如何启动系统
 
@@ -325,7 +352,7 @@ npm install
 开发模式启动：
 
 ```bash
-npm run dev
+npm run dev -- --profile development
 ```
 
 前端默认地址：
@@ -576,6 +603,11 @@ npm run build
 ```
 
 ```bash
+cd frontend
+npm run build -- --profile production
+```
+
+```bash
 bash scripts/quick-regression.sh
 ```
 
@@ -612,8 +644,9 @@ bash scripts/quick-regression.sh
 
 请检查：
 
-- 前端 `.env` 中的 `VITE_API_BASE_URL` 是否正确
+- 前端 `.env.<profile>` 中的 `VITE_API_BASE_URL` 是否正确
 - 后端是否运行在 `http://localhost:8080`
+- 如果走 nginx 同域反代，`VITE_API_BASE_URL` 可以留空，但要确认 nginx 已正确代理 `/api/**`
 - 浏览器控制台是否有跨域或网络错误
 
 ## 下一步建议

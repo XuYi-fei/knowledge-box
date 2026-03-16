@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "dev": "node ./scripts/run-vite-profile.mjs dev",
+    "build": "node ./scripts/run-vite-profile.mjs build",
+    "preview": "node ./scripts/run-vite-profile.mjs preview"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",

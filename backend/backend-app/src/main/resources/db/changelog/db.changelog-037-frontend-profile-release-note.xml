@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="037-001-about-release-note-frontend-profile" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.16',
+                '前端支持按 profile 启动与构建',
+                '前端已支持通过 npm 参数选择 development/staging/production 配置，便于多环境构建与 nginx 部署。',
+                E'## 本次更新\n\n- 前端启动、打包、预览支持通过 `--profile` 动态选择配置\n- 新增 `development / staging / production` 环境变量样例\n- 生产环境若走 nginx 同域反代 `/api`，可将 `VITE_API_BASE_URL` 置空，直接请求相对路径',
+                TIMESTAMPTZ '2026-03-16 18:30:00+08',
+                -6,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.16'
+                   AND title = '前端支持按 profile 启动与构建'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

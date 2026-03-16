@@ -19,6 +19,7 @@
 - 管理端已新增用户工具目录与工具执行日志页面；后端新增 `app_tool_definition / app_tool_execution_log`、用户工具执行接口、Redis 限流与后端执行型工具审计日志；前端已补齐工具目录/日志加载失败态、筛选回第一页、基础表单约束联动，以及可视化 schema 配置器与结果展示配置。
 - 用户工具页的输入表单与结果展示已切到 schema 驱动：`SERVER` 工具新增/改配可通过后台元数据直接生效，无需为了字段布局和结果展示单独重部署前端；仅新增全新的 `CLIENT` 执行器时仍需前端发版。
 - 已补充一批通用模板工具并通过初始化脚本自动注册：`URL 编码/解码`、`SHA-256 摘要`、`JSON 格式化/压缩`、`时间戳转换`；对应前端 `CLIENT` handler 已实现，可直接在工具页使用。
+- 前端启动/打包已支持按 profile 动态选择配置：`npm run dev/build/preview -- --profile <name>` 或 `npm run ... --profile=<name>`，并补充 `development/staging/production` 环境变量模板，便于 nginx 部署与多环境构建。
 - 文档治理链路已落地：文档上传、审核流、分类标签、Markdown 预览/编辑、图片转存、向量写入、索引重建与 bootstrap 初始化导入。
 - 管理端文档审核已支持批量审核通过；Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com / admin123`。
@@ -29,6 +30,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页、文档详情页、文档审核页、Trace 管理页、顶部 header/独立 About、主页固定高度与内部滚动、聊天引用样式，以及本次新增的用户工具页、header `工具` tab、管理端工具目录与工具执行日志页面。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖用户工具页 schema 驱动输入/结果渲染与管理端可视化 schema 配置器。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖新增的 URL、SHA-256、JSON、时间戳 `CLIENT` 模板工具执行逻辑。
+- 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖 profile 选择脚本与构建时动态配置加载。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。
 - 后端：全量 `mvn -q -pl backend/backend-app -am test` 在当前沙箱环境下因无法连本机 PostgreSQL（`SocketException: Operation not permitted`）失败，非本次代码编译错误。

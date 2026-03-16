@@ -32,6 +32,8 @@ export function AdminLayout() {
     { path: '/admin/profiles', name: 'Agent 配置' },
     { path: '/admin/documents', name: '知识文档' },
     { path: '/admin/document-reviews', name: '文档审核' },
+    { path: '/admin/app-tools', name: '用户工具' },
+    { path: '/admin/app-tool-executions', name: '工具执行日志' },
     { path: '/admin/integrations', name: 'Tools / MCP / Skills' },
     { path: '/admin/hooks', name: 'Hooks' },
     { path: '/admin/traces', name: '运行追踪' },

@@ -226,6 +226,7 @@ public class KnowledgeBoxProperties {
     public static class RateLimitKeys {
         private String authSendCode = "knowledge-box:rate-limit:auth-send-code";
         private String publicChatSubmit = "knowledge-box:rate-limit:public-chat-submit";
+        private String appToolExecute = "knowledge-box:rate-limit:app-tool-execute";
 
         public String getAuthSendCode() {
             return authSendCode;
@@ -241,6 +242,14 @@ public class KnowledgeBoxProperties {
 
         public void setPublicChatSubmit(String publicChatSubmit) {
             this.publicChatSubmit = publicChatSubmit;
+        }
+
+        public String getAppToolExecute() {
+            return appToolExecute;
+        }
+
+        public void setAppToolExecute(String appToolExecute) {
+            this.appToolExecute = appToolExecute;
         }
     }
 

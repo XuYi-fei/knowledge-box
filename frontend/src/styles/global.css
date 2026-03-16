@@ -1470,6 +1470,121 @@ a {
   gap: 16px;
 }
 
+.user-tools-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.25fr);
+  gap: 16px;
+}
+
+.user-tools-directory-card .ant-card-body,
+.user-tools-workbench-card .ant-card-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-tools-directory-toolbar {
+  display: grid;
+  gap: 12px;
+}
+
+.user-tools-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.user-tool-card {
+  border: 0;
+  width: 100%;
+  padding: 16px;
+  border-radius: 18px;
+  text-align: left;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(243, 249, 247, 0.98));
+  box-shadow: 0 14px 30px rgba(16, 42, 43, 0.08);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.user-tool-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(15, 118, 110, 0.16);
+}
+
+.user-tool-card-active {
+  box-shadow: 0 20px 36px rgba(15, 118, 110, 0.22);
+  background:
+    radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 36%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.99), rgba(232, 245, 241, 0.98));
+}
+
+.user-tool-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, rgba(15, 118, 110, 0.16), rgba(21, 128, 61, 0.12));
+  color: #0f766e;
+  font-size: 18px;
+}
+
+.user-tool-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.user-tool-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.user-tool-card-summary.ant-typography {
+  margin: 0;
+  color: rgba(16, 42, 43, 0.68);
+  font-size: 13px;
+}
+
+.user-tools-workbench {
+  display: grid;
+  gap: 16px;
+}
+
+.user-tools-intro {
+  display: grid;
+  gap: 10px;
+}
+
+.user-tools-markdown {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(15, 118, 110, 0.05);
+}
+
+.user-tools-result-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 248, 247, 0.98));
+}
+
+.app-tool-form-grid {
+  display: grid;
+  gap: 14px 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-tool-form-grid-span-2 {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 1199px) {
   .user-workspace-header {
     align-items: flex-start;
@@ -1544,6 +1659,10 @@ a {
   .trace-step-header-meta {
     justify-items: start;
     white-space: normal;
+  }
+
+  .user-tools-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1623,5 +1742,14 @@ a {
 
   .message-citation-item {
     padding: 8px 10px;
+  }
+
+  .app-tool-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-tool-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 14px;
   }
 }

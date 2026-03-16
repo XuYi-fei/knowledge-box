@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="034-001-about-release-note-app-tools" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.16',
+                '用户工作区新增工具页与后台可配置目录',
+                '用户工作区新增工具页，支持前端本地工具、后端执行工具，以及管理员维护工具目录与执行日志。',
+                E'## 本次更新\n\n- 用户工作区 header 新增 `工具` 页面，支持按分类查看和运行小工具\n- 首批内置 `Base64 编码`、`Base64 解码`、`MD5 摘要` 三个工具\n- 简单工具在浏览器本地执行，必须服务端处理的工具走统一后端执行接口\n- 管理端新增工具目录管理与工具执行日志页面，便于持续扩展和审计排障',
+                TIMESTAMPTZ '2026-03-16 14:30:00+08',
+                -4,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.16'
+                   AND title = '用户工作区新增工具页与后台可配置目录'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,4 +1,4 @@
-import { BookOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { BookOutlined, InfoCircleOutlined, ToolOutlined } from '@ant-design/icons';
 import { Typography } from 'antd';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -18,6 +18,13 @@ const workspaceTabs: WorkspaceTab[] = [
     path: '/',
     icon: <BookOutlined />,
     matches: (pathname) => pathname === '/' || pathname.startsWith('/documents/'),
+  },
+  {
+    key: 'tools',
+    label: '工具',
+    path: '/tools',
+    icon: <ToolOutlined />,
+    matches: (pathname) => pathname === '/tools',
   },
   {
     key: 'about',

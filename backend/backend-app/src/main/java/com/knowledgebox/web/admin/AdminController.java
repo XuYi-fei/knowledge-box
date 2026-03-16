@@ -1,11 +1,14 @@
 package com.knowledgebox.web.admin;
 
 import com.knowledgebox.api.AdminDashboardView;
+import com.knowledgebox.api.AppToolDefinitionView;
+import com.knowledgebox.api.AppToolExecutionLogPageView;
 import com.knowledgebox.api.AgentExecutionTraceDetailView;
 import com.knowledgebox.api.AgentExecutionTracePageView;
 import com.knowledgebox.api.AgentProfileVersionView;
 import com.knowledgebox.api.AgentProfileVersionBindingsView;
 import com.knowledgebox.api.ChangeAdminPasswordRequest;
+import com.knowledgebox.api.CreateAppToolDefinitionRequest;
 import com.knowledgebox.api.CreateMcpServerRequest;
 import com.knowledgebox.api.CreateModelCatalogRequest;
 import com.knowledgebox.api.CreateToolDefinitionRequest;
@@ -15,6 +18,7 @@ import com.knowledgebox.api.McpServerView;
 import com.knowledgebox.api.ModelCatalogView;
 import com.knowledgebox.api.SkillBindingView;
 import com.knowledgebox.api.ToolDefinitionView;
+import com.knowledgebox.api.UpdateAppToolDefinitionRequest;
 import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
 import com.knowledgebox.api.UpdateAgentProfileVersionRequest;
 import com.knowledgebox.api.UpdateMcpServerRequest;
@@ -26,6 +30,7 @@ import com.knowledgebox.service.admin.AdminCommandService;
 import com.knowledgebox.service.admin.AgentExecutionTraceAdminService;
 import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
 import com.knowledgebox.service.admin.AdminQueryService;
+import com.knowledgebox.service.apptool.AppToolAdminService;
 import com.knowledgebox.service.integration.AgentProfileBindingService;
 import com.knowledgebox.service.integration.IntegrationAdminService;
 import jakarta.validation.Valid;
@@ -54,6 +59,7 @@ public class AdminController {
     private final AdminCommandService adminCommandService;
     private final IntegrationAdminService integrationAdminService;
     private final AgentProfileBindingService agentProfileBindingService;
+    private final AppToolAdminService appToolAdminService;
 
     public AdminController(
             AdminQueryService adminQueryService,
@@ -61,7 +67,8 @@ public class AdminController {
             AgentExecutionTraceAdminService agentExecutionTraceAdminService,
             AdminCommandService adminCommandService,
             IntegrationAdminService integrationAdminService,
-            AgentProfileBindingService agentProfileBindingService
+            AgentProfileBindingService agentProfileBindingService,
+            AppToolAdminService appToolAdminService
     ) {
         this.adminQueryService = adminQueryService;
         this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
@@ -69,6 +76,7 @@ public class AdminController {
         this.adminCommandService = adminCommandService;
         this.integrationAdminService = integrationAdminService;
         this.agentProfileBindingService = agentProfileBindingService;
+        this.appToolAdminService = appToolAdminService;
     }
 
     @GetMapping("/me")
@@ -170,6 +178,41 @@ public class AdminController {
     public Map<String, String> deleteTool(@PathVariable String code) {
         integrationAdminService.deleteTool(code);
         return Map.of("message", "Tool deleted");
+    }
+
+    @GetMapping("/app-tools")
+    public List<AppToolDefinitionView> appTools() {
+        return appToolAdminService.appTools();
+    }
+
+    @PostMapping("/app-tools")
+    public AppToolDefinitionView createAppTool(@Valid @RequestBody CreateAppToolDefinitionRequest request) {
+        return appToolAdminService.create(request);
+    }
+
+    @PutMapping("/app-tools/{code}")
+    public AppToolDefinitionView updateAppTool(
+            @PathVariable String code,
+            @Valid @RequestBody UpdateAppToolDefinitionRequest request
+    ) {
+        return appToolAdminService.update(code, request);
+    }
+
+    @DeleteMapping("/app-tools/{code}")
+    public Map<String, String> deleteAppTool(@PathVariable String code) {
+        appToolAdminService.delete(code);
+        return Map.of("message", "App tool deleted");
+    }
+
+    @GetMapping("/app-tool-executions")
+    public AppToolExecutionLogPageView appToolExecutions(
+            @RequestParam(required = false) String toolCode,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize
+    ) {
+        return appToolAdminService.executionLogs(toolCode, status, userId, page, pageSize);
     }
 
     @GetMapping("/mcp-servers")

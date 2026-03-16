@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="033-001-create-app-tool-tables" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS app_tool_definition (
+                id BIGSERIAL PRIMARY KEY,
+                code VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128) NOT NULL,
+                summary VARCHAR(256) NOT NULL,
+                description_markdown TEXT NOT NULL,
+                category_code VARCHAR(64) NOT NULL,
+                icon_key VARCHAR(64) NOT NULL,
+                tags_json TEXT NOT NULL DEFAULT '[]',
+                display_order INTEGER NOT NULL DEFAULT 0,
+                enabled BOOLEAN NOT NULL DEFAULT TRUE,
+                execution_mode VARCHAR(16) NOT NULL,
+                renderer_code VARCHAR(64) NOT NULL,
+                handler_code VARCHAR(64) NOT NULL,
+                input_schema_json TEXT NOT NULL,
+                default_values_json TEXT NOT NULL,
+                result_schema_json TEXT NOT NULL,
+                server_config_json TEXT NOT NULL,
+                timeout_ms INTEGER,
+                rate_limit_scope VARCHAR(24) NOT NULL DEFAULT 'NONE',
+                rate_limit_max_requests INTEGER,
+                rate_limit_window_seconds INTEGER,
+                audit_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+                payload_limit_bytes INTEGER,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_app_tool_definition_enabled_order
+                ON app_tool_definition(enabled, display_order, name, id);
+
+            CREATE TABLE IF NOT EXISTS app_tool_execution_log (
+                id BIGSERIAL PRIMARY KEY,
+                execution_id VARCHAR(64) NOT NULL UNIQUE,
+                tool_code VARCHAR(64) NOT NULL,
+                user_id BIGINT,
+                status VARCHAR(24) NOT NULL,
+                duration_ms BIGINT,
+                request_summary_json TEXT NOT NULL,
+                response_summary_json TEXT NOT NULL,
+                error_code VARCHAR(64),
+                error_message VARCHAR(512),
+                client_ip_masked VARCHAR(128),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_app_tool_execution_log_created
+                ON app_tool_execution_log(created_at DESC, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_app_tool_execution_log_tool_code
+                ON app_tool_execution_log(tool_code, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_app_tool_execution_log_user_id
+                ON app_tool_execution_log(user_id, created_at DESC);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="033-002-seed-app-tools" author="codex">
+        <sql><![CDATA[
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'base64-encode',
+                'Base64 编码',
+                '将输入文本转换为 Base64 字符串，适合快速做调试、报文处理和内容复制。',
+                E'## 使用说明\n\n- 输入原始文本\n- 点击执行后直接返回 Base64 编码结果\n- 该工具在浏览器本地执行，不会把文本提交给后端',
+                'encoding',
+                'code',
+                '["编码","文本"]',
+                10,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'base64-encode',
+                '{"fields":[{"name":"text","label":"输入文本","type":"textarea","required":true,"maxLength":20000,"placeholder":"请输入需要编码的文本"}]}',
+                '{"text":""}',
+                '{"resultField":"encoded","copyable":true}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'base64-encode'
+            );
+
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'base64-decode',
+                'Base64 解码',
+                '将 Base64 字符串还原为 UTF-8 文本，便于排查编码后的响应和配置值。',
+                E'## 使用说明\n\n- 输入合法的 Base64 字符串\n- 点击执行后返回解码后的文本\n- 非法 Base64 输入会在前端直接报错',
+                'encoding',
+                'unlock',
+                '["编码","文本"]',
+                20,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'base64-decode',
+                '{"fields":[{"name":"text","label":"Base64 文本","type":"textarea","required":true,"maxLength":20000,"placeholder":"请输入需要解码的 Base64 字符串"}]}',
+                '{"text":""}',
+                '{"resultField":"decoded","copyable":true}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'base64-decode'
+            );
+
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'md5-digest',
+                'MD5 摘要',
+                '对输入文本计算 MD5 摘要，适合做兼容性校验、文件指纹比对和联调验证。',
+                E'## 使用说明\n\n- 输入任意文本\n- 工具会由后端计算 MD5 摘要\n- 调用会记录执行日志，便于管理员排障与风控',
+                'hash',
+                'safety',
+                '["摘要","校验"]',
+                30,
+                TRUE,
+                'SERVER',
+                'text-workbench',
+                'md5-digest',
+                '{"fields":[{"name":"text","label":"输入文本","type":"textarea","required":true,"maxLength":20000,"placeholder":"请输入需要计算摘要的文本"}]}',
+                '{"text":""}',
+                '{"resultField":"digest","copyable":true}',
+                '{"algorithm":"MD5"}',
+                3000,
+                'USER_AND_IP',
+                20,
+                60,
+                TRUE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'md5-digest'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

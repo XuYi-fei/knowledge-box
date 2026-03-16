@@ -63,3 +63,4 @@
 - Trace 详情里的 `sequenceNo` 是 span/event 共用的全局链路序号，不适合直接当“步骤号”；前端展示应另行按时间线重排步骤编号，并把原始序号明确标成“全局序号”。
 - Trace / backend waterfall 这类日志写库若发生在 `@Transactional(readOnly = true)` 服务方法内，开始/结束 span 的持久化必须用独立事务（如 `REQUIRES_NEW`），否则很容易在收尾阶段触发连接已关闭或只读事务写入失败。
 - JPA 原生查询在 `JOIN` 多表并返回实体时，`SELECT` 需显式限定到目标表别名（如 `SELECT dc.*`）；直接 `SELECT *` 很容易触发 `NonUniqueDiscoveredSqlAliasException`。
+- 带 `timeout` 的工具/任务执行不要把“查询配置 + 实际执行 + 审计落库”整段包进单个长事务；超时分支还需显式 `cancel`/中断后台任务，避免前台已超时但后台继续跑。

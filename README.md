@@ -13,6 +13,7 @@ Knowledge Box 是一套个人知识库系统。
 - 通过邮箱验证码 + 密码登录后进入聊天页面
 - 以问答形式返回结果
 - 每次回答附带引用来源和命中文档片段
+- 在工作区 `工具` 页使用 Base64 编解码、MD5 摘要等常用小工具
 
 ### 面向管理员的能力
 
@@ -22,6 +23,7 @@ Knowledge Box 是一套个人知识库系统。
 - 上传 Markdown 所引用的本地图片资源，后端会转存并改写图片链接
 - 查看文档处理任务、Hooks、Tools / MCP / Skills、运行 Trace
 - 按 `traceId` 查看 Agent 调用链日志详情，包括 span/event 时间线、prompt 注入、thinking、工具调用、最终回复与耗时
+- 维护用户工具目录，并查看后端执行型工具的调用日志
 
 ### 当前技术栈
 
@@ -42,7 +44,9 @@ Knowledge Box 是一套个人知识库系统。
 - 管理端 Basic Auth 登录
 - 用户邮箱验证码登录
 - Agent Profile / Version、文档、Hooks、Trace 等管理页面
+- 用户工具页、用户工具管理页与工具执行日志页
 - `POST /api/public/chat` 与 `POST /api/public/chat/stream` 接口
+- `GET /api/app/tools` 与 `POST /api/app/tools/{code}/execute` 用户工具接口
 - 基于 AgentScope ReActAgent + 知识库检索工具的真实对话调用链
 - Markdown 上传接口
 - Markdown 中本地图片引用的转存与链接改写
@@ -128,6 +132,7 @@ knowledge-box:
       rate-limit:
         auth-send-code: ${KB_REDIS_KEY_RATE_LIMIT_AUTH_SEND_CODE:knowledge-box:rate-limit:auth-send-code}
         public-chat-submit: ${KB_REDIS_KEY_RATE_LIMIT_PUBLIC_CHAT_SUBMIT:knowledge-box:rate-limit:public-chat-submit}
+        app-tool-execute: ${KB_REDIS_KEY_RATE_LIMIT_APP_TOOL_EXECUTE:knowledge-box:rate-limit:app-tool-execute}
 ```
 
 当前本机建议配置如下：
@@ -221,6 +226,7 @@ knowledge-box:
 - `spring.servlet.multipart.max-request-size`: 单次请求上传总大小上限（默认 `100MB`）
 - `spring.data.redis.*`: 邮箱验证码和发送频控使用的 Redis 连接信息，现已在 `application-local.yml` 中显式声明
 - `knowledge-box.redis.keys.*`: Redis key 前缀分组配置，按认证、聊天、限流等类型拆分命名空间
+- `knowledge-box.redis.keys.rate-limit.app-tool-execute`: 用户工具页后端执行型工具的限流 Redis key 前缀
 - `spring.mail.*`: QQ 邮箱 SMTP 配置，`password` 需要填写 QQ 邮箱的 SMTP 授权码，不是网页登录密码
 - `spring.ai.dashscope.api-key`: DashScope API Key
 - `knowledge-box.admin.username`: 管理员用户名

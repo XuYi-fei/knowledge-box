@@ -7,6 +7,11 @@ import {
   AgentProfileVersionBindings,
   AgentProfileVersionMcpBinding,
   AgentProfileVersion,
+  AppToolCatalogItem,
+  AppToolDefinition,
+  AppToolExecutionLogPage,
+  AppToolExecutionResult,
+  AppToolRateLimitScope,
   ChatMessageStatus,
   DocumentCategory,
   DocumentIndexRebuildJob,
@@ -70,6 +75,33 @@ type CreateToolPayload = {
 };
 
 type UpdateToolPayload = Omit<CreateToolPayload, 'code'>;
+
+type CreateAppToolPayload = {
+  code: string;
+  name: string;
+  summary: string;
+  descriptionMarkdown: string;
+  categoryCode: string;
+  iconKey: string;
+  tags: string[];
+  displayOrder?: number | null;
+  enabled: boolean;
+  executionMode: 'CLIENT' | 'SERVER';
+  rendererCode: string;
+  handlerCode: string;
+  inputSchemaJson: string;
+  defaultValuesJson?: string;
+  resultSchemaJson?: string;
+  serverConfigJson?: string;
+  timeoutMs?: number | null;
+  rateLimitScope: AppToolRateLimitScope;
+  rateLimitMaxRequests?: number | null;
+  rateLimitWindowSeconds?: number | null;
+  auditEnabled: boolean;
+  payloadLimitBytes?: number | null;
+};
+
+type UpdateAppToolPayload = Omit<CreateAppToolPayload, 'code'>;
 
 type CreateMcpServerPayload = {
   code: string;
@@ -258,6 +290,19 @@ export const api = {
   },
   async aboutReleaseNotes() {
     return requestJson<AboutReleaseNote[]>('/api/app/about/release-notes', undefined, 'user');
+  },
+  async appToolsCatalog() {
+    return requestJson<AppToolCatalogItem[]>('/api/app/tools', undefined, 'user');
+  },
+  async executeAppTool(code: string, input: Record<string, unknown>) {
+    return requestJson<AppToolExecutionResult>(
+      `/api/app/tools/${encodeURIComponent(code)}/execute`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ input }),
+      },
+      'user',
+    );
   },
   async userDocumentDetail(id: number) {
     return requestJson<KnowledgeDocument>(`/api/app/documents/${id}`, undefined, 'user');
@@ -496,6 +541,59 @@ export const api = {
   },
   async ingestionJobs() {
     return requestJson<IngestionJob[]>('/api/admin/ingestion-jobs', undefined, 'admin');
+  },
+  async appTools() {
+    return requestJson<AppToolDefinition[]>('/api/admin/app-tools', undefined, 'admin');
+  },
+  async createAppTool(payload: CreateAppToolPayload) {
+    return requestJson<AppToolDefinition>(
+      '/api/admin/app-tools',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async updateAppTool(code: string, payload: UpdateAppToolPayload) {
+    return requestJson<AppToolDefinition>(
+      `/api/admin/app-tools/${encodeURIComponent(code)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async deleteAppTool(code: string) {
+    return requestJson<{ message: string }>(
+      `/api/admin/app-tools/${encodeURIComponent(code)}`,
+      {
+        method: 'DELETE',
+      },
+      'admin',
+    );
+  },
+  async appToolExecutions(params?: { toolCode?: string; status?: string; userId?: number; page?: number; pageSize?: number }) {
+    const query = new URLSearchParams();
+    if (params?.toolCode) {
+      query.set('toolCode', params.toolCode);
+    }
+    if (params?.status) {
+      query.set('status', params.status);
+    }
+    if (params?.userId != null && Number.isFinite(params.userId)) {
+      query.set('userId', String(params.userId));
+    }
+    if (params?.page != null) {
+      query.set('page', String(params.page));
+    }
+    if (params?.pageSize != null) {
+      query.set('pageSize', String(params.pageSize));
+    }
+    const queryString = query.toString();
+    const path = queryString ? `/api/admin/app-tool-executions?${queryString}` : '/api/admin/app-tool-executions';
+    return requestJson<AppToolExecutionLogPage>(path, undefined, 'admin');
   },
   async tools() {
     return requestJson<ToolDefinition[]>('/api/admin/tools', undefined, 'admin');

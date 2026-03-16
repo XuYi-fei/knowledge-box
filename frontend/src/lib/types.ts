@@ -178,6 +178,86 @@ export type ToolDefinition = {
   enabled: boolean;
 };
 
+export type AppToolExecutionMode = 'CLIENT' | 'SERVER';
+
+export type AppToolRateLimitScope = 'NONE' | 'USER' | 'USER_AND_IP';
+
+export type AppToolCatalogItem = {
+  code: string;
+  name: string;
+  summary: string;
+  descriptionMarkdown: string;
+  categoryCode: string;
+  iconKey: string;
+  tags: string[];
+  displayOrder: number;
+  executionMode: AppToolExecutionMode;
+  rendererCode: string;
+  handlerCode: string;
+  inputSchemaJson: string;
+  defaultValuesJson: string;
+  resultSchemaJson: string;
+};
+
+export type AppToolDefinition = {
+  id: number;
+  code: string;
+  name: string;
+  summary: string;
+  descriptionMarkdown: string;
+  categoryCode: string;
+  iconKey: string;
+  tags: string[];
+  displayOrder: number;
+  enabled: boolean;
+  executionMode: AppToolExecutionMode;
+  rendererCode: string;
+  handlerCode: string;
+  inputSchemaJson: string;
+  defaultValuesJson: string;
+  resultSchemaJson: string;
+  serverConfigJson: string;
+  timeoutMs: number | null;
+  rateLimitScope: AppToolRateLimitScope;
+  rateLimitMaxRequests: number | null;
+  rateLimitWindowSeconds: number | null;
+  auditEnabled: boolean;
+  payloadLimitBytes: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppToolExecutionResult = {
+  toolCode: string;
+  executionMode: AppToolExecutionMode;
+  resultType: string;
+  result: unknown;
+  resultPreview: string;
+  durationMs: number;
+  executionId: string;
+};
+
+export type AppToolExecutionLog = {
+  executionId: string;
+  toolCode: string;
+  userId: number;
+  status: 'SUCCESS' | 'FAILED' | 'RATE_LIMITED';
+  durationMs: number | null;
+  requestSummaryJson: string;
+  responseSummaryJson: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  clientIpMasked: string | null;
+  createdAt: string;
+};
+
+export type AppToolExecutionLogPage = {
+  items: AppToolExecutionLog[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export type McpServer = {
   id: number;
   code: string;

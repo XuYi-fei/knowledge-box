@@ -77,6 +77,7 @@ knowledge-box:
       rate-limit:
         auth-send-code: ${KB_REDIS_KEY_RATE_LIMIT_AUTH_SEND_CODE:knowledge-box:rate-limit:auth-send-code}
         public-chat-submit: ${KB_REDIS_KEY_RATE_LIMIT_PUBLIC_CHAT_SUBMIT:knowledge-box:rate-limit:public-chat-submit}
+        app-tool-execute: ${KB_REDIS_KEY_RATE_LIMIT_APP_TOOL_EXECUTE:knowledge-box:rate-limit:app-tool-execute}
   storage:
     provider: ${KB_STORAGE_PROVIDER:local}
     local-base-path: ${KB_STORAGE_LOCAL_BASE_PATH:backend/uploads}

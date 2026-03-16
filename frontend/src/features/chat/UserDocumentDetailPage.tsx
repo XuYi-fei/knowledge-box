@@ -36,6 +36,36 @@ function slugifyValue(value: string) {
     .replace(/^-+|-+$/g, '');
 }
 
+function normalizeHeadingTextContent(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function buildRenderedOutline(markdownRoot: HTMLDivElement | null, headingIdPrefix: string) {
+  if (!markdownRoot) {
+    return [];
+  }
+  const headingElements = Array.from(markdownRoot.querySelectorAll<HTMLElement>('.admin-markdown h1, .admin-markdown h2, .admin-markdown h3, .admin-markdown h4, .admin-markdown h5, .admin-markdown h6'));
+  const counter = new Map<string, number>();
+  return headingElements
+    .map((element) => {
+      const text = normalizeHeadingTextContent(element.textContent ?? '');
+      if (!text) {
+        return null;
+      }
+      const baseId = `${headingIdPrefix}-${slugifyValue(text) || 'section'}`;
+      const current = counter.get(baseId) ?? 0;
+      counter.set(baseId, current + 1);
+      const id = current === 0 ? baseId : `${baseId}-${current + 1}`;
+      element.id = id;
+      return {
+        id,
+        text,
+        level: Number(element.tagName.slice(1)),
+      } satisfies MarkdownOutlineItem;
+    })
+    .filter((item): item is MarkdownOutlineItem => item !== null);
+}
+
 function extractHeadingCandidates(headingPath: string | null, anchor: string | null) {
   const candidates: string[] = [];
   if (headingPath) {
@@ -147,10 +177,12 @@ function replaceWindowHash(headingId: string) {
 }
 
 function pushWindowHash(headingId: string) {
-  if (decodeURIComponent(globalThis.window.location.hash.replace(/^#/, '')) === headingId) {
+  const url = new URL(globalThis.window.location.href);
+  if (decodeURIComponent(url.hash.replace(/^#/, '')) === headingId) {
     return;
   }
-  globalThis.window.location.hash = headingId;
+  url.hash = headingId;
+  globalThis.window.history.pushState(globalThis.window.history.state, '', url);
 }
 
 export function UserDocumentDetailPage() {
@@ -165,10 +197,12 @@ export function UserDocumentDetailPage() {
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const [highlightedHeadingId, setHighlightedHeadingId] = useState<string | null>(null);
   const [expandedHeadingIds, setExpandedHeadingIds] = useState<string[]>([]);
+  const [renderedOutline, setRenderedOutline] = useState<MarkdownOutlineItem[]>([]);
   const initialFocusRef = useRef<string | null>(null);
   const initialHashHeadingIdRef = useRef<string | null>(
     decodeURIComponent(location.hash.replace(/^#/, '').trim()) || null,
   );
+  const markdownRootRef = useRef<HTMLDivElement | null>(null);
 
   const documentQuery = useQuery({
     queryKey: ['userDocumentDetail', numericDocumentId],
@@ -189,15 +223,27 @@ export function UserDocumentDetailPage() {
   const detailDocument = documentQuery.data;
   const tagNames = detailDocument ? parseTagNames(detailDocument.tags) : [];
   const headingIdPrefix = `doc-outline-${numericDocumentId}`;
-  const outline = useMemo(
+  const fallbackOutline = useMemo(
     () => (detailDocument ? extractMarkdownOutline(detailDocument.sourceMarkdown, headingIdPrefix) : []),
     [detailDocument, headingIdPrefix],
   );
+  const outline = renderedOutline.length ? renderedOutline : fallbackOutline;
   const outlineTree = useMemo(() => buildOutlineTree(outline), [outline]);
   const activePathIds = useMemo(
     () => collectPathIds(outlineTree.nodeMap, activeHeadingId),
     [activeHeadingId, outlineTree.nodeMap],
   );
+
+  useEffect(() => {
+    if (!detailDocument) {
+      setRenderedOutline([]);
+      return;
+    }
+    const frameId = requestAnimationFrame(() => {
+      setRenderedOutline(buildRenderedOutline(markdownRootRef.current, headingIdPrefix));
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [detailDocument, headingIdPrefix]);
 
   useEffect(() => {
     if (!outline.length) {
@@ -411,11 +457,10 @@ export function UserDocumentDetailPage() {
                 </div>
               </div>
 
-              <div className="document-detail-markdown">
+              <div ref={markdownRootRef} className="document-detail-markdown">
                 <MarkdownRenderer
                   content={detailDocument.sourceMarkdown}
                   headingIdPrefix={headingIdPrefix}
-                  headingIds={outline.map((item) => item.id)}
                 />
               </div>
             </div>

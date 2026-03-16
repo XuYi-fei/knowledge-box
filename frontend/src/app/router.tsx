@@ -2,6 +2,7 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import { Spin } from 'antd';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { getAdminAuthToken, getUserAccessToken } from '../lib/auth';
+import { UserWorkspaceLayout } from '../layouts/UserWorkspaceLayout';
 
 const AdminLayout = lazy(() => import('../layouts/AdminLayout').then((module) => ({ default: module.AdminLayout })));
 const AdminLoginPage = lazy(() => import('../features/admin/AdminLoginPage').then((module) => ({ default: module.AdminLoginPage })));
@@ -13,6 +14,7 @@ const IntegrationsPage = lazy(() => import('../features/admin/IntegrationsPage')
 const HooksPage = lazy(() => import('../features/admin/HooksPage').then((module) => ({ default: module.HooksPage })));
 const TracesPage = lazy(() => import('../features/admin/TracesPage').then((module) => ({ default: module.TracesPage })));
 const TraceDetailPage = lazy(() => import('../features/admin/TraceDetailPage').then((module) => ({ default: module.TraceDetailPage })));
+const AboutPage = lazy(() => import('../features/chat/AboutPage').then((module) => ({ default: module.AboutPage })));
 const PublicChatPage = lazy(() => import('../features/chat/PublicChatPage').then((module) => ({ default: module.PublicChatPage })));
 const UserDocumentDetailPage = lazy(() => import('../features/chat/UserDocumentDetailPage').then((module) => ({ default: module.UserDocumentDetailPage })));
 const UserLoginPage = lazy(() => import('../features/auth/UserLoginPage').then((module) => ({ default: module.UserLoginPage })));
@@ -42,17 +44,14 @@ export const router = createBrowserRouter([
     path: '/',
     element: withSuspense(
       <RequireUserAuth>
-        <PublicChatPage />
+        <UserWorkspaceLayout />
       </RequireUserAuth>,
     ),
-  },
-  {
-    path: '/documents/:documentId',
-    element: withSuspense(
-      <RequireUserAuth>
-        <UserDocumentDetailPage />
-      </RequireUserAuth>,
-    ),
+    children: [
+      { index: true, element: withSuspense(<PublicChatPage />) },
+      { path: 'about', element: withSuspense(<AboutPage />) },
+      { path: 'documents/:documentId', element: withSuspense(<UserDocumentDetailPage />) },
+    ],
   },
   {
     path: '/login',

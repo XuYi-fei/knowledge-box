@@ -5,7 +5,6 @@ import {
   CompassOutlined,
   DeleteOutlined,
   HistoryOutlined,
-  InfoCircleOutlined,
   LogoutOutlined,
   MailOutlined,
   MessageOutlined,
@@ -21,7 +20,6 @@ import { clearUserAuthSession, getUserLastSessionId, setUserLastSessionId } from
 import { buildErrorSummary } from '../../lib/errors';
 import { streamJsonSse } from '../../lib/sse';
 import type {
-  AboutReleaseNote,
   ChatCitation,
   ChatMessageStatus,
   ChatStreamEvent,
@@ -347,7 +345,6 @@ export function PublicChatPage() {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const [input, setInput] = useState('');
-  const [workspaceTab, setWorkspaceTab] = useState<'chat' | 'about'>('chat');
   const [sessions, setSessions] = useState<SessionSummaryState[]>([]);
   const [sessionDetails, setSessionDetails] = useState<Record<string, UserChatSessionDetail>>({});
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -367,11 +364,6 @@ export function PublicChatPage() {
   const chatOptionsQuery = useQuery({
     queryKey: ['userChatOptions'],
     queryFn: api.userChatOptions,
-    staleTime: 5 * 60 * 1000,
-  });
-  const aboutReleaseNotesQuery = useQuery({
-    queryKey: ['aboutReleaseNotes'],
-    queryFn: api.aboutReleaseNotes,
     staleTime: 5 * 60 * 1000,
   });
   const sessionsQuery = useQuery({
@@ -762,7 +754,6 @@ export function PublicChatPage() {
 
   function createNewSession() {
     const draft = createDraftSession(chatOptionsQuery.data?.defaultChatModel ?? chatOptionsQuery.data?.activeChatModel);
-    setWorkspaceTab('chat');
     setSessions((current) => sortSessions([draft.summary, ...current]));
     setSessionDetails((current) => ({
       ...current,
@@ -828,9 +819,6 @@ export function PublicChatPage() {
     if (!query || !activeSessionId) {
       return;
     }
-    if (workspaceTab !== 'chat') {
-      setWorkspaceTab('chat');
-    }
 
     const activeDetail =
       sessionDetails[activeSessionId] ??
@@ -889,7 +877,6 @@ export function PublicChatPage() {
   }
 
   const activeDetail = activeSessionId ? sessionDetails[activeSessionId] : null;
-  const releaseNotes = aboutReleaseNotesQuery.data ?? [];
   const hasConversation = Boolean(activeDetail?.messages.length);
   const selectedChatModel =
     activeDetail?.selectedChatModel ?? chatOptionsQuery.data?.defaultChatModel ?? chatOptionsQuery.data?.activeChatModel;
@@ -900,21 +887,21 @@ export function PublicChatPage() {
   }
 
   useEffect(() => {
-    if (workspaceTab !== 'chat' || !activeSessionId) {
+    if (!activeSessionId) {
       return;
     }
     if (loadingSessionId === activeSessionId && !activeDetail) {
       return;
     }
     scheduleScrollToBottom(messagesContainerRef, messagesEndRef, scrollRafRef);
-  }, [activeDetail, activeDetail?.messages.length, activeSessionId, loadingSessionId, workspaceTab]);
+  }, [activeDetail, activeDetail?.messages.length, activeSessionId, loadingSessionId]);
 
   useEffect(() => {
-    if (workspaceTab !== 'chat' || !activeSessionId || !activeStreaming || !activeDetail) {
+    if (!activeSessionId || !activeStreaming || !activeDetail) {
       return;
     }
     scheduleScrollToBottom(messagesContainerRef, messagesEndRef, scrollRafRef);
-  }, [activeDetail?.messages, activeSessionId, activeDetail, activeStreaming, workspaceTab]);
+  }, [activeDetail?.messages, activeSessionId, activeDetail, activeStreaming]);
 
   if ((userQuery.isLoading || sessionsQuery.isLoading) && !sessions.length) {
     return (
@@ -926,22 +913,6 @@ export function PublicChatPage() {
 
   return (
     <div className="chat-shell">
-      <header className="chat-header">
-        <div className="chat-header-copy">
-          <Typography.Title className="hero-title">Knowledge Box</Typography.Title>
-          <div className="chat-header-meta">
-            <Typography.Paragraph className="hero-subtitle">
-              邮箱登录、持久化会话、流式 ReAct 问答与引用回溯都集中在同一工作区。
-            </Typography.Paragraph>
-            <div className="chat-header-stats">
-              <span>ReAct Agent</span>
-              <span>Streaming Resume</span>
-              <span>Markdown Ready</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div className="chat-content">
         <aside className="chat-sidebar">
           <div className="chat-sidebar-shell">
@@ -973,7 +944,6 @@ export function PublicChatPage() {
                       type="button"
                       className="chat-session-main"
                       onClick={() => {
-                        setWorkspaceTab('chat');
                         setActiveSessionId(session.sessionId);
                       }}
                     >
@@ -1040,34 +1010,12 @@ export function PublicChatPage() {
                   退出登录
                 </Button>
               </div>
-
-              <div className="chat-sidebar-tabs">
-                <Button
-                  type="text"
-                  icon={<MessageOutlined />}
-                  block
-                  className={`chat-sidebar-shortcut ${workspaceTab === 'chat' ? 'chat-sidebar-shortcut-active' : ''}`}
-                  onClick={() => setWorkspaceTab('chat')}
-                >
-                  问答页
-                </Button>
-                <Button
-                  type="text"
-                  icon={<InfoCircleOutlined />}
-                  block
-                  className={`chat-sidebar-shortcut ${workspaceTab === 'about' ? 'chat-sidebar-shortcut-active' : ''}`}
-                  onClick={() => setWorkspaceTab('about')}
-                >
-                  关于
-                </Button>
-              </div>
             </div>
           </div>
         </aside>
 
         <main className="chat-main">
-          {workspaceTab === 'chat' ? (
-            <Card className="chat-panel chat-card" title="问答会话">
+          <Card className="chat-panel chat-card" title="问答会话">
               <div className="chat-messages" ref={messagesContainerRef}>
                 {loadingSessionId === activeSessionId && !activeDetail ? (
                   <div className="chat-empty-state">
@@ -1280,52 +1228,6 @@ export function PublicChatPage() {
                 </Button>
               </div>
             </Card>
-          ) : (
-            <Card className="chat-panel chat-card" title="关于 Knowledge Box">
-              <div className="about-panel">
-                <div className="about-panel-intro">
-                  <Typography.Title level={4}>项目更新日志</Typography.Title>
-                  <Typography.Paragraph type="secondary">
-                    这里展示的是由后端数据库返回的版本更新记录，便于快速了解当前项目近期的能力演进与维护重点。
-                  </Typography.Paragraph>
-                </div>
-
-                {aboutReleaseNotesQuery.isLoading ? (
-                  <div className="chat-empty-state">
-                    <Spin />
-                  </div>
-                ) : releaseNotes.length ? (
-                  <div className="about-release-list">
-                    {releaseNotes.map((note: AboutReleaseNote) => (
-                      <Card
-                        key={note.id}
-                        size="small"
-                        className={`about-release-card ${note.highlighted ? 'about-release-card-highlighted' : ''}`}
-                      >
-                        <Space wrap className="about-release-meta">
-                          <Tag color={note.highlighted ? 'gold' : 'geekblue'} bordered={false}>
-                            {note.versionLabel}
-                          </Tag>
-                          <Typography.Text type="secondary">
-                            {new Date(note.publishedAt).toLocaleDateString('zh-CN')}
-                          </Typography.Text>
-                        </Space>
-                        <Typography.Title level={5}>{note.title}</Typography.Title>
-                        <Typography.Paragraph>{note.summary}</Typography.Paragraph>
-                        <div className="about-release-content">
-                          <MarkdownMessage content={note.contentMarkdown} />
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="chat-empty-state">
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前还没有可展示的更新日志。" />
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
         </main>
 
       </div>

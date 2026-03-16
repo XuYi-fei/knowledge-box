@@ -20,6 +20,7 @@
 - 用户侧文档详情页已修正滚动上下文：大纲吸顶与标题跳转现在都绑定真实滚动容器，不再依赖 `window` 假设，弹窗页内滚动和点击标题跳转均可正常生效。
 - 用户侧文档详情页已进一步显式指定自身为唯一纵向滚动容器；右侧大纲 sticky 与标题点击跳转均直接绑定该容器，避免受 `AppShell`/浏览器窗口滚动上下文差异影响。
 - 用户侧文档详情页已改回绑定浏览器窗口滚动：右侧大纲 sticky 直接跟随页面主滚动，点击标题会同步更新 URL hash 并跳转/高亮，避免浏览器级滚动条场景下的大纲失效。
+- 用户侧文档详情页大纲点击链路已切回“原生锚点优先 + 前端高亮补充”：大纲项改为真实锚点链接，点击时会显式写入 `location.hash` 并执行偏移滚动，避免仅靠按钮事件导致标题点击无效。
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理与动态 Tool/MCP/Skill 绑定管理。
 - 管理端 Trace 已升级为管理员专属的 Agent 调用链日志系统：后端按 `trace/span/event` 持久化 prompt 注入、thinking/summary、工具调用、最终回复与耗时，前端支持列表筛选与详情时间线查看。
 - 管理端 Trace 现支持删除单条已结束的执行链路；列表页和详情页都可删除，并会级联清理对应的 span/event 明细。
@@ -86,6 +87,7 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含文档详情页大纲 sticky 修正与标题点击跳转修正）。
 - 前端验证：`npm --prefix frontend run build` 通过（含文档详情页显式滚动容器修正，sticky 与跳转不再依赖外层滚动上下文）。
 - 前端验证：`npm --prefix frontend run build` 通过（含文档详情页切回浏览器窗口滚动模型、侧栏 sticky 改绑外层、点击大纲同步 hash 与高亮）。
+- 前端验证：`npm --prefix frontend run build` 通过（含文档详情页大纲切为原生锚点链接，点击标题时同步 `location.hash` 与补充平滑滚动）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含批量审核通过接口、批量请求/响应 DTO 与审核服务复用单条发布链路）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含用户侧公开文档详情接口与聊天引用新窗口查看链路）。
 - 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含同一文档多段命中时 citation 按文档聚合回归）。

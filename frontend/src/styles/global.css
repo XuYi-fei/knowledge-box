@@ -1007,6 +1007,7 @@ a {
 }
 
 .document-outline-item {
+  display: block;
   width: 100%;
   padding: 8px 10px;
   border: 0;
@@ -1014,6 +1015,7 @@ a {
   background: transparent;
   color: rgba(16, 42, 43, 0.72);
   text-align: left;
+  text-decoration: none;
   font-size: 12px;
   line-height: 1.45;
   cursor: pointer;

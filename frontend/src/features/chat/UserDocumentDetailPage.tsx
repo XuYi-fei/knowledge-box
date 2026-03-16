@@ -137,13 +137,20 @@ function scrollToHeadingInWindow(target: HTMLElement, behavior: ScrollBehavior) 
   globalThis.window.scrollTo({ top, behavior });
 }
 
-function syncWindowHash(headingId: string) {
+function replaceWindowHash(headingId: string) {
   const url = new URL(globalThis.window.location.href);
   if (decodeURIComponent(url.hash.replace(/^#/, '')) === headingId) {
     return;
   }
   url.hash = headingId;
   globalThis.window.history.replaceState(globalThis.window.history.state, '', url);
+}
+
+function pushWindowHash(headingId: string) {
+  if (decodeURIComponent(globalThis.window.location.hash.replace(/^#/, '')) === headingId) {
+    return;
+  }
+  globalThis.window.location.hash = headingId;
 }
 
 export function UserDocumentDetailPage() {
@@ -251,7 +258,7 @@ export function UserDocumentDetailPage() {
     setExpandedHeadingIds((current) => Array.from(new Set([...current, ...pathIds])));
     setActiveHeadingId(targetId);
     setHighlightedHeadingId(targetId);
-    syncWindowHash(targetId);
+    replaceWindowHash(targetId);
     requestAnimationFrame(() => {
       const target = globalThis.document.getElementById(targetId);
       if (target) {
@@ -291,7 +298,7 @@ export function UserDocumentDetailPage() {
     if (!target) {
       return;
     }
-    syncWindowHash(headingId);
+    pushWindowHash(headingId);
     scrollToHeadingInWindow(target, behavior);
     setActiveHeadingId(headingId);
     setHighlightedHeadingId(headingId);
@@ -327,13 +334,13 @@ export function UserDocumentDetailPage() {
             ) : (
               <span className="document-outline-toggle document-outline-toggle-placeholder" />
             )}
-            <button
-              type="button"
+            <a
               className={`document-outline-item ${activeHeadingId === node.id ? 'document-outline-item-active' : ''}`}
+              href={`#${node.id}`}
               onClick={() => scrollToHeading(node.id)}
             >
               {node.text}
-            </button>
+            </a>
           </div>
           {hasChildren && isExpanded ? <div className="document-outline-children">{renderOutlineNodes(node.children, depth + 1)}</div> : null}
         </div>

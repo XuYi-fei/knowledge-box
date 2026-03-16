@@ -62,8 +62,11 @@ function buildRenderedOutline(markdownRoot: HTMLDivElement | null, headingIdPref
       const baseId = `${headingIdPrefix}-${slugifyValue(text) || 'section'}`;
       const current = counter.get(baseId) ?? 0;
       counter.set(baseId, current + 1);
-      const id = current === 0 ? baseId : `${baseId}-${current + 1}`;
-      element.id = id;
+      const fallbackId = current === 0 ? baseId : `${baseId}-${current + 1}`;
+      const id = element.id || fallbackId;
+      if (!element.id) {
+        element.id = id;
+      }
       return {
         id,
         text,
@@ -538,6 +541,7 @@ export function UserDocumentDetailPage() {
                 <MarkdownRenderer
                   content={detailDocument.sourceMarkdown}
                   headingIdPrefix={headingIdPrefix}
+                  headingIds={fallbackOutline.map((item) => item.id)}
                 />
               </div>
             </div>

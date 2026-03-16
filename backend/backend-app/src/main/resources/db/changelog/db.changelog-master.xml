@@ -42,4 +42,5 @@
     <include file="db/changelog/db.changelog-035-app-tool-templates.xml"/>
     <include file="db/changelog/db.changelog-036-app-tool-templates-release-note.xml"/>
     <include file="db/changelog/db.changelog-037-frontend-profile-release-note.xml"/>
+    <include file="db/changelog/db.changelog-038-deploy-release-note.xml"/>
 </databaseChangeLog>

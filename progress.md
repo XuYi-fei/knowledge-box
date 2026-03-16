@@ -21,6 +21,7 @@
 - 已补充一批通用模板工具并通过初始化脚本自动注册：`URL 编码/解码`、`SHA-256 摘要`、`JSON 格式化/压缩`、`时间戳转换`；对应前端 `CLIENT` handler 已实现，可直接在工具页使用。
 - 前端启动/打包已支持按 profile 动态选择配置：`npm run dev/build/preview -- --profile <name>` 或 `npm run ... --profile=<name>`，并补充 `development/staging/production` 环境变量模板，便于 nginx 部署与多环境构建。
 - 已补充 `frontend/CONFIGURATION.md`、`.env.<profile>.local.example` 与 nginx 示例配置，前端多环境构建、同域反代部署和本地覆盖策略已有独立文档说明。
+- 已补充 `deploy/` 发布目录：支持本地构建后端 `jar` + 前端 `dist` 的 release bundle，内置 `www.xuyifei.site` 生产模板、4C4G JVM 参数、后端启动/停止脚本，并将 `tmp/yuque-batch` 与 bootstrap seeds 一起打包到服务器启动导入链路。
 - 文档治理链路已落地：文档上传、审核流、分类标签、Markdown 预览/编辑、图片转存、向量写入、索引重建与 bootstrap 初始化导入。
 - 管理端文档审核已支持批量审核通过；Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com / admin123`。
@@ -33,6 +34,8 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖新增的 URL、SHA-256、JSON、时间戳 `CLIENT` 模板工具执行逻辑。
 - 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖 profile 选择脚本与构建时动态配置加载。
 - 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖新增前端配置文档与本地覆盖模板后的构建链路。
+- 发布脚本：`bash -n deploy/build-release.sh && bash -n deploy/bin/start-backend.sh && bash -n deploy/bin/stop-backend.sh` 可通过。
+- 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本与 `tmp/yuque-batch/bootstrap-seeds`。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。
 - 后端：全量 `mvn -q -pl backend/backend-app -am test` 在当前沙箱环境下因无法连本机 PostgreSQL（`SocketException: Operation not permitted`）失败，非本次代码编译错误。

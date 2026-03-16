@@ -37,6 +37,20 @@ Knowledge Box 是一套个人知识库系统。
 
 - `backend/`: Spring Boot 后端服务，负责公开问答接口、管理接口、配置读取、Liquibase 和本地文件存储
 - `frontend/`: React 管理后台和公开问答页面
+- `deploy/`: 本地构建发布包、服务器启动脚本、生产配置模板、`systemd` 与 nginx 示例
+
+## 生产打包与轻量部署
+
+针对 4C4G 服务器，仓库已提供“本地构建、服务器只运行”的发布方案：
+
+- 本地打后端 `jar`
+- 本地打前端 `dist`
+- 将 `tmp/yuque-batch` 一并打入发布包
+- 服务器启动时自动扫描 `tmp/yuque-batch/bootstrap-seeds/*.seed.json` 做 bootstrap 导入
+
+详细说明见：
+
+- [deploy/README.md](/Users/xuyifei/repos/knowledge-box/deploy/README.md)
 
 ## 当前已实现内容
 

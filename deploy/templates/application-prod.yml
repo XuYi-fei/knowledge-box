@@ -1,0 +1,79 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/knowledge_box}
+    username: ${DB_USERNAME:knowledge_box}
+    password: ${DB_PASSWORD:change-me}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    protocol: smtp
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: false
+          ssl:
+            enable: false
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY:}
+      chat:
+        options:
+          model: ${DASHSCOPE_CHAT_MODEL:qwen-max}
+      embedding:
+        options:
+          model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
+          dimensions: ${KB_RETRIEVAL_EMBEDDING_DIMENSIONS:1024}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  health:
+    mail:
+      enabled: ${KB_MANAGEMENT_HEALTH_MAIL_ENABLED:false}
+
+knowledge-box:
+  admin:
+    username: ${KB_ADMIN_USERNAME:admin}
+    password: ${KB_ADMIN_PASSWORD:change-this-admin-password}
+  auth:
+    jwt-secret: ${KB_AUTH_JWT_SECRET:replace-with-a-long-random-jwt-secret}
+    issuer: ${KB_AUTH_ISSUER:knowledge-box-prod}
+    token-ttl: ${KB_AUTH_TOKEN_TTL:7d}
+    verification-code-ttl: ${KB_AUTH_VERIFICATION_CODE_TTL:10m}
+    send-cooldown: ${KB_AUTH_SEND_COOLDOWN:60s}
+  mail:
+    from-address: ${KB_MAIL_FROM_ADDRESS:${MAIL_USERNAME:}}
+    from-personal: ${KB_MAIL_FROM_PERSONAL:Knowledge Box}
+  web:
+    allowed-origins:
+      - https://www.xuyifei.site
+      - https://xuyifei.site
+  storage:
+    provider: ${KB_STORAGE_PROVIDER:local}
+    local-base-path: ${KB_STORAGE_LOCAL_BASE_PATH:./app/uploads}
+    public-base-url: ${KB_STORAGE_PUBLIC_BASE_URL:https://www.xuyifei.site/uploads}
+  document:
+    bootstrap:
+      enabled: ${KB_DOCUMENT_BOOTSTRAP_ENABLED:true}
+      seed-directory: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY:./tmp/yuque-batch/bootstrap-seeds}
+      seed-directory-pattern: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_PATTERN:*.seed.json}
+      seed-directory-recursive: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE:true}
+      fail-fast: ${KB_DOCUMENT_BOOTSTRAP_FAIL_FAST:false}
+      operator-username: ${KB_DOCUMENT_BOOTSTRAP_OPERATOR_USERNAME:admin}
+  integration:
+    crypto:
+      master-key: ${KB_INTEGRATION_CRYPTO_MASTER_KEY:replace-with-a-long-random-master-key}

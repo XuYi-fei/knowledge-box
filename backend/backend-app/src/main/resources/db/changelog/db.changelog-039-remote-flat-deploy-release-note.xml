@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="039-001-about-release-note-remote-flat-deploy" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.17',
+                '新增远程平铺部署脚本',
+                '支持在本地直接构建并上传 dist、jar 和语雀初始化数据到远端固定目录，然后远程重启服务。',
+                E'## 本次更新\n\n- 新增 `deploy/deploy-remote-flat.sh`，可在本地直接上传前端 `dist`、后端 `jar` 与 `tmp/yuque-batch`\n- 支持把文件同步到服务器固定目录后自动执行远程重启\n- 新增 `start-backend-flat.sh / stop-backend-flat.sh`，适配 jar 直接放在部署根目录的平铺结构',
+                TIMESTAMPTZ '2026-03-17 10:30:00+08',
+                -8,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.17'
+                   AND title = '新增远程平铺部署脚本'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

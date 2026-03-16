@@ -47,6 +47,7 @@ Knowledge Box 是一套个人知识库系统。
 - 本地打前端 `dist`
 - 将 `tmp/yuque-batch` 一并打入发布包
 - 服务器启动时自动扫描 `tmp/yuque-batch/bootstrap-seeds/*.seed.json` 做 bootstrap 导入
+- 也支持在本地直接执行上传脚本，把 `dist`、后端 `jar` 和 `tmp/yuque-batch` 同步到远端固定目录后重启服务
 
 详细说明见：
 

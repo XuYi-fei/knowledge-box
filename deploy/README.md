@@ -14,8 +14,11 @@
 ## 目录说明
 
 - `build-release.sh`: 本地构建发布包
+- `deploy-remote-flat.sh`: 本地构建后直接上传到指定服务器并重启，适合 jar/dist 平铺部署
 - `bin/start-backend.sh`: 服务器启动后端
 - `bin/stop-backend.sh`: 停止后端
+- `bin/start-backend-flat.sh`: 平铺目录部署时启动后端
+- `bin/stop-backend-flat.sh`: 平铺目录部署时停止后端
 - `templates/application-prod.yml`: 生产 Spring 外置配置模板
 - `templates/knowledge-box.env.example`: 环境变量模板
 - `templates/knowledge-box.service.example`: `systemd` 服务模板
@@ -165,3 +168,57 @@ JAVA_OPTS="-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=320m -XX:+UseG1GC -XX:MaxGCPa
 ```
 
 不要在服务器上执行 Maven 和前端构建，尽量全部本地完成。
+
+## 直接上传到服务器
+
+如果你不想在服务器上解压 release 包，而是希望在本地构建后直接上传：
+
+- 服务器：`124.221.214.211`
+- 前端目录：`/home/ubuntu/repos/knowledge-box/dist`
+- 后端 jar：`/home/ubuntu/repos/knowledge-box/knowledge-box-backend.jar`
+- bootstrap 数据：`/home/ubuntu/repos/knowledge-box/tmp/yuque-batch`
+
+可以直接在本地执行：
+
+```bash
+./deploy/deploy-remote-flat.sh
+```
+
+该脚本默认会：
+
+- 本地执行后端 `package`
+- 本地执行前端 `build --profile production`
+- 上传 `frontend/dist/` 到服务器 `dist/`
+- 上传后端 jar 到服务器根目录
+- 上传整棵 `tmp/yuque-batch/`，保证 bootstrap seed 能继续读取 `full-*` 下正文
+- 上传 `start-backend-flat.sh / stop-backend-flat.sh`
+- 远程执行停止旧进程并后台启动新 jar
+
+首次部署前，你至少需要在服务器上准备：
+
+```bash
+mkdir -p /home/ubuntu/repos/knowledge-box/config
+cp /home/ubuntu/repos/knowledge-box/config/knowledge-box.env.example /home/ubuntu/repos/knowledge-box/config/knowledge-box.env
+```
+
+然后编辑 `config/knowledge-box.env`，填入数据库、Redis、DashScope、JWT 等真实配置。
+
+常用参数：
+
+```bash
+./deploy/deploy-remote-flat.sh --skip-build
+./deploy/deploy-remote-flat.sh --skip-restart
+./deploy/deploy-remote-flat.sh --mirror-tmp
+./deploy/deploy-remote-flat.sh --host 124.221.214.211 --user ubuntu --remote-base /home/ubuntu/repos/knowledge-box
+```
+
+如果只想先看会上传哪些文件：
+
+```bash
+./deploy/deploy-remote-flat.sh --dry-run
+```
+
+补充说明：
+
+- `--dry-run` 只打印 `ssh/rsync` 计划，不会真正修改远端目录
+- `tmp/yuque-batch` 默认不会使用 `--delete` 清理远端；如需让远端该目录与本地完全一致，再显式加 `--mirror-tmp`

@@ -1,30 +1,28 @@
 import {
   CodeOutlined,
+  CopyOutlined,
   SearchOutlined,
   SafetyCertificateOutlined,
   ToolOutlined,
   UnlockOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Card, Empty, Form, Input, Segmented, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, App, Button, Card, Empty, Form, Input, InputNumber, Segmented, Select, Space, Spin, Switch, Tag, Typography } from 'antd';
+import type { Rule } from 'antd/es/form';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
+import {
+  buildDefaultValuesFromSchema,
+  parseAppToolDefaultValues,
+  parseAppToolInputSchema,
+  parseAppToolResultSchema,
+  type AppToolFieldSchema,
+  type AppToolFormValue,
+  type AppToolResultSchema,
+} from '../../lib/appToolSchema';
 import { buildErrorSummary } from '../../lib/errors';
 import type { AppToolCatalogItem, AppToolExecutionResult } from '../../lib/types';
 import { MarkdownMessage } from './MarkdownMessage';
-
-type ToolField = {
-  name: string;
-  label: string;
-  type: 'text' | 'textarea';
-  required?: boolean;
-  maxLength?: number;
-  placeholder?: string;
-};
-
-type ToolSchema = {
-  fields: ToolField[];
-};
 
 const iconMap = {
   code: <CodeOutlined />,
@@ -32,30 +30,6 @@ const iconMap = {
   safety: <SafetyCertificateOutlined />,
   tool: <ToolOutlined />,
 } as const;
-
-function parseToolSchema(raw: string | undefined, fallback: ToolSchema): ToolSchema {
-  try {
-    const parsed = raw ? (JSON.parse(raw) as unknown) : fallback;
-    if (!parsed || typeof parsed !== 'object' || !('fields' in parsed) || !Array.isArray((parsed as ToolSchema).fields)) {
-      return fallback;
-    }
-    return parsed as ToolSchema;
-  } catch {
-    return fallback;
-  }
-}
-
-function parseDefaultValues(raw: string | undefined) {
-  try {
-    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {};
-    }
-    return parsed as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
 
 function utf8ToBase64(value: string) {
   return btoa(String.fromCharCode(...new TextEncoder().encode(value)));
@@ -89,20 +63,75 @@ function executeClientTool(tool: AppToolCatalogItem, input: Record<string, unkno
   };
 }
 
-function resolveResultText(result: AppToolExecutionResult | null) {
+function buildFieldRules(field: AppToolFieldSchema): Rule[] {
+  const rules: Rule[] = [];
+  if (field.required) {
+    rules.push({
+      required: true,
+      message: field.type === 'switch' ? `请确认${field.label}` : `请输入${field.label}`,
+    });
+  }
+  if (field.maxLength && (field.type === 'text' || field.type === 'textarea' || field.type === 'password')) {
+    rules.push({ max: field.maxLength, message: `长度不能超过 ${field.maxLength}` });
+  }
+  return rules;
+}
+
+function resolveResultDisplay(
+  result: AppToolExecutionResult | null,
+  resultSchema: AppToolResultSchema,
+): { content: string; displayMode: 'text' | 'json'; rows: number } {
   if (!result) {
-    return '';
+    return { content: '', displayMode: 'text', rows: resultSchema.rows ?? 8 };
   }
-  if (result.result && typeof result.result === 'object' && result.result !== null && 'text' in result.result) {
-    const value = (result.result as Record<string, unknown>).text;
-    return typeof value === 'string' ? value : result.resultPreview;
+  if (resultSchema.displayMode === 'json') {
+    return {
+      content: JSON.stringify(result.result ?? {}, null, 2),
+      displayMode: 'json',
+      rows: resultSchema.rows ?? 12,
+    };
   }
-  return result.resultPreview;
+  const payload = result.result;
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const payloadObject = payload as Record<string, unknown>;
+    if (resultSchema.primaryField) {
+      const primaryValue = payloadObject[resultSchema.primaryField];
+      if (typeof primaryValue === 'string') {
+        return { content: primaryValue, displayMode: 'text', rows: resultSchema.rows ?? 8 };
+      }
+      if (typeof primaryValue === 'number' || typeof primaryValue === 'boolean') {
+        return { content: String(primaryValue), displayMode: 'text', rows: resultSchema.rows ?? 8 };
+      }
+    }
+    const textValue = payloadObject.text;
+    if (typeof textValue === 'string') {
+      return { content: textValue, displayMode: 'text', rows: resultSchema.rows ?? 8 };
+    }
+  }
+  return { content: result.resultPreview, displayMode: 'text', rows: resultSchema.rows ?? 8 };
+}
+
+function renderToolField(field: AppToolFieldSchema) {
+  switch (field.type) {
+    case 'textarea':
+      return <Input.TextArea rows={field.rows ?? 8} placeholder={field.placeholder} showCount maxLength={field.maxLength} />;
+    case 'password':
+      return <Input.Password placeholder={field.placeholder} maxLength={field.maxLength} />;
+    case 'number':
+      return <InputNumber min={field.min} max={field.max} step={field.step} placeholder={field.placeholder} style={{ width: '100%' }} />;
+    case 'select':
+      return <Select placeholder={field.placeholder} options={(field.options ?? []).map((option) => ({ label: option.label, value: option.value }))} />;
+    case 'switch':
+      return <Switch />;
+    case 'text':
+    default:
+      return <Input placeholder={field.placeholder} maxLength={field.maxLength} />;
+  }
 }
 
 export function UserToolsPage() {
   const { message, modal } = App.useApp();
-  const [form] = Form.useForm<Record<string, string>>();
+  const [form] = Form.useForm<Record<string, AppToolFormValue>>();
   const [searchKeyword, setSearchKeyword] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [selectedToolCode, setSelectedToolCode] = useState<string | null>(null);
@@ -149,9 +178,24 @@ export function UserToolsPage() {
     [filteredTools, selectedToolCode],
   );
 
-  const selectedSchema = useMemo(
-    () => parseToolSchema(selectedTool?.inputSchemaJson, { fields: [] }),
+  const selectedInputSchema = useMemo(
+    () => parseAppToolInputSchema(selectedTool?.inputSchemaJson),
     [selectedTool],
+  );
+
+  const selectedDefaultValues = useMemo(
+    () => buildDefaultValuesFromSchema(selectedInputSchema.fields, parseAppToolDefaultValues(selectedTool?.defaultValuesJson)),
+    [selectedInputSchema.fields, selectedTool],
+  );
+
+  const selectedResultSchema = useMemo(
+    () => parseAppToolResultSchema(selectedTool?.resultSchemaJson),
+    [selectedTool],
+  );
+
+  const resultDisplay = useMemo(
+    () => resolveResultDisplay(latestResult, selectedResultSchema),
+    [latestResult, selectedResultSchema],
   );
 
   useEffect(() => {
@@ -160,12 +204,12 @@ export function UserToolsPage() {
       setLatestResult(null);
       return;
     }
-    form.setFieldsValue(parseDefaultValues(selectedTool.defaultValuesJson));
+    form.setFieldsValue(selectedDefaultValues);
     setLatestResult(null);
-  }, [form, selectedTool]);
+  }, [form, selectedDefaultValues, selectedTool]);
 
   const executeMutation = useMutation({
-    mutationFn: async (values: Record<string, string>) => {
+    mutationFn: async (values: Record<string, AppToolFormValue>) => {
       if (!selectedTool) {
         throw new Error('当前未选中工具');
       }
@@ -189,6 +233,18 @@ export function UserToolsPage() {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     executeMutation.mutate(values);
+  };
+
+  const handleCopyResult = async () => {
+    if (!resultDisplay.content) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(resultDisplay.content);
+      message.success('结果已复制');
+    } catch {
+      message.error('复制失败，请手动复制');
+    }
   };
 
   return (
@@ -274,6 +330,9 @@ export function UserToolsPage() {
                   </Tag>
                 </Space>
                 <Typography.Paragraph>{selectedTool.summary}</Typography.Paragraph>
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                  新增或调整 `SERVER` 工具时，只要修改后台元数据和后端执行器即可，无需重部署前端；只有新增一种全新的 `CLIENT` 执行器时，才需要前端发版。
+                </Typography.Paragraph>
                 {selectedTool.descriptionMarkdown ? (
                   <div className="user-tools-markdown">
                     <MarkdownMessage content={selectedTool.descriptionMarkdown} />
@@ -281,40 +340,51 @@ export function UserToolsPage() {
                 ) : null}
               </div>
 
-              <Form<Record<string, string>> form={form} layout="vertical" onFinish={handleSubmit}>
-                {selectedSchema.fields.map((field) => (
+              <Form<Record<string, AppToolFormValue>> form={form} layout="vertical" onFinish={handleSubmit}>
+                {selectedInputSchema.fields.map((field) => (
                   <Form.Item
                     key={field.name}
                     label={field.label}
                     name={field.name}
-                    rules={[
-                      { required: Boolean(field.required), message: `请输入${field.label}` },
-                      field.maxLength ? { max: field.maxLength, message: `长度不能超过 ${field.maxLength}` } : {},
-                    ].filter((rule) => Object.keys(rule).length)}
+                    valuePropName={field.type === 'switch' ? 'checked' : 'value'}
+                    extra={field.description}
+                    rules={buildFieldRules(field)}
                   >
-                    {field.type === 'textarea' ? (
-                      <Input.TextArea rows={8} placeholder={field.placeholder} showCount maxLength={field.maxLength} />
-                    ) : (
-                      <Input placeholder={field.placeholder} maxLength={field.maxLength} />
-                    )}
+                    {renderToolField(field)}
                   </Form.Item>
                 ))}
                 <Space>
                   <Button type="primary" onClick={() => void form.submit()} loading={executeMutation.isPending}>
                     立即执行
                   </Button>
-                  <Button onClick={() => form.setFieldsValue(parseDefaultValues(selectedTool.defaultValuesJson))}>恢复默认</Button>
+                  <Button onClick={() => form.setFieldsValue(selectedDefaultValues)}>恢复默认</Button>
                 </Space>
               </Form>
 
-              <Card size="small" className="user-tools-result-card" title="执行结果">
+              <Card
+                size="small"
+                className="user-tools-result-card"
+                title="执行结果"
+                extra={
+                  selectedResultSchema.copyable && latestResult ? (
+                    <Button size="small" icon={<CopyOutlined />} onClick={() => void handleCopyResult()}>
+                      复制结果
+                    </Button>
+                  ) : null
+                }
+              >
                 {latestResult ? (
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     <Space wrap>
                       <Tag color="green" bordered={false}>executionId: {latestResult.executionId}</Tag>
                       <Tag bordered={false}>耗时 {latestResult.durationMs}ms</Tag>
+                      <Tag bordered={false}>{resultDisplay.displayMode === 'json' ? 'JSON 展示' : '文本展示'}</Tag>
                     </Space>
-                    <Input.TextArea readOnly autoSize={{ minRows: 6, maxRows: 16 }} value={resolveResultText(latestResult)} />
+                    <Input.TextArea
+                      readOnly
+                      autoSize={{ minRows: resultDisplay.rows, maxRows: Math.max(resultDisplay.rows, 18) }}
+                      value={resultDisplay.content}
+                    />
                   </Space>
                 ) : (
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="执行后将在这里展示结果。" />

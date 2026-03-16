@@ -29,7 +29,16 @@ import org.springframework.util.StringUtils;
 public class AppToolAdminService {
 
     private static final String DEFAULT_RENDERER = "text-workbench";
-    private static final Set<String> CLIENT_HANDLER_CODES = Set.of("base64-encode", "base64-decode");
+    private static final Set<String> CLIENT_HANDLER_CODES = Set.of(
+            "base64-encode",
+            "base64-decode",
+            "url-encode",
+            "url-decode",
+            "sha256-digest",
+            "json-format",
+            "json-minify",
+            "timestamp-convert"
+    );
 
     private final AppToolDefinitionRepository definitionRepository;
     private final AppToolExecutionLogRepository executionLogRepository;

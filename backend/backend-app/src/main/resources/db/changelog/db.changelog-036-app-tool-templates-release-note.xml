@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="036-001-about-release-note-app-tool-templates" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.16',
+                '工具页补充 URL、SHA-256、JSON 与时间戳模板',
+                '工具页新增一批通用模板工具，并通过初始化脚本自动注册到后台目录。',
+                E'## 本次更新\n\n- 工具页新增 `URL 编码`、`URL 解码`、`SHA-256 摘要`、`JSON 格式化`、`JSON 压缩`、`时间戳转换`\n- 这些模板工具会通过初始化脚本自动注册到 `app_tool_definition`\n- 大多数通用工具仍可保持前端本地执行，但目录、字段与展示方式统一由后台元数据驱动',
+                TIMESTAMPTZ '2026-03-16 17:45:00+08',
+                -5,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.16'
+                   AND title = '工具页补充 URL、SHA-256、JSON 与时间戳模板'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

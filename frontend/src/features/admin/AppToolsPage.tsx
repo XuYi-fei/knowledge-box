@@ -225,6 +225,12 @@ const rendererOptions = [{ label: 'text-workbench', value: 'text-workbench' }] a
 const clientHandlerOptions = [
   { label: 'base64-encode', value: 'base64-encode' },
   { label: 'base64-decode', value: 'base64-decode' },
+  { label: 'url-encode', value: 'url-encode' },
+  { label: 'url-decode', value: 'url-decode' },
+  { label: 'sha256-digest', value: 'sha256-digest' },
+  { label: 'json-format', value: 'json-format' },
+  { label: 'json-minify', value: 'json-minify' },
+  { label: 'timestamp-convert', value: 'timestamp-convert' },
 ] as const;
 
 const serverHandlerOptions = [{ label: 'md5-digest', value: 'md5-digest' }] as const;

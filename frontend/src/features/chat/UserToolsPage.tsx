@@ -41,23 +41,108 @@ function base64ToUtf8(value: string) {
   return new TextDecoder().decode(bytes);
 }
 
-function executeClientTool(tool: AppToolCatalogItem, input: Record<string, unknown>): AppToolExecutionResult {
-  const text = typeof input.text === 'string' ? input.text : '';
-  const startedAt = performance.now();
-  let output = '';
-  if (tool.handlerCode === 'base64-encode') {
-    output = utf8ToBase64(text);
-  } else if (tool.handlerCode === 'base64-decode') {
-    output = base64ToUtf8(text);
-  } else {
-    throw new Error(`未实现的前端工具: ${tool.handlerCode}`);
+function asString(value: AppToolFormValue) {
+  return typeof value === 'string' ? value : '';
+}
+
+async function sha256Hex(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((item) => item.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function normalizeJson(value: string, pretty: boolean) {
+  const parsed = JSON.parse(value);
+  return JSON.stringify(parsed, null, pretty ? 2 : 0);
+}
+
+function convertTimestamp(value: string, mode: string, unit: string) {
+  if (mode === 'datetime-to-timestamp') {
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+      throw new Error('请输入合法的日期时间文本');
+    }
+    const timestamp = unit === 'seconds'
+      ? Math.floor(parsedDate.getTime() / 1000)
+      : parsedDate.getTime();
+    return {
+      text: String(timestamp),
+      iso: parsedDate.toISOString(),
+      unit,
+      mode,
+    };
   }
+
+  const rawTimestamp = Number(value);
+  if (!Number.isFinite(rawTimestamp)) {
+    throw new Error('请输入合法的时间戳数字');
+  }
+  const milliseconds = unit === 'seconds' ? rawTimestamp * 1000 : rawTimestamp;
+  const parsedDate = new Date(milliseconds);
+  if (Number.isNaN(parsedDate.getTime())) {
+    throw new Error('时间戳无法转换为有效日期');
+  }
+  return {
+    text: `${parsedDate.toISOString()}\n本地时间: ${parsedDate.toLocaleString('zh-CN', { hour12: false })}`,
+    iso: parsedDate.toISOString(),
+    local: parsedDate.toLocaleString('zh-CN', { hour12: false }),
+    unit,
+    mode,
+  };
+}
+
+async function executeClientTool(tool: AppToolCatalogItem, input: Record<string, AppToolFormValue>): Promise<AppToolExecutionResult> {
+  const text = asString(input.text);
+  const value = asString(input.value);
+  const startedAt = performance.now();
+  let resultPayload: Record<string, unknown>;
+
+  switch (tool.handlerCode) {
+    case 'base64-encode':
+      resultPayload = { text: utf8ToBase64(text), sourceText: text };
+      break;
+    case 'base64-decode':
+      resultPayload = { text: base64ToUtf8(text), sourceText: text };
+      break;
+    case 'url-encode':
+      resultPayload = { text: encodeURIComponent(text), sourceText: text };
+      break;
+    case 'url-decode':
+      resultPayload = { text: decodeURIComponent(text), sourceText: text };
+      break;
+    case 'sha256-digest': {
+      const digest = await sha256Hex(text);
+      resultPayload = { text: digest, digest, sourceText: text, algorithm: 'SHA-256' };
+      break;
+    }
+    case 'json-format':
+      resultPayload = { text: normalizeJson(text, true), sourceText: text };
+      break;
+    case 'json-minify':
+      resultPayload = { text: normalizeJson(text, false), sourceText: text };
+      break;
+    case 'timestamp-convert':
+      resultPayload = convertTimestamp(
+        value,
+        asString(input.mode) || 'timestamp-to-datetime',
+        asString(input.unit) || 'milliseconds',
+      );
+      break;
+    default:
+      throw new Error(`未实现的前端工具: ${tool.handlerCode}`);
+  }
+
+  const preview = typeof resultPayload.text === 'string'
+    ? resultPayload.text
+    : JSON.stringify(resultPayload);
   return {
     toolCode: tool.code,
     executionMode: 'CLIENT',
     resultType: 'text',
-    result: { text: output },
-    resultPreview: output,
+    result: resultPayload,
+    resultPreview: preview,
     durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
     executionId: `client-${tool.code}-${Date.now()}`,
   };

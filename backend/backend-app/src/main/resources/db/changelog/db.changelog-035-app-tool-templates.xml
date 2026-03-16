@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="035-001-seed-app-tool-templates" author="codex">
+        <sql><![CDATA[
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'url-encode',
+                'URL 编码',
+                '将文本按 URL 规则进行编码，适合处理查询参数、回调地址和重定向场景。',
+                E'## 使用说明\n\n- 输入任意文本\n- 点击执行后返回 `encodeURIComponent` 结果\n- 适用于查询参数、回调地址或前端跳转链接处理',
+                'encoding',
+                'code',
+                '["URL","编码"]',
+                40,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'url-encode',
+                '{"fields":[{"name":"text","label":"输入文本","type":"textarea","required":true,"maxLength":20000,"placeholder":"请输入需要 URL 编码的文本"}]}',
+                '{"text":""}',
+                '{"displayMode":"text","primaryField":"text","copyable":true,"rows":8}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'url-encode'
+            );
+
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'url-decode',
+                'URL 解码',
+                '将 URL 编码字符串还原为原始文本，便于排查参数串和跳转链接。',
+                E'## 使用说明\n\n- 输入经过 URL 编码的字符串\n- 点击执行后返回解码结果\n- 如果输入不是合法的编码串，前端会直接提示错误',
+                'encoding',
+                'unlock',
+                '["URL","解码"]',
+                50,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'url-decode',
+                '{"fields":[{"name":"text","label":"URL 文本","type":"textarea","required":true,"maxLength":20000,"placeholder":"请输入需要 URL 解码的文本"}]}',
+                '{"text":""}',
+                '{"displayMode":"text","primaryField":"text","copyable":true,"rows":8}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'url-decode'
+            );
+
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'sha256-digest',
+                'SHA-256 摘要',
+                '在浏览器本地计算 SHA-256 摘要，适合做内容指纹校验和联调比对。',
+                E'## 使用说明\n\n- 输入任意文本\n- 点击执行后返回 SHA-256 十六进制摘要\n- 该工具在浏览器本地执行，不会把文本发送到后端',
+                'hash',
+                'safety',
+                '["摘要","SHA-256"]',
+                60,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'sha256-digest',
+                '{"fields":[{"name":"text","label":"输入文本","type":"textarea","required":true,"maxLength":20000,"placeholder":"请输入需要计算摘要的文本"}]}',
+                '{"text":""}',
+                '{"displayMode":"text","primaryField":"digest","copyable":true,"rows":8}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'sha256-digest'
+            );
+
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'json-format',
+                'JSON 格式化',
+                '将一段 JSON 文本格式化为易读的缩进结构，适合调试接口返回和配置文件。',
+                E'## 使用说明\n\n- 输入合法 JSON 文本\n- 点击执行后返回格式化后的结果\n- 非法 JSON 会在前端直接提示，便于快速修正',
+                'json',
+                'tool',
+                '["JSON","格式化"]',
+                70,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'json-format',
+                '{"fields":[{"name":"text","label":"JSON 文本","type":"textarea","required":true,"maxLength":50000,"placeholder":"请输入需要格式化的 JSON 文本","rows":10}]}',
+                '{"text":""}',
+                '{"displayMode":"text","primaryField":"text","copyable":true,"rows":12}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'json-format'
+            );
+
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'json-minify',
+                'JSON 压缩',
+                '将 JSON 文本压缩为单行结构，适合传参、存档和快速复制。',
+                E'## 使用说明\n\n- 输入合法 JSON 文本\n- 点击执行后返回压缩后的单行 JSON\n- 非法 JSON 会在前端直接提示',
+                'json',
+                'tool',
+                '["JSON","压缩"]',
+                80,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'json-minify',
+                '{"fields":[{"name":"text","label":"JSON 文本","type":"textarea","required":true,"maxLength":50000,"placeholder":"请输入需要压缩的 JSON 文本","rows":10}]}',
+                '{"text":""}',
+                '{"displayMode":"text","primaryField":"text","copyable":true,"rows":8}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'json-minify'
+            );
+
+            INSERT INTO app_tool_definition (
+                code, name, summary, description_markdown, category_code, icon_key, tags_json, display_order,
+                enabled, execution_mode, renderer_code, handler_code, input_schema_json, default_values_json,
+                result_schema_json, server_config_json, timeout_ms, rate_limit_scope, rate_limit_max_requests,
+                rate_limit_window_seconds, audit_enabled, payload_limit_bytes
+            )
+            SELECT
+                'timestamp-convert',
+                '时间戳转换',
+                '在时间戳和日期时间字符串之间快速转换，适合排查日志时间和接口字段。',
+                E'## 使用说明\n\n- 输入时间戳或日期时间文本\n- 选择转换方向与时间单位\n- 点击执行后返回转换结果，便于日志排查与接口联调',
+                'time',
+                'tool',
+                '["时间","时间戳"]',
+                90,
+                TRUE,
+                'CLIENT',
+                'text-workbench',
+                'timestamp-convert',
+                '{"fields":[{"name":"value","label":"输入值","type":"text","required":true,"maxLength":128,"placeholder":"例如 1710489600 或 2026-03-16 12:30:00"},{"name":"mode","label":"转换方向","type":"select","required":true,"options":[{"label":"时间戳 -> 日期时间","value":"timestamp-to-datetime"},{"label":"日期时间 -> 时间戳","value":"datetime-to-timestamp"}],"defaultValue":"timestamp-to-datetime"},{"name":"unit","label":"时间单位","type":"select","required":true,"options":[{"label":"毫秒","value":"milliseconds"},{"label":"秒","value":"seconds"}],"defaultValue":"milliseconds"}]}',
+                '{"value":"","mode":"timestamp-to-datetime","unit":"milliseconds"}',
+                '{"displayMode":"text","primaryField":"text","copyable":true,"rows":8}',
+                '{}',
+                NULL,
+                'NONE',
+                NULL,
+                NULL,
+                FALSE,
+                65536
+            WHERE NOT EXISTS (
+                SELECT 1 FROM app_tool_definition WHERE code = 'timestamp-convert'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

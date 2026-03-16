@@ -47,7 +47,7 @@ import {
 } from './auth';
 import { ApiRequestError, isApiErrorPayload } from './errors';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
 
 type UpdateProfileVersionPayload = {
   chatModel: string;
@@ -136,7 +136,14 @@ type UpdateSkillPayload = {
 type AuthMode = 'admin' | 'user' | 'none';
 
 export function buildApiUrl(path: string) {
-  return `${API_BASE_URL}${path}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  if (!API_BASE_URL) {
+    return normalizedPath;
+  }
+  if (API_BASE_URL.endsWith('/api') && normalizedPath.startsWith('/api')) {
+    return `${API_BASE_URL.slice(0, -4)}${normalizedPath}`;
+  }
+  return `${API_BASE_URL}${normalizedPath}`;
 }
 
 export function buildUserAuthHeaders(headers?: HeadersInit) {

@@ -203,6 +203,8 @@ cp /home/ubuntu/repos/knowledge-box/config/knowledge-box.env.example /home/ubunt
 
 然后编辑 `config/knowledge-box.env`，填入数据库、Redis、DashScope、JWT 等真实配置。
 
+如果远端首次没有 `config/knowledge-box.env`，脚本会自动用 `config/knowledge-box.env.example` 初始化一份，再提示你补齐密钥字段。
+
 常用参数：
 
 ```bash
@@ -222,3 +224,20 @@ cp /home/ubuntu/repos/knowledge-box/config/knowledge-box.env.example /home/ubunt
 
 - `--dry-run` 只打印 `ssh/rsync` 计划，不会真正修改远端目录
 - `tmp/yuque-batch` 默认不会使用 `--delete` 清理远端；如需让远端该目录与本地完全一致，再显式加 `--mirror-tmp`
+
+## 前端生产打包地址
+
+如果你希望前端生产包直接请求 `https://www.xuyifei.site/api/**`，本地可使用：
+
+```bash
+cp frontend/.env.production.local.example frontend/.env.production.local
+npm --prefix frontend run build -- --profile production
+```
+
+仓库当前已提供一个本机忽略的 `frontend/.env.production.local` 样例写法：
+
+```env
+VITE_API_BASE_URL=https://www.xuyifei.site/api
+```
+
+前端已做兼容处理：即使接口代码本身已经写成 `/api/...`，也不会再拼出重复的 `/api/api/...`。

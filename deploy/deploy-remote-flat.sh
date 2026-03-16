@@ -222,7 +222,10 @@ if [[ ! -f config/application-prod.yml && -f config/application-prod.yml.example
   cp config/application-prod.yml.example config/application-prod.yml
 fi
 if [[ ! -f config/knowledge-box.env ]]; then
-  echo '[deploy-remote-flat] Missing config/knowledge-box.env on remote. Copy config/knowledge-box.env.example and fill secrets first.' >&2
+  if [[ -f config/knowledge-box.env.example ]]; then
+    cp config/knowledge-box.env.example config/knowledge-box.env
+  fi
+  echo '[deploy-remote-flat] Missing config/knowledge-box.env on remote. Initialized it from config/knowledge-box.env.example. Fill DB_PASSWORD and other secret fields first, then rerun deploy.' >&2
   exit 1
 fi
 deploy/bin/stop-backend-flat.sh || true

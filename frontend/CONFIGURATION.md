@@ -63,6 +63,7 @@ cp .env.development.local.example .env.development.local
 
 - 若配置为完整地址，例如 `http://localhost:8080`，请求会发往该绝对地址
 - 若配置为空字符串，前端会直接请求相对路径 `/api/**`
+- 若配置为 `https://www.xuyifei.site/api` 这类已包含 `/api` 前缀的地址，前端会自动规避重复拼出 `/api/api/**`
 - 若生产环境由 Nginx 同域反代 `/api`，推荐将其留空
 
 示例：
@@ -77,6 +78,12 @@ VITE_API_BASE_URL=http://localhost:8080
 
 ```env
 VITE_API_BASE_URL=
+```
+
+生产环境直连域名：
+
+```env
+VITE_API_BASE_URL=https://www.xuyifei.site/api
 ```
 
 ## 运行命令

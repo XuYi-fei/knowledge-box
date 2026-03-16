@@ -23,6 +23,8 @@
 - 已补充 `frontend/CONFIGURATION.md`、`.env.<profile>.local.example` 与 nginx 示例配置，前端多环境构建、同域反代部署和本地覆盖策略已有独立文档说明。
 - 已补充 `deploy/` 发布目录：支持本地构建后端 `jar` + 前端 `dist` 的 release bundle，内置 `www.xuyifei.site` 生产模板、4C4G JVM 参数、后端启动/停止脚本，并将 `tmp/yuque-batch` 与 bootstrap seeds 一起打包到服务器启动导入链路。
 - 已补充远程平铺部署脚本 `deploy/deploy-remote-flat.sh`：支持本地构建后直接把前端 `dist`、后端 `jar`、`tmp/yuque-batch` 同步到 `124.221.214.211:/home/ubuntu/repos/knowledge-box`，并用 `start-backend-flat.sh` 远程重启。
+- 前端 API 基址拼接已补齐 `/api` 容错：`VITE_API_BASE_URL` 可配置为域名或域名 `/api`，生产环境直连 `https://www.xuyifei.site/api` 时不会再出现重复 `/api/api`。
+- 远程部署脚本在服务器缺少 `config/knowledge-box.env` 时，会先基于 example 初始化，再提示补齐数据库密码和其他密钥字段。
 - 文档治理链路已落地：文档上传、审核流、分类标签、Markdown 预览/编辑、图片转存、向量写入、索引重建与 bootstrap 初始化导入。
 - 管理端文档审核已支持批量审核通过；Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com / admin123`。
@@ -37,6 +39,7 @@
 - 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖新增前端配置文档与本地覆盖模板后的构建链路。
 - 发布脚本：`bash -n deploy/build-release.sh && bash -n deploy/bin/start-backend.sh && bash -n deploy/bin/stop-backend.sh` 可通过。
 - 远程平铺部署脚本：`bash -n deploy/deploy-remote-flat.sh deploy/bin/start-backend-flat.sh deploy/bin/stop-backend-flat.sh` 与 `./deploy/deploy-remote-flat.sh --help` 可通过。
+- 前端：`frontend/.env.production.local` 配置 `VITE_API_BASE_URL=https://www.xuyifei.site/api` 后，`npm --prefix frontend run build -- --profile production` 可通过。
 - 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本，以及供 bootstrap 导入使用的整棵 `tmp/yuque-batch/`。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。

@@ -19,6 +19,13 @@ type OutlineNode = MarkdownOutlineItem & {
   children: OutlineNode[];
 };
 
+type DebugLogEntry = {
+  id: number;
+  timestamp: string;
+  message: string;
+  details?: string;
+};
+
 function normalizeComparableHeading(value: string) {
   return value
     .replace(/\s+/g, ' ')
@@ -193,16 +200,20 @@ export function UserDocumentDetailPage() {
   const headingPath = params.get('headingPath');
   const anchor = params.get('anchor');
   const snippet = params.get('snippet');
+  const debugOutline = params.get('debugOutline') === '1';
   const numericDocumentId = Number(documentId);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const [highlightedHeadingId, setHighlightedHeadingId] = useState<string | null>(null);
   const [expandedHeadingIds, setExpandedHeadingIds] = useState<string[]>([]);
   const [renderedOutline, setRenderedOutline] = useState<MarkdownOutlineItem[]>([]);
+  const [debugLogs, setDebugLogs] = useState<DebugLogEntry[]>([]);
   const initialFocusRef = useRef<string | null>(null);
   const initialHashHeadingIdRef = useRef<string | null>(
     decodeURIComponent(location.hash.replace(/^#/, '').trim()) || null,
   );
   const markdownRootRef = useRef<HTMLDivElement | null>(null);
+  const debugSeqRef = useRef(0);
+  const lastActiveDebugRef = useRef<string | null>(null);
 
   const documentQuery = useQuery({
     queryKey: ['userDocumentDetail', numericDocumentId],
@@ -234,21 +245,51 @@ export function UserDocumentDetailPage() {
     [activeHeadingId, outlineTree.nodeMap],
   );
 
+  function appendDebugLog(message: string, payload?: unknown) {
+    if (!debugOutline) {
+      return;
+    }
+    const details = payload == null
+      ? undefined
+      : typeof payload === 'string'
+        ? payload
+        : JSON.stringify(payload, null, 2);
+    const entry: DebugLogEntry = {
+      id: debugSeqRef.current + 1,
+      timestamp: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+      message,
+      details,
+    };
+    debugSeqRef.current += 1;
+    setDebugLogs((current) => [...current.slice(-79), entry]);
+  }
+
   useEffect(() => {
     if (!detailDocument) {
       setRenderedOutline([]);
+      appendDebugLog('文档详情尚未加载，清空 renderedOutline');
       return;
     }
     const frameId = requestAnimationFrame(() => {
-      setRenderedOutline(buildRenderedOutline(markdownRootRef.current, headingIdPrefix));
+      const nextOutline = buildRenderedOutline(markdownRootRef.current, headingIdPrefix);
+      setRenderedOutline(nextOutline);
+      appendDebugLog('基于真实 DOM 生成大纲', {
+        count: nextOutline.length,
+        headings: nextOutline.map((item) => ({
+          level: item.level,
+          id: item.id,
+          text: item.text,
+        })),
+      });
     });
     return () => cancelAnimationFrame(frameId);
-  }, [detailDocument, headingIdPrefix]);
+  }, [debugOutline, detailDocument, headingIdPrefix]);
 
   useEffect(() => {
     if (!outline.length) {
       setActiveHeadingId(null);
       setExpandedHeadingIds([]);
+      appendDebugLog('当前 outline 为空，无法建立滚动高亮');
       return;
     }
     let frameId = 0;
@@ -257,6 +298,9 @@ export function UserDocumentDetailPage() {
         .map((item) => globalThis.document.getElementById(item.id))
         .filter((item): item is HTMLElement => item instanceof HTMLElement);
       if (!headingElements.length) {
+        appendDebugLog('滚动监听未找到任何真实标题节点', {
+          outlineIds: outline.map((item) => item.id),
+        });
         return;
       }
       const threshold = 140;
@@ -267,6 +311,14 @@ export function UserDocumentDetailPage() {
         } else {
           break;
         }
+      }
+      if (lastActiveDebugRef.current !== currentHeading) {
+        lastActiveDebugRef.current = currentHeading;
+        appendDebugLog('activeHeading 更新', {
+          currentHeading,
+          top: globalThis.document.getElementById(currentHeading)?.getBoundingClientRect().top ?? null,
+          scrollY: globalThis.window.scrollY,
+        });
       }
       setActiveHeadingId((current) => (current === currentHeading ? current : currentHeading));
     };
@@ -288,13 +340,19 @@ export function UserDocumentDetailPage() {
       globalThis.window.removeEventListener('scroll', handleScroll as EventListener);
       globalThis.window.removeEventListener('resize', handleScroll);
     };
-  }, [outline]);
+  }, [debugOutline, outline]);
 
   useEffect(() => {
     if (!outline.length) {
       return;
     }
     const targetId = resolveTargetHeadingId(outline, headingPath, anchor, initialHashHeadingIdRef.current);
+    appendDebugLog('解析初始目标标题', {
+      headingPath,
+      anchor,
+      initialHash: initialHashHeadingIdRef.current,
+      resolvedTargetId: targetId,
+    });
     if (!targetId || initialFocusRef.current === `${numericDocumentId}:${targetId}`) {
       return;
     }
@@ -306,11 +364,16 @@ export function UserDocumentDetailPage() {
     replaceWindowHash(targetId);
     requestAnimationFrame(() => {
       const target = globalThis.document.getElementById(targetId);
+      appendDebugLog('尝试执行初始定位', {
+        targetId,
+        targetFound: Boolean(target),
+        targetTop: target?.getBoundingClientRect().top ?? null,
+      });
       if (target) {
         scrollToHeadingInWindow(target, 'auto');
       }
     });
-  }, [anchor, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
+  }, [anchor, debugOutline, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
 
   useEffect(() => {
     if (!activeHeadingId) {
@@ -340,6 +403,14 @@ export function UserDocumentDetailPage() {
 
   function scrollToHeading(headingId: string, behavior: ScrollBehavior = 'smooth') {
     const target = globalThis.document.getElementById(headingId);
+    appendDebugLog('点击大纲准备跳转', {
+      headingId,
+      behavior,
+      targetFound: Boolean(target),
+      hashBefore: globalThis.window.location.hash,
+      scrollYBefore: globalThis.window.scrollY,
+      targetTopBefore: target?.getBoundingClientRect().top ?? null,
+    });
     if (!target) {
       return;
     }
@@ -349,6 +420,12 @@ export function UserDocumentDetailPage() {
     setHighlightedHeadingId(headingId);
     const pathIds = Array.from(collectPathIds(outlineTree.nodeMap, headingId));
     setExpandedHeadingIds((current) => Array.from(new Set([...current, ...pathIds])));
+    appendDebugLog('点击大纲完成跳转请求', {
+      headingId,
+      hashAfter: globalThis.window.location.hash,
+      scrollYAfter: globalThis.window.scrollY,
+      targetTopAfter: target.getBoundingClientRect().top,
+    });
   }
 
   function handleOutlineClick(event: MouseEvent<HTMLAnchorElement>, headingId: string) {
@@ -484,6 +561,54 @@ export function UserDocumentDetailPage() {
           </aside>
         ) : null}
       </div>
+      {debugOutline ? (
+        <div
+          style={{
+            position: 'fixed',
+            right: 12,
+            bottom: 12,
+            width: 'min(520px, calc(100vw - 24px))',
+            maxHeight: '42vh',
+            overflow: 'auto',
+            zIndex: 2000,
+            padding: 12,
+            borderRadius: 16,
+            background: 'rgba(16, 42, 43, 0.94)',
+            color: '#f8fbfa',
+            boxShadow: '0 18px 40px rgba(16, 42, 43, 0.28)',
+            fontSize: 12,
+            lineHeight: 1.5,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+            <strong>Outline Debug</strong>
+            <span>{debugLogs.length} entries</span>
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {debugLogs.map((log) => (
+              <div key={log.id} style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.08)' }}>
+                <div style={{ color: 'rgba(255,255,255,0.72)' }}>
+                  #{log.id} {log.timestamp}
+                </div>
+                <div>{log.message}</div>
+                {log.details ? (
+                  <pre
+                    style={{
+                      margin: '6px 0 0',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      fontFamily: '"IBM Plex Mono", "SFMono-Regular", monospace',
+                      color: 'rgba(255,255,255,0.86)',
+                    }}
+                  >
+                    {log.details}
+                  </pre>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -271,6 +271,11 @@ knowledge-box:
 
 前端通过 `Vite mode/profile` 读取不同环境变量，现已支持在开发、打包、预览时通过 npm 参数选择 profile。
 
+更完整的前端配置、profile 优先级、Nginx 部署示例见：
+
+- [frontend/CONFIGURATION.md](/Users/xuyifei/repos/knowledge-box/frontend/CONFIGURATION.md)
+- [frontend/nginx/knowledge-box.frontend.conf.example](/Users/xuyifei/repos/knowledge-box/frontend/nginx/knowledge-box.frontend.conf.example)
+
 可用 profile 约定：
 
 - `development`

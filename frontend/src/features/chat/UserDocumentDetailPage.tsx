@@ -51,9 +51,20 @@ function extractHeadingCandidates(headingPath: string | null, anchor: string | n
   return Array.from(new Set(candidates));
 }
 
-function resolveTargetHeadingId(outline: MarkdownOutlineItem[], headingPath: string | null, anchor: string | null) {
+function resolveTargetHeadingId(
+  outline: MarkdownOutlineItem[],
+  headingPath: string | null,
+  anchor: string | null,
+  hashHeadingId: string | null,
+) {
   if (!outline.length) {
     return null;
+  }
+  if (hashHeadingId) {
+    const exactHashMatch = outline.find((item) => item.id === hashHeadingId);
+    if (exactHashMatch) {
+      return exactHashMatch.id;
+    }
   }
   const candidates = extractHeadingCandidates(headingPath, anchor);
   for (const candidate of candidates) {
@@ -121,16 +132,18 @@ function collectPathIds(nodeMap: Map<string, OutlineNode>, headingId: string | n
   return path;
 }
 
-function scrollToElementInContainer(target: HTMLElement, scrollContainer: Element | null, behavior: ScrollBehavior) {
-  if (!(scrollContainer instanceof HTMLElement)) {
-    const top = target.getBoundingClientRect().top + globalThis.window.scrollY - 20;
-    globalThis.window.scrollTo({ top, behavior });
+function scrollToHeadingInWindow(target: HTMLElement, behavior: ScrollBehavior) {
+  const top = Math.max(target.getBoundingClientRect().top + globalThis.window.scrollY - 20, 0);
+  globalThis.window.scrollTo({ top, behavior });
+}
+
+function syncWindowHash(headingId: string) {
+  const url = new URL(globalThis.window.location.href);
+  if (decodeURIComponent(url.hash.replace(/^#/, '')) === headingId) {
     return;
   }
-  const targetTop = target.getBoundingClientRect().top;
-  const containerTop = scrollContainer.getBoundingClientRect().top;
-  const nextTop = scrollContainer.scrollTop + (targetTop - containerTop) - 20;
-  scrollContainer.scrollTo({ top: nextTop, behavior });
+  url.hash = headingId;
+  globalThis.window.history.replaceState(globalThis.window.history.state, '', url);
 }
 
 export function UserDocumentDetailPage() {
@@ -146,8 +159,9 @@ export function UserDocumentDetailPage() {
   const [highlightedHeadingId, setHighlightedHeadingId] = useState<string | null>(null);
   const [expandedHeadingIds, setExpandedHeadingIds] = useState<string[]>([]);
   const initialFocusRef = useRef<string | null>(null);
-  const pageRootRef = useRef<HTMLDivElement | null>(null);
-  const scrollContainerRef = useRef<Element | null>(null);
+  const initialHashHeadingIdRef = useRef<string | null>(
+    decodeURIComponent(location.hash.replace(/^#/, '').trim()) || null,
+  );
 
   const documentQuery = useQuery({
     queryKey: ['userDocumentDetail', numericDocumentId],
@@ -179,10 +193,6 @@ export function UserDocumentDetailPage() {
   );
 
   useEffect(() => {
-    scrollContainerRef.current = pageRootRef.current;
-  }, []);
-
-  useEffect(() => {
     if (!outline.length) {
       setActiveHeadingId(null);
       setExpandedHeadingIds([]);
@@ -197,10 +207,7 @@ export function UserDocumentDetailPage() {
       if (!headingElements.length) {
         return;
       }
-      const scrollContainer = scrollContainerRef.current;
-      const threshold = scrollContainer instanceof HTMLElement
-        ? scrollContainer.getBoundingClientRect().top + 80
-        : 140;
+      const threshold = 140;
       let currentHeading = headingElements[0].id;
       for (const headingElement of headingElements) {
         if (headingElement.getBoundingClientRect().top <= threshold) {
@@ -220,16 +227,14 @@ export function UserDocumentDetailPage() {
     };
 
     resolveActiveHeading();
-    const scrollContainer = scrollContainerRef.current;
-    const scrollTarget = scrollContainer instanceof HTMLElement ? scrollContainer : globalThis.window;
-    scrollTarget?.addEventListener('scroll', handleScroll, { passive: true } as AddEventListenerOptions);
-    window.addEventListener('resize', handleScroll);
+    globalThis.window.addEventListener('scroll', handleScroll, { passive: true } as AddEventListenerOptions);
+    globalThis.window.addEventListener('resize', handleScroll);
     return () => {
       if (frameId) {
         cancelAnimationFrame(frameId);
       }
-      scrollTarget?.removeEventListener('scroll', handleScroll as EventListener);
-      window.removeEventListener('resize', handleScroll);
+      globalThis.window.removeEventListener('scroll', handleScroll as EventListener);
+      globalThis.window.removeEventListener('resize', handleScroll);
     };
   }, [outline]);
 
@@ -237,7 +242,7 @@ export function UserDocumentDetailPage() {
     if (!outline.length) {
       return;
     }
-    const targetId = resolveTargetHeadingId(outline, headingPath, anchor);
+    const targetId = resolveTargetHeadingId(outline, headingPath, anchor, initialHashHeadingIdRef.current);
     if (!targetId || initialFocusRef.current === `${numericDocumentId}:${targetId}`) {
       return;
     }
@@ -246,10 +251,11 @@ export function UserDocumentDetailPage() {
     setExpandedHeadingIds((current) => Array.from(new Set([...current, ...pathIds])));
     setActiveHeadingId(targetId);
     setHighlightedHeadingId(targetId);
+    syncWindowHash(targetId);
     requestAnimationFrame(() => {
       const target = globalThis.document.getElementById(targetId);
       if (target) {
-        scrollToElementInContainer(target, scrollContainerRef.current, 'auto');
+        scrollToHeadingInWindow(target, 'auto');
       }
     });
   }, [anchor, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
@@ -285,7 +291,8 @@ export function UserDocumentDetailPage() {
     if (!target) {
       return;
     }
-    scrollToElementInContainer(target, scrollContainerRef.current, behavior);
+    syncWindowHash(headingId);
+    scrollToHeadingInWindow(target, behavior);
     setActiveHeadingId(headingId);
     setHighlightedHeadingId(headingId);
     const pathIds = Array.from(collectPathIds(outlineTree.nodeMap, headingId));
@@ -335,7 +342,7 @@ export function UserDocumentDetailPage() {
   }
 
   return (
-    <div ref={pageRootRef} className="document-detail-page">
+    <div className="document-detail-page">
       <div className="document-detail-layout">
         <Card className="document-detail-card" loading={documentQuery.isLoading}>
           <div className="document-detail-header">

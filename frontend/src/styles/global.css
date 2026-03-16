@@ -868,11 +868,8 @@ a {
 }
 
 .document-detail-page {
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   padding: 20px;
-  overflow-y: auto;
-  overflow-x: hidden;
   background: #f4f8f7;
 }
 
@@ -946,12 +943,12 @@ a {
 }
 
 .document-outline {
+  position: sticky;
+  top: 18px;
   align-self: start;
 }
 
 .document-outline-card {
-  position: sticky;
-  top: 18px;
   padding: 14px 12px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.94);

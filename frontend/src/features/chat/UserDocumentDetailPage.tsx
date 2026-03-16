@@ -121,6 +121,44 @@ function collectPathIds(nodeMap: Map<string, OutlineNode>, headingId: string | n
   return path;
 }
 
+function isDocumentScrollContainer(target: Element | null) {
+  return (
+    !target ||
+    target === globalThis.document.body ||
+    target === globalThis.document.documentElement ||
+    target === globalThis.document.scrollingElement
+  );
+}
+
+function findScrollContainer(start: HTMLElement | null) {
+  let current = start?.parentElement ?? null;
+  while (current) {
+    const style = globalThis.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    const scrollable = /(auto|scroll|overlay)/.test(overflowY) && current.scrollHeight > current.clientHeight;
+    if (scrollable) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return globalThis.document.scrollingElement ?? globalThis.document.documentElement;
+}
+
+function scrollToElementInContainer(target: HTMLElement, scrollContainer: Element | null, behavior: ScrollBehavior) {
+  if (isDocumentScrollContainer(scrollContainer)) {
+    const top = target.getBoundingClientRect().top + globalThis.window.scrollY - 20;
+    globalThis.window.scrollTo({ top, behavior });
+    return;
+  }
+  if (!(scrollContainer instanceof HTMLElement)) {
+    return;
+  }
+  const targetTop = target.getBoundingClientRect().top;
+  const containerTop = scrollContainer.getBoundingClientRect().top;
+  const nextTop = scrollContainer.scrollTop + (targetTop - containerTop) - 20;
+  scrollContainer.scrollTo({ top: nextTop, behavior });
+}
+
 export function UserDocumentDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -134,6 +172,8 @@ export function UserDocumentDetailPage() {
   const [highlightedHeadingId, setHighlightedHeadingId] = useState<string | null>(null);
   const [expandedHeadingIds, setExpandedHeadingIds] = useState<string[]>([]);
   const initialFocusRef = useRef<string | null>(null);
+  const pageRootRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<Element | null>(null);
 
   const documentQuery = useQuery({
     queryKey: ['userDocumentDetail', numericDocumentId],
@@ -165,6 +205,10 @@ export function UserDocumentDetailPage() {
   );
 
   useEffect(() => {
+    scrollContainerRef.current = findScrollContainer(pageRootRef.current);
+  }, []);
+
+  useEffect(() => {
     if (!outline.length) {
       setActiveHeadingId(null);
       setExpandedHeadingIds([]);
@@ -179,7 +223,12 @@ export function UserDocumentDetailPage() {
       if (!headingElements.length) {
         return;
       }
-      const threshold = 140;
+      const scrollContainer = scrollContainerRef.current;
+      const threshold = isDocumentScrollContainer(scrollContainer)
+        ? 140
+        : scrollContainer instanceof HTMLElement
+          ? scrollContainer.getBoundingClientRect().top + 80
+          : 140;
       let currentHeading = headingElements[0].id;
       for (const headingElement of headingElements) {
         if (headingElement.getBoundingClientRect().top <= threshold) {
@@ -199,13 +248,15 @@ export function UserDocumentDetailPage() {
     };
 
     resolveActiveHeading();
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    const scrollContainer = scrollContainerRef.current;
+    const scrollTarget = isDocumentScrollContainer(scrollContainer) ? globalThis.window : scrollContainer;
+    scrollTarget?.addEventListener('scroll', handleScroll, { passive: true } as AddEventListenerOptions);
     window.addEventListener('resize', handleScroll);
     return () => {
       if (frameId) {
         cancelAnimationFrame(frameId);
       }
-      window.removeEventListener('scroll', handleScroll);
+      scrollTarget?.removeEventListener('scroll', handleScroll as EventListener);
       window.removeEventListener('resize', handleScroll);
     };
   }, [outline]);
@@ -226,7 +277,7 @@ export function UserDocumentDetailPage() {
     requestAnimationFrame(() => {
       const target = globalThis.document.getElementById(targetId);
       if (target) {
-        target.scrollIntoView({ behavior: 'auto', block: 'start' });
+        scrollToElementInContainer(target, scrollContainerRef.current, 'auto');
       }
     });
   }, [anchor, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
@@ -262,7 +313,7 @@ export function UserDocumentDetailPage() {
     if (!target) {
       return;
     }
-    target.scrollIntoView({ behavior, block: 'start' });
+    scrollToElementInContainer(target, scrollContainerRef.current, behavior);
     setActiveHeadingId(headingId);
     setHighlightedHeadingId(headingId);
     const pathIds = Array.from(collectPathIds(outlineTree.nodeMap, headingId));
@@ -312,7 +363,7 @@ export function UserDocumentDetailPage() {
   }
 
   return (
-    <div className="document-detail-page">
+    <div ref={pageRootRef} className="document-detail-page">
       <div className="document-detail-layout">
         <Card className="document-detail-card" loading={documentQuery.isLoading}>
           <div className="document-detail-header">

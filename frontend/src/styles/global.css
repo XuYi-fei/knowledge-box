@@ -943,11 +943,12 @@ a {
 }
 
 .document-outline {
-  position: sticky;
-  top: 18px;
+  align-self: start;
 }
 
 .document-outline-card {
+  position: sticky;
+  top: 18px;
   padding: 14px 12px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.94);
@@ -955,6 +956,7 @@ a {
   box-shadow: 0 14px 30px rgba(16, 42, 43, 0.08);
   display: grid;
   gap: 10px;
+  max-height: calc(100dvh - 36px);
 }
 
 .document-outline-list {
@@ -1381,6 +1383,11 @@ a {
 
   .document-outline {
     position: static;
+  }
+
+  .document-outline-card {
+    position: static;
+    max-height: none;
   }
 
   .document-outline-list {

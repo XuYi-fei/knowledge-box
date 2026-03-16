@@ -165,10 +165,12 @@ export function UserDocumentDetailPage() {
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const [highlightedHeadingId, setHighlightedHeadingId] = useState<string | null>(null);
   const [expandedHeadingIds, setExpandedHeadingIds] = useState<string[]>([]);
+  const [headingsBound, setHeadingsBound] = useState(false);
   const initialFocusRef = useRef<string | null>(null);
   const initialHashHeadingIdRef = useRef<string | null>(
     decodeURIComponent(location.hash.replace(/^#/, '').trim()) || null,
   );
+  const markdownRootRef = useRef<HTMLDivElement | null>(null);
 
   const documentQuery = useQuery({
     queryKey: ['userDocumentDetail', numericDocumentId],
@@ -203,14 +205,40 @@ export function UserDocumentDetailPage() {
     if (!outline.length) {
       setActiveHeadingId(null);
       setExpandedHeadingIds([]);
+      setHeadingsBound(false);
       return;
     }
+    const markdownRoot = markdownRootRef.current;
+    if (!markdownRoot) {
+      setHeadingsBound(false);
+      return;
+    }
+    const headingElements = Array.from(markdownRoot.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'));
+    if (!headingElements.length) {
+      setHeadingsBound(false);
+      return;
+    }
+    headingElements.forEach((element, index) => {
+      const heading = outline[index];
+      if (!heading) {
+        return;
+      }
+      element.id = heading.id;
+    });
+    setHeadingsBound(true);
+  }, [outline, detailDocument?.sourceMarkdown]);
 
+  useEffect(() => {
+    if (!outline.length || !headingsBound) {
+      setActiveHeadingId(null);
+      return;
+    }
     let frameId = 0;
     const resolveActiveHeading = () => {
-      const headingElements = outline
-        .map((item) => globalThis.document.getElementById(item.id))
-        .filter((item): item is HTMLElement => item instanceof HTMLElement);
+      const markdownRoot = markdownRootRef.current;
+      const headingElements = markdownRoot
+        ? Array.from(markdownRoot.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')).filter((item) => Boolean(item.id))
+        : [];
       if (!headingElements.length) {
         return;
       }
@@ -243,10 +271,10 @@ export function UserDocumentDetailPage() {
       globalThis.window.removeEventListener('scroll', handleScroll as EventListener);
       globalThis.window.removeEventListener('resize', handleScroll);
     };
-  }, [outline]);
+  }, [headingsBound, outline.length]);
 
   useEffect(() => {
-    if (!outline.length) {
+    if (!outline.length || !headingsBound) {
       return;
     }
     const targetId = resolveTargetHeadingId(outline, headingPath, anchor, initialHashHeadingIdRef.current);
@@ -265,7 +293,7 @@ export function UserDocumentDetailPage() {
         scrollToHeadingInWindow(target, 'auto');
       }
     });
-  }, [anchor, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
+  }, [anchor, headingPath, headingsBound, numericDocumentId, outline, outlineTree.nodeMap]);
 
   useEffect(() => {
     if (!activeHeadingId) {
@@ -407,7 +435,7 @@ export function UserDocumentDetailPage() {
                 </div>
               </div>
 
-              <div className="document-detail-markdown">
+              <div ref={markdownRootRef} className="document-detail-markdown">
                 <MarkdownRenderer content={detailDocument.sourceMarkdown} headingIdPrefix={headingIdPrefix} />
               </div>
             </div>

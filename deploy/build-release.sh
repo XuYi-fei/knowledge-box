@@ -106,10 +106,13 @@ Knowledge Box release bundle
 1. Copy this directory or the tar.gz to the server.
 2. Edit config/application-prod.yml and config/knowledge-box.env.
 3. Ensure PostgreSQL, Redis and Java 21 are installed on the server.
-4. Start with: ./deploy/start-backend.sh
+4. Start manually with: ./deploy/start-backend.sh --daemon
+   Or use systemd with deploy/knowledge-box.service.example
 5. Configure nginx with deploy/www.xuyifei.site.conf.example
 
 Yuque bootstrap seeds are packaged under tmp/yuque-batch/bootstrap-seeds.
+The packaged seeds may reference markdown files under tmp/yuque-batch/full-*,
+so keep the entire tmp/yuque-batch directory intact after extraction.
 If config/knowledge-box.env enables bootstrap import, startup will import them automatically.
 README
 

@@ -35,7 +35,7 @@
 - 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖 profile 选择脚本与构建时动态配置加载。
 - 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖新增前端配置文档与本地覆盖模板后的构建链路。
 - 发布脚本：`bash -n deploy/build-release.sh && bash -n deploy/bin/start-backend.sh && bash -n deploy/bin/stop-backend.sh` 可通过。
-- 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本与 `tmp/yuque-batch/bootstrap-seeds`。
+- 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本，以及供 bootstrap 导入使用的整棵 `tmp/yuque-batch/`。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。
 - 后端：全量 `mvn -q -pl backend/backend-app -am test` 在当前沙箱环境下因无法连本机 PostgreSQL（`SocketException: Operation not permitted`）失败，非本次代码编译错误。
@@ -55,4 +55,5 @@
 - “关于”tab 的更新日志来自数据库；独立功能完成后要补增量 changelog 往 `about_release_note` 写数据。
 - AgentScope 高风险点：`@ToolParam` 需显式写 `name`；事件分支要显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`；`enableThinking(false)` 时不要再设置 `thinkingBudget`；动态注册 Tool/MCP 前先建 tool group；Hook 调试字段可能为 `null`，不要直接用 `Map.of(...)` 组装。
 - 文档治理高风险点：审核/生成异步线程要在 `afterCommit` 后启动；标签绑定写入前要去重，删旧绑定优先 bulk delete 或显式 flush；DashScope embedding 单批上限按 `10` 控制；bootstrap 导入必须依赖稳定 `importKey` 做幂等。
+- 发布包中的语雀 bootstrap seed 若通过 `sourceMarkdownPath` 指向 `tmp/yuque-batch/full-*` 正文，不能只打包 `bootstrap-seeds/`，必须保留整棵 `tmp/yuque-batch/`。
 - Git 提交信息默认使用中文。

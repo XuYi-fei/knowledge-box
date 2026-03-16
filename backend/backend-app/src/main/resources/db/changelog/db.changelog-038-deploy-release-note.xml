@@ -20,7 +20,7 @@
                 '2026.03.17',
                 '新增本地构建 + 服务器轻量运行发布包',
                 '已提供面向 www.xuyifei.site 的 release 打包脚本、生产模板和启动脚本，适合 4C4G 服务器直接运行。',
-                E'## 本次更新\n\n- 新增 `deploy/build-release.sh`，可在本地打出后端 `jar`、前端 `dist` 与发布包\n- 发布包内置 `www.xuyifei.site` 的 `application-prod.yml`、环境变量模板、systemd 与 nginx 示例\n- 启动脚本默认启用文档 bootstrap 导入，并自动扫描 `tmp/yuque-batch/bootstrap-seeds/*.seed.json`\n- 适合低配服务器直接解压运行，避免在服务器侧执行 Maven 与前端构建',
+                E'## 本次更新\n\n- 新增 `deploy/build-release.sh`，可在本地打出后端 `jar`、前端 `dist` 与发布包\n- 发布包内置 `www.xuyifei.site` 的 `application-prod.yml`、环境变量模板、systemd 与 nginx 示例\n- 发布包会连同 `tmp/yuque-batch` 一起下发，启动脚本默认开启 bootstrap 导入并扫描 `bootstrap-seeds/*.seed.json`\n- 适合低配服务器直接解压运行，避免在服务器侧执行 Maven 与前端构建',
                 TIMESTAMPTZ '2026-03-17 00:25:00+08',
                 -7,
                 FALSE

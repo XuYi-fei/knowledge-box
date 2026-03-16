@@ -12,6 +12,7 @@
 - 用户侧已升级为路由级顶部工作区 header：标题与副标题固定在左侧，右侧 tabs 基于 URL 在 `主页 / 关于` 间切换；“关于”已从聊天页左下角迁出，改为独立 `about` 页面渲染。
 - 主页对话区已补齐稳定高度链：`chat-shell -> chat-content -> chat-main -> chat-card -> chat-messages` 统一使用 `flex + min-height: 0` 约束，消息增多时仅主会话区内部滚动，不再把整页不断撑高。
 - 主页工作区外层已显式禁用窗口级滚动：`app-shell / app-shell-main / user-workspace-shell / user-workspace-content / chat-shell / chat-content` 统一补上 `overflow: hidden`，避免浏览器窗口继续接管滚动条，保证滚动只发生在主消息区和左侧历史列表内部。
+- 聊天回答下方“关联资料”的预览文本已进一步收缩：引用摘要改为两行截断并缩小字号，减少单条回答引用区占用的垂直空间。
 - 后端已建立 Spring Boot + Liquibase + PostgreSQL/pgvector 基础工程，并拆分为 `backend-app/service/repository/domain` 四个 Maven 子模块。
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理，以及动态 Tool/MCP/Skill 绑定管理。
 - 文档治理链路已落地：文档上传、审核流、分类标签、Markdown 预览/编辑、图片转存、向量写入、索引重建与 bootstrap 初始化导入。
@@ -25,6 +26,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖用户侧顶部 header、独立 AboutPage 路由与聊天页去内嵌 about tab 改动。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖主页对话区固定高度与内部滚动修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖主页工作区外层 `overflow: hidden` 修复，防止窗口级滚动条继续出现。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天引用预览文本两行截断与字号收缩样式。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile`、`package`、`test` 均已通过；关键定向回归覆盖聊天编排、Trace、文档审核、Liquibase 与 PostgreSQL 集成链路。
 - 本地启动：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动；bootstrap 导入按 `importKey` 幂等跳过已有数据。
 - 本地可用性：`/api/public/system/availability` 可正常返回 `UP`。

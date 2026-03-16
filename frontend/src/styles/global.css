@@ -984,8 +984,12 @@ a {
 }
 
 .message-citation-snippet {
-  font-size: 12px;
-  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.4;
   color: rgba(16, 42, 43, 0.78);
 }
 

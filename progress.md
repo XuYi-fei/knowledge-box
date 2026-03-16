@@ -22,6 +22,7 @@
 - 用户侧文档详情页已改回绑定浏览器窗口滚动：右侧大纲 sticky 直接跟随页面主滚动，点击标题会同步更新 URL hash 并跳转/高亮，避免浏览器级滚动条场景下的大纲失效。
 - 用户侧文档详情页大纲点击链路已切回“原生锚点优先 + 前端高亮补充”：大纲项改为真实锚点链接，点击时会显式写入 `location.hash` 并执行偏移滚动，避免仅靠按钮事件导致标题点击无效。
 - 用户侧文档详情页现会在渲染后按大纲顺序回填正文标题 DOM `id`，确保右侧大纲、URL hash、滚动定位与滚动高亮都绑定到同一组真实标题节点，避免 Markdown 渲染结果与预计算大纲的 `id` 不一致。
+- `MarkdownRenderer` 已支持显式注入 `headingIds`；用户侧文档详情页改为在渲染阶段直接复用右侧大纲生成的标题 `id`，不再依赖“渲染后改 DOM”补丁，从源头统一 hash、跳转与滚动高亮的目标节点。
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理与动态 Tool/MCP/Skill 绑定管理。
 - 管理端 Trace 已升级为管理员专属的 Agent 调用链日志系统：后端按 `trace/span/event` 持久化 prompt 注入、thinking/summary、工具调用、最终回复与耗时，前端支持列表筛选与详情时间线查看。
 - 管理端 Trace 现支持删除单条已结束的执行链路；列表页和详情页都可删除，并会级联清理对应的 span/event 明细。
@@ -90,6 +91,7 @@
 - 前端验证：`npm --prefix frontend run build` 通过（含文档详情页切回浏览器窗口滚动模型、侧栏 sticky 改绑外层、点击大纲同步 hash 与高亮）。
 - 前端验证：`npm --prefix frontend run build` 通过（含文档详情页大纲切为原生锚点链接，点击标题时同步 `location.hash` 与补充平滑滚动）。
 - 前端验证：`npm --prefix frontend run build` 通过（含文档详情页正文标题 DOM `id` 回填，大纲点击与滚动高亮共用同一组真实标题节点）。
+- 前端验证：`npm --prefix frontend run build` 通过（含 `MarkdownRenderer headingIds` 注入与文档详情页标题锚点源头统一）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含批量审核通过接口、批量请求/响应 DTO 与审核服务复用单条发布链路）。
 - 后端编译验证：`mvn -q -pl backend/backend-app -am -DskipTests compile` 通过（含用户侧公开文档详情接口与聊天引用新窗口查看链路）。
 - 后端定向回归：`mvn -q -pl backend/backend-app -am -Dtest=ChatOrchestratorTests -Dsurefire.failIfNoSpecifiedTests=false test` 通过（含同一文档多段命中时 citation 按文档聚合回归）。

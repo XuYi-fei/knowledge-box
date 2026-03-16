@@ -1,7 +1,7 @@
 import { DownOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, Button, Card, Empty, Space, Spin, Tag, Typography } from 'antd';
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
@@ -165,12 +165,10 @@ export function UserDocumentDetailPage() {
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
   const [highlightedHeadingId, setHighlightedHeadingId] = useState<string | null>(null);
   const [expandedHeadingIds, setExpandedHeadingIds] = useState<string[]>([]);
-  const [headingsBound, setHeadingsBound] = useState(false);
   const initialFocusRef = useRef<string | null>(null);
   const initialHashHeadingIdRef = useRef<string | null>(
     decodeURIComponent(location.hash.replace(/^#/, '').trim()) || null,
   );
-  const markdownRootRef = useRef<HTMLDivElement | null>(null);
 
   const documentQuery = useQuery({
     queryKey: ['userDocumentDetail', numericDocumentId],
@@ -205,40 +203,13 @@ export function UserDocumentDetailPage() {
     if (!outline.length) {
       setActiveHeadingId(null);
       setExpandedHeadingIds([]);
-      setHeadingsBound(false);
-      return;
-    }
-    const markdownRoot = markdownRootRef.current;
-    if (!markdownRoot) {
-      setHeadingsBound(false);
-      return;
-    }
-    const headingElements = Array.from(markdownRoot.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'));
-    if (!headingElements.length) {
-      setHeadingsBound(false);
-      return;
-    }
-    headingElements.forEach((element, index) => {
-      const heading = outline[index];
-      if (!heading) {
-        return;
-      }
-      element.id = heading.id;
-    });
-    setHeadingsBound(true);
-  }, [outline, detailDocument?.sourceMarkdown]);
-
-  useEffect(() => {
-    if (!outline.length || !headingsBound) {
-      setActiveHeadingId(null);
       return;
     }
     let frameId = 0;
     const resolveActiveHeading = () => {
-      const markdownRoot = markdownRootRef.current;
-      const headingElements = markdownRoot
-        ? Array.from(markdownRoot.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')).filter((item) => Boolean(item.id))
-        : [];
+      const headingElements = outline
+        .map((item) => globalThis.document.getElementById(item.id))
+        .filter((item): item is HTMLElement => item instanceof HTMLElement);
       if (!headingElements.length) {
         return;
       }
@@ -271,10 +242,10 @@ export function UserDocumentDetailPage() {
       globalThis.window.removeEventListener('scroll', handleScroll as EventListener);
       globalThis.window.removeEventListener('resize', handleScroll);
     };
-  }, [headingsBound, outline.length]);
+  }, [outline]);
 
   useEffect(() => {
-    if (!outline.length || !headingsBound) {
+    if (!outline.length) {
       return;
     }
     const targetId = resolveTargetHeadingId(outline, headingPath, anchor, initialHashHeadingIdRef.current);
@@ -293,7 +264,7 @@ export function UserDocumentDetailPage() {
         scrollToHeadingInWindow(target, 'auto');
       }
     });
-  }, [anchor, headingPath, headingsBound, numericDocumentId, outline, outlineTree.nodeMap]);
+  }, [anchor, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
 
   useEffect(() => {
     if (!activeHeadingId) {
@@ -334,6 +305,11 @@ export function UserDocumentDetailPage() {
     setExpandedHeadingIds((current) => Array.from(new Set([...current, ...pathIds])));
   }
 
+  function handleOutlineClick(event: MouseEvent<HTMLAnchorElement>, headingId: string) {
+    event.preventDefault();
+    scrollToHeading(headingId);
+  }
+
   function toggleHeading(node: OutlineNode) {
     setExpandedHeadingIds((current) => {
       if (current.includes(node.id)) {
@@ -365,7 +341,7 @@ export function UserDocumentDetailPage() {
             <a
               className={`document-outline-item ${activeHeadingId === node.id ? 'document-outline-item-active' : ''}`}
               href={`#${node.id}`}
-              onClick={() => scrollToHeading(node.id)}
+              onClick={(event) => handleOutlineClick(event, node.id)}
             >
               {node.text}
             </a>
@@ -435,8 +411,12 @@ export function UserDocumentDetailPage() {
                 </div>
               </div>
 
-              <div ref={markdownRootRef} className="document-detail-markdown">
-                <MarkdownRenderer content={detailDocument.sourceMarkdown} headingIdPrefix={headingIdPrefix} />
+              <div className="document-detail-markdown">
+                <MarkdownRenderer
+                  content={detailDocument.sourceMarkdown}
+                  headingIdPrefix={headingIdPrefix}
+                  headingIds={outline.map((item) => item.id)}
+                />
               </div>
             </div>
           ) : documentQuery.isLoading ? (

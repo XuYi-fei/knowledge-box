@@ -10,6 +10,7 @@ type MarkdownRendererProps = {
   content: string;
   className?: string;
   headingIdPrefix?: string;
+  headingIds?: string[];
 };
 
 export type MarkdownOutlineItem = {
@@ -184,14 +185,21 @@ function parseInlineFontCode(code: string): ParsedInlineFontCode | null {
   };
 }
 
-export function MarkdownRenderer({ content, className, headingIdPrefix = 'markdown-heading' }: MarkdownRendererProps) {
+export function MarkdownRenderer({
+  content,
+  className,
+  headingIdPrefix = 'markdown-heading',
+  headingIds,
+}: MarkdownRendererProps) {
   const normalizedContent = normalizeFontMarkup(content);
   const headingIdCounter = new Map<string, number>();
+  let headingRenderIndex = 0;
   const renderHeading = (level: number, children: ReactNode) => {
     const tagName = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
     const headingText = flattenNodeText(children);
     const baseId = `${headingIdPrefix}-${slugifyHeading(headingText)}`;
-    const id = resolveHeadingId(baseId, headingIdCounter);
+    const id = headingIds?.[headingRenderIndex] ?? resolveHeadingId(baseId, headingIdCounter);
+    headingRenderIndex += 1;
     return createElement(tagName, { id }, children);
   };
   const components = {

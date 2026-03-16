@@ -306,26 +306,19 @@ function compactReasoningLabel(steps: string[]) {
   return `思考摘要 · ${preview}`;
 }
 
-function buildCitationWindowUrl(citation: ChatCitation) {
-  const url = new URL(`/documents/${citation.documentId}`, window.location.origin);
+function buildCitationDetailPath(citation: ChatCitation) {
+  const params = new URLSearchParams();
   if (citation.headingPath) {
-    url.searchParams.set('headingPath', citation.headingPath);
+    params.set('headingPath', citation.headingPath);
   }
   if (citation.anchor) {
-    url.searchParams.set('anchor', citation.anchor);
+    params.set('anchor', citation.anchor);
   }
   if (citation.snippet) {
-    url.searchParams.set('snippet', citation.snippet);
+    params.set('snippet', citation.snippet);
   }
-  return url.toString();
-}
-
-function buildCitationWindowFeatures() {
-  const width = Math.max(720, Math.min(window.outerWidth - 64, 1280));
-  const height = Math.max(620, Math.min(window.outerHeight - 64, 920));
-  const left = Math.max(window.screenX + Math.round((window.outerWidth - width) / 2), 0);
-  const top = Math.max(window.screenY + Math.round((window.outerHeight - height) / 2), 0);
-  return `noopener,noreferrer,width=${width},height=${height},left=${left},top=${top}`;
+  const search = params.toString();
+  return `/documents/${citation.documentId}${search ? `?${search}` : ''}`;
 }
 
 function scheduleScrollToBottom(
@@ -903,7 +896,7 @@ export function PublicChatPage() {
   const activeStreaming = Boolean(activeSessionId && streamingSessions[activeSessionId]);
 
   function openCitationDetail(citation: ChatCitation) {
-    window.open(buildCitationWindowUrl(citation), '_blank', buildCitationWindowFeatures());
+    navigate(buildCitationDetailPath(citation));
   }
 
   useEffect(() => {

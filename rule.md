@@ -3,6 +3,7 @@
 ## Before Starting
 
 - Read `progress.md` first, then read this file.
+- If the task is module-specific, also read the matching `docs/progress/<module>/progress.md`.
 - Read only the modules relevant to the task; avoid broad, unfocused scanning.
 - If the task changes behavior, config, or delivery scope, plan to update `progress.md` before finishing.
 
@@ -21,7 +22,8 @@
 
 ## Delivery Expectations
 
-- After each meaningful feature, bugfix, or infra change, update `progress.md`.
+- Keep root `progress.md` as the project index/summary; put module detail in `docs/progress/<module>/progress.md`.
+- After each meaningful feature, bugfix, or infra change, update the matching module progress; update root `progress.md` only when project-wide focus, module index, or shared notes change.
 - After each independent feature is completed, also add a concise release note to the About tab by inserting data for `about_release_note` through a new additive database changelog/script.
 - When creating git commits in this repo, use Chinese commit messages unless the user explicitly asks for another language.
 - Distinguish "已完成" from "已验证无误". Only move items into verified when you actually ran a validation path.

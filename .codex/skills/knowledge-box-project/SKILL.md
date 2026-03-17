@@ -11,30 +11,32 @@ Read the project rule file and progress file before doing substantial work in th
 
 1. Read `../../../rule.md`.
 2. Read `../../../progress.md`.
-3. Read only the repo files relevant to the current task.
+3. If the task is module-specific, read the matching `../../../docs/progress/<module>/progress.md`.
+4. Read only the repo files relevant to the current task.
 
-Keep those two markdown files small. Do not paste them into new docs or duplicate their contents elsewhere unless the user asks.
+Keep the root progress and each module progress small. Do not paste them into new docs or duplicate their contents elsewhere unless the user asks.
 
 ## Working Loop
 
-1. Build context from `rule.md`, `progress.md`, and the touched modules.
+1. Build context from `rule.md`, root `progress.md`, the relevant module progress, and the touched modules.
 2. Implement the requested change while following the project constraints.
 3. Run targeted verification when feasible.
 4. If this task is a completed feature/bugfix and verification passed, stage related files and create a git commit before finishing, using a Chinese commit message.
-5. Update `../../../progress.md` if the task changes project status, completed scope, or verification scope.
+5. Update the relevant `../../../docs/progress/<module>/progress.md` if the task changes module status, completed scope, or verification scope; update `../../../progress.md` only for project-wide stage, module index, or shared notes changes.
 6. If the task delivers an independent feature, also sync a concise release note for the About tab by adding database data through an additive changelog/script against `about_release_note`.
 7. If the task introduces a new recurring constraint or a new pitfall, add a short note to `../../../rule.md`.
 
 ## Update Rules
 
-- Update `progress.md` after meaningful feature work, bug fixes, infrastructure changes, or verification changes.
+- Keep root `progress.md` as the project index/summary, and keep module detail in `docs/progress/<module>/progress.md`.
+- Update the relevant module progress after meaningful feature work, bug fixes, infrastructure changes, or verification changes.
 - For completed feature/bugfix work, do not stop at code + tests: create a git commit in the same turn after verification passes.
 - When creating git commits in this repo, use Chinese commit messages by default unless the user explicitly asks otherwise.
-- Keep `progress.md` factual and compressed. Preserve only current stage, core completed capabilities, verified scope, and the next focus.
+- Keep root and module progress factual and compressed. Preserve only current stage, core completed capabilities, verified scope, and the next focus.
 - Separate "completed" from "verified".
 - When an independent feature ships, do not stop at `progress.md`: also append a concise About-tab release note through an additive database change, rather than hiding the change only in docs.
 - Update `rule.md` only for stable project rules, repeat mistakes, or setup pitfalls worth preserving.
-- Keep both files concise so they remain cheap to load every turn.
+- Keep root progress and module progress concise so they remain cheap to load every turn.
 
 ## What To Preserve
 

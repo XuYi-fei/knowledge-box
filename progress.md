@@ -28,6 +28,7 @@
 - 已支持本地维护 `config/application-prod.yml` 与 `config/knowledge-box.env` 并在远程部署时直接覆盖服务器端配置；当前本地已生成一份可用的 `knowledge-box.env`，仅数据库密码留空待补。
 - 已修复 `deploy/bin/start-backend-flat.sh` 对 `config/knowledge-box.env` 只 `source` 不导出的问题；当前会自动导出 `.env` 里的 `DB_*`、`KB_*` 等变量，远程平铺部署启动时无需把配置文件改写成 `export KEY=...` 格式。
 - 已修复 `deploy/bin/stop-backend-flat.sh` 只发 `TERM` 不等待退出的问题；当前平铺部署重启会阻塞等待旧后端实例退出，超时后可按配置回退到强杀，避免旧进程未停完就拉起新实例。
+- 已补充 `scripts/cleanup_stuck_bootstrap_reviews.py`，用于清理因导入中断而卡在 `PROCESSING/CHUNKING` 的 bootstrap 审核单，释放 `importKey` 幂等占位，便于重启后重新导入。
 - 文档治理链路已落地：文档上传、审核流、分类标签、Markdown 预览/编辑、图片转存、向量写入、索引重建与 bootstrap 初始化导入。
 - 管理端文档审核已支持批量审核通过；Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
 - 初始化数据已补充前台可登录管理员账号 `admin@example.com / admin123`。
@@ -46,6 +47,7 @@
 - 远程平铺部署脚本：在本地存在 `config/application-prod.yml` / `config/knowledge-box.env` 时，`./deploy/deploy-remote-flat.sh --skip-build --dry-run` 已确认优先上传真实配置文件而非 example。
 - 远程平铺启动脚本：`bash -n deploy/bin/start-backend-flat.sh` 可通过；基于临时假 `java` 进程的本地验证已确认 `config/knowledge-box.env` 中的 `DB_URL/DB_USERNAME/DB_PASSWORD/SPRING_PROFILES_ACTIVE` 会导出到子进程。
 - 远程平铺停止脚本：`bash -n deploy/bin/stop-backend-flat.sh` 可通过；基于临时假后端进程的本地验证已确认脚本会在发出 `TERM` 后等待旧进程真正退出再返回。
+- 数据清理：`python3 scripts/cleanup_stuck_bootstrap_reviews.py` dry-run 与 `--apply` 已验证可用；已实际删除 `81` 条卡在 `PROCESSING/CHUNKING` 的 `yuque:*` bootstrap 审核单，当前库内仅剩 `9` 条 `APPROVED` 审核记录。
 - 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本，以及供 bootstrap 导入使用的整棵 `tmp/yuque-batch/`。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。

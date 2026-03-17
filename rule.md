@@ -60,6 +60,7 @@
 - 语雀 bootstrap seed 若通过 `sourceMarkdownPath` 指向 `tmp/yuque-batch/full-*` 正文，发布包必须保留整棵 `tmp/yuque-batch/`，不能只带 `bootstrap-seeds/`。
 - 平铺部署启动脚本若 `source config/knowledge-box.env`，需确保变量已 `export` 给 `java` 子进程；仅 `source` 未导出的 `DB_*`/`KB_*` 会导致 Spring 读取到空配置。
 - 平铺部署停止脚本不能只发 `TERM` 就立刻返回；需等待旧后端进程实际退出，必要时超时强杀，否则重启时容易撞上旧实例尚未释放端口。
+- bootstrap 审核单若卡在 `PROCESSING/CHUNKING`，`importKey` 仍会占用幂等键并阻止后续重启重导；需先恢复任务或清理卡单，再重新执行 bootstrap。
 - 前端健康探测不要直接依赖 `/actuator/health` 聚合状态；邮件等依赖异常会误报 `DOWN`。优先使用业务可用性端点 `/api/public/system/availability`。
 - 测试专用 `db.changelog-it.xml` 若追加 `about_release_note` 相关 release note 变更，需先同步建表基线，否则 PostgreSQL 集成测试会在 Liquibase 迁移阶段直接失败。
 - AgentScope Hook 事件对象的部分调试字段（如 `generateOptions`）允许为 `null`；记录 trace/debug payload 时不要直接用 `Map.of(...)` 组装可空值。

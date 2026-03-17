@@ -70,3 +70,4 @@
 - Trace / backend waterfall 这类日志写库若发生在 `@Transactional(readOnly = true)` 服务方法内，开始/结束 span 的持久化必须用独立事务（如 `REQUIRES_NEW`），否则很容易在收尾阶段触发连接已关闭或只读事务写入失败。
 - JPA 原生查询在 `JOIN` 多表并返回实体时，`SELECT` 需显式限定到目标表别名（如 `SELECT dc.*`）；直接 `SELECT *` 很容易触发 `NonUniqueDiscoveredSqlAliasException`。
 - 带 `timeout` 的工具/任务执行不要把“查询配置 + 实际执行 + 审计落库”整段包进单个长事务；超时分支还需显式 `cancel`/中断后台任务，避免前台已超时但后台继续跑。
+- 公开文库目录若底层存在不同 `importKey` 但标题和正文完全相同的公开文档，展示层需按“分类 + 标题 + 正文指纹”去重，否则分类计数和列表会把同一篇文章重复展示。

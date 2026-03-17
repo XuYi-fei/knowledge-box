@@ -137,6 +137,18 @@ class KnowledgeBoxPostgresIntegrationTests {
                 List.of("MCP", "集成"),
                 "PUBLIC"
         );
+        seedDocumentWithTaxonomy(
+                "Java 与 MCP",
+                "java-mcp-duplicate.md",
+                """
+                        # Java 与 MCP
+
+                        Java 也可以用于实现 MCP Server 与相关接入层。
+                        """,
+                "Java",
+                List.of("MCP"),
+                "PUBLIC"
+        );
         SeededDocument hidden = seedDocumentWithTaxonomy(
                 "隐藏文章",
                 "hidden.md",
@@ -180,6 +192,9 @@ class KnowledgeBoxPostgresIntegrationTests {
         assertThat(filteredListResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(filteredListResponse.getBody()).isNotNull();
         List<Map<String, Object>> items = (List<Map<String, Object>>) filteredListResponse.getBody().get("items");
+        assertThat(items)
+                .extracting(item -> item.get("id"))
+                .doesNotHaveDuplicates();
         assertThat(items)
                 .extracting(item -> item.get("title"))
                 .contains("Java 与 MCP")

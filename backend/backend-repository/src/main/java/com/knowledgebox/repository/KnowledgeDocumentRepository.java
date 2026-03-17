@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -39,6 +40,9 @@ public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocu
 
     @EntityGraph(attributePaths = "category")
     Page<KnowledgeDocument> findAll(@Nullable Specification<KnowledgeDocument> spec, Pageable pageable);
+
+    @EntityGraph(attributePaths = "category")
+    List<KnowledgeDocument> findAll(@Nullable Specification<KnowledgeDocument> spec, Sort sort);
 
     @Query("""
             select document

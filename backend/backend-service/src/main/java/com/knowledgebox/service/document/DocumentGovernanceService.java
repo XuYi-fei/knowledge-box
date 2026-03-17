@@ -198,43 +198,32 @@ public class DocumentGovernanceService {
         int safePage = Math.max(page, 1);
         int safePageSize = Math.min(Math.max(pageSize, 1), 48);
         List<Long> normalizedTagIds = normalizeTagIds(tagIds);
-        PageRequest pageable = PageRequest.of(
-                safePage - 1,
-                safePageSize,
-                Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"))
-        );
-        Page<KnowledgeDocument> documentPage = knowledgeDocumentRepository.findAll(
-                publicDocumentSpecification(categoryId, normalizedTagIds),
-                pageable
-        );
-        Map<Long, List<String>> tagNamesByDocumentId = loadTagNamesByDocumentIds(
-                documentPage.getContent().stream().map(KnowledgeDocument::getId).toList()
-        );
-        List<PublicDocumentSummaryView> items = documentPage.getContent().stream()
-                .map(document -> new PublicDocumentSummaryView(
+        List<PublicDocumentAggregate> documents = loadPublicDocumentAggregates(categoryId, normalizedTagIds);
+        int fromIndex = Math.min((safePage - 1) * safePageSize, documents.size());
+        int toIndex = Math.min(fromIndex + safePageSize, documents.size());
+        List<PublicDocumentSummaryView> items = documents.subList(fromIndex, toIndex).stream()
+                .map(aggregate -> {
+                    KnowledgeDocument document = aggregate.document();
+                    return new PublicDocumentSummaryView(
                         document.getId(),
                         document.getTitle(),
                         document.getCategory() == null ? null : document.getCategory().getName(),
-                        tagNamesByDocumentId.getOrDefault(document.getId(), List.of()),
+                        aggregate.tagNames(),
                         buildPublicDocumentExcerpt(document.getSourceMarkdown()),
                         document.getUpdatedAt()
-                ))
+                    );
+                })
                 .toList();
-        return new PublicDocumentPageView(items, documentPage.getTotalElements(), safePage, safePageSize);
+        return new PublicDocumentPageView(items, documents.size(), safePage, safePageSize);
     }
 
     @Transactional(readOnly = true)
     public PublicDocumentFacetView publicDocumentFacets() {
-        List<KnowledgeDocument> documents = knowledgeDocumentRepository.findAllByVisibilityTypeAndStatusWithCategory(
-                DocumentVisibilityType.PUBLIC,
-                DocumentStatus.READY
-        );
-        Map<Long, List<DocumentTagBinding>> bindingsByDocumentId = loadTagBindingsByDocumentIds(
-                documents.stream().map(KnowledgeDocument::getId).toList()
-        );
+        List<PublicDocumentAggregate> documents = loadPublicDocumentAggregates(null, List.of());
         Map<Long, CategoryFacetAccumulator> categories = new LinkedHashMap<>();
         Map<Long, TagFacetAccumulator> allTags = new LinkedHashMap<>();
-        for (KnowledgeDocument document : documents) {
+        for (PublicDocumentAggregate aggregate : documents) {
+            KnowledgeDocument document = aggregate.document();
             CategoryFacetAccumulator categoryAccumulator = null;
             if (document.getCategory() != null) {
                 categoryAccumulator = categories.computeIfAbsent(
@@ -244,18 +233,14 @@ public class DocumentGovernanceService {
                 categoryAccumulator.incrementDocumentCount();
             }
 
-            Set<Long> seenTagIds = new LinkedHashSet<>();
-            for (DocumentTagBinding binding : bindingsByDocumentId.getOrDefault(document.getId(), List.of())) {
-                if (binding.getTag() == null || binding.getTag().getId() == null || !seenTagIds.add(binding.getTag().getId())) {
-                    continue;
-                }
+            for (DocumentTag tag : aggregate.tags()) {
                 TagFacetAccumulator allTagAccumulator = allTags.computeIfAbsent(
-                        binding.getTag().getId(),
-                        ignored -> new TagFacetAccumulator(binding.getTag().getId(), binding.getTag().getName())
+                        tag.getId(),
+                        ignored -> new TagFacetAccumulator(tag.getId(), tag.getName())
                 );
                 allTagAccumulator.incrementDocumentCount();
                 if (categoryAccumulator != null) {
-                    categoryAccumulator.tag(binding.getTag()).incrementDocumentCount();
+                    categoryAccumulator.tag(tag).incrementDocumentCount();
                 }
             }
         }
@@ -715,6 +700,36 @@ public class DocumentGovernanceService {
         }
         return map.entrySet().stream()
                 .collect(LinkedHashMap::new, (target, entry) -> target.put(entry.getKey(), List.copyOf(entry.getValue())), LinkedHashMap::putAll);
+    }
+
+    private List<PublicDocumentAggregate> loadPublicDocumentAggregates(@Nullable Long categoryId, List<Long> tagIds) {
+        List<KnowledgeDocument> documents = knowledgeDocumentRepository.findAll(
+                publicDocumentSpecification(categoryId, tagIds),
+                Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"))
+        );
+        Map<Long, List<DocumentTagBinding>> bindingsByDocumentId = loadTagBindingsByDocumentIds(
+                documents.stream().map(KnowledgeDocument::getId).toList()
+        );
+        LinkedHashMap<String, PublicDocumentAggregateAccumulator> grouped = new LinkedHashMap<>();
+        for (KnowledgeDocument document : documents) {
+            PublicDocumentAggregateAccumulator accumulator = grouped.computeIfAbsent(
+                    buildPublicDocumentDedupKey(document),
+                    ignored -> new PublicDocumentAggregateAccumulator(document)
+            );
+            accumulator.absorb(bindingsByDocumentId.getOrDefault(document.getId(), List.of()));
+        }
+        return grouped.values().stream()
+                .map(PublicDocumentAggregateAccumulator::toAggregate)
+                .toList();
+    }
+
+    private String buildPublicDocumentDedupKey(KnowledgeDocument document) {
+        Long categoryId = document.getCategory() == null ? null : document.getCategory().getId();
+        String title = document.getTitle() == null ? "" : document.getTitle().trim();
+        String contentFingerprint = DigestUtils.md5DigestAsHex(
+                (document.getSourceMarkdown() == null ? "" : document.getSourceMarkdown()).getBytes(StandardCharsets.UTF_8)
+        );
+        return categoryId + "|" + title + "|" + contentFingerprint;
     }
 
     private Specification<KnowledgeDocument> publicDocumentSpecification(@Nullable Long categoryId, List<Long> tagIds) {
@@ -1314,6 +1329,38 @@ public class DocumentGovernanceService {
                     .map(TagFacetAccumulator::toView)
                     .toList();
             return new PublicDocumentCategoryFacetView(id, name, documentCount, tagViews);
+        }
+    }
+
+    private static final class PublicDocumentAggregateAccumulator {
+        private final KnowledgeDocument document;
+        private final LinkedHashMap<Long, DocumentTag> tags = new LinkedHashMap<>();
+
+        private PublicDocumentAggregateAccumulator(KnowledgeDocument document) {
+            this.document = document;
+        }
+
+        private void absorb(List<DocumentTagBinding> bindings) {
+            for (DocumentTagBinding binding : bindings) {
+                DocumentTag tag = binding.getTag();
+                if (tag == null || tag.getId() == null) {
+                    continue;
+                }
+                tags.putIfAbsent(tag.getId(), tag);
+            }
+        }
+
+        private PublicDocumentAggregate toAggregate() {
+            return new PublicDocumentAggregate(document, List.copyOf(tags.values()));
+        }
+    }
+
+    private record PublicDocumentAggregate(
+            KnowledgeDocument document,
+            List<DocumentTag> tags
+    ) {
+        private List<String> tagNames() {
+            return tags.stream().map(DocumentTag::getName).toList();
         }
     }
 

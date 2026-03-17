@@ -13,7 +13,8 @@
 - 已修复公开文档详情页大纲与滚动容器脱节的问题；当前 `/documents/:id` 的大纲高亮、点击跳转与初始锚点定位都改为基于页面内部滚动容器工作。
 - 用户侧已升级为路由级顶部工作区 header：标题与副标题固定在左侧，右侧 tabs 基于 URL 在 `主页 / 关于` 间切换；“关于”已从聊天页左下角迁出，改为独立 `about` 页面渲染。
 - 用户侧已新增匿名可访问的公开文库页 `/articles`：支持左侧分类栏与多标签筛选、右侧公开文章卡片列表，以及在同一工作区内查看完整 Markdown 正文；登录后顶部 header 也已补上 `文库` tab 入口。
-- 已修复公开文库页单条文章列表场景下卡片被整行拉满的问题；当前卡片列表改为左对齐并限制单卡最大宽度，单篇结果不会再出现异常超宽展示。
+- 已修复公开文库页单条文章列表场景下卡片被整行拉满的问题；当前卡片列表改为响应式网格，既会铺满内容区宽度，也不会在单篇结果时出现异常超宽展示。
+- 已修复公开文库底层重复数据导致的重复展示问题；当前若存在不同 `importKey` 但标题和正文相同的公开文档，目录与分类/标签计数会按内容指纹去重后再对外展示。
 - 用户侧 header 已新增 `工具` tab 与独立 `/tools` 页面：首批内置 `Base64 编码`、`Base64 解码`、`MD5 摘要`，支持前端本地执行与后端统一执行两类模式。
 - 主页对话区已补齐稳定高度链：`chat-shell -> chat-content -> chat-main -> chat-card -> chat-messages` 统一使用 `flex + min-height: 0` 约束，消息增多时仅主会话区内部滚动，不再把整页不断撑高。
 - 主页工作区外层已显式禁用窗口级滚动：`app-shell / app-shell-main / user-workspace-shell / user-workspace-content / chat-shell / chat-content` 统一补上 `overflow: hidden`，避免浏览器窗口继续接管滚动条，保证滚动只发生在主消息区和左侧历史列表内部。
@@ -65,6 +66,7 @@
 - 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本，以及供 bootstrap 导入使用的整棵 `tmp/yuque-batch/`。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests package` 可通过，已覆盖本次新增的公开文档分页/facet/详情接口、匿名访问白名单与 release note 变更集。
+- 后端：已用只读 SQL 实查本地 `knowledge_document`，确认 `工具部署` 分类下存在两条标题为 `2. Ollama调用` 且 `source_markdown` MD5 完全一致、仅 `importKey` 不同的公开文档；当前公开文库目录已在服务层按“分类 + 标题 + 正文指纹”聚合去重。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。
 - 后端：全量 `mvn -q -pl backend/backend-app -am test` 在当前沙箱环境下因无法连本机 PostgreSQL（`SocketException: Operation not permitted`）失败，非本次代码编译错误。
 - 后端：新增 `KnowledgeBoxPostgresIntegrationTests#shouldServeAnonymousPublicDocumentCatalogAndRespectVisibility` 覆盖匿名公开文档目录、分类/标签筛选与公开性边界；当前沙箱同样因 PostgreSQL 连接受限未能实际跑通。

@@ -13,6 +13,7 @@
 - Prefer explicit configuration in `application-local.yml`, `application-local.yml.example`, environment variables, or documented startup parameters.
 - Do not overwrite values already configured by the user in `application-local.yml` unless the user explicitly asks to modify that file.
 - `backend/backend-app/src/main/resources/application-local.yml` 视为本地敏感配置文件，必须保持在 `.gitignore` 中，不参与版本追踪。
+- 部署用本地真配置（如 `config/knowledge-box.env`、`config/application-prod.yml`）若用于覆盖服务器配置，必须保持在 `.gitignore` 中，不参与版本追踪。
 - If shared config structure changes, prefer updating `application.yml`, `application-local.yml.example`, and README; only touch `application-local.yml` when the change is explicitly local-env related and user-approved.
 - When changing backend config shape, keep `README.md` and local example config in sync.
 - Keep admin-only settings, local-only settings, and shared defaults clearly separated.

@@ -192,16 +192,21 @@ JAVA_OPTS="-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=320m -XX:+UseG1GC -XX:MaxGCPa
 - 上传后端 jar 到服务器根目录
 - 上传整棵 `tmp/yuque-batch/`，保证 bootstrap seed 能继续读取 `full-*` 下正文
 - 上传 `start-backend-flat.sh / stop-backend-flat.sh`
+- 若本地存在 `config/application-prod.yml` 与 `config/knowledge-box.env`，优先直接覆盖上传到服务器 `config/`
 - 远程执行停止旧进程并后台启动新 jar
 
-首次部署前，你至少需要在服务器上准备：
+推荐在本地先准备：
 
 ```bash
-mkdir -p /home/ubuntu/repos/knowledge-box/config
-cp /home/ubuntu/repos/knowledge-box/config/knowledge-box.env.example /home/ubuntu/repos/knowledge-box/config/knowledge-box.env
+mkdir -p config
 ```
 
-然后编辑 `config/knowledge-box.env`，填入数据库、Redis、DashScope、JWT 等真实配置。
+当前仓库已支持你在本地维护以下两个文件，并在部署时直接覆盖服务器端：
+
+- `config/application-prod.yml`
+- `config/knowledge-box.env`
+
+如果本地不存在这些真实配置，脚本才会回退上传 example。
 
 如果远端首次没有 `config/knowledge-box.env`，脚本会自动用 `config/knowledge-box.env.example` 初始化一份，再提示你补齐密钥字段。
 

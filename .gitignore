@@ -16,6 +16,8 @@ yuque_openapi_*.html
 frontend/.env.local
 frontend/.env.development.local
 frontend/.env.production.local
+config/knowledge-box.env
+config/application-prod.yml
 backend/data/
 backend/logs/
 tmp/yuque-exports/

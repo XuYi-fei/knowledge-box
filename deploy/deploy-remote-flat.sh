@@ -134,6 +134,9 @@ REMOTE_DEPLOY_BIN_DIR="${REMOTE_BASE}/deploy/bin"
 REMOTE_CONFIG_DIR="${REMOTE_BASE}/config"
 REMOTE_LOG_DIR="${REMOTE_BASE}/logs"
 REMOTE_UPLOADS_DIR="${REMOTE_BASE}/uploads"
+LOCAL_CONFIG_DIR="${ROOT_DIR}/config"
+LOCAL_APP_PROD_CONFIG="${LOCAL_CONFIG_DIR}/application-prod.yml"
+LOCAL_ENV_CONFIG="${LOCAL_CONFIG_DIR}/knowledge-box.env"
 
 print_cmd() {
   printf '[dry-run] %q' "$1"
@@ -162,12 +165,24 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
     "${ROOT_DIR}/deploy/bin/start-backend-flat.sh" \
     "${ROOT_DIR}/deploy/bin/stop-backend-flat.sh" \
     "${SSH_TARGET}:${REMOTE_DEPLOY_BIN_DIR}/"
-  print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
-    "${ROOT_DIR}/deploy/templates/application-prod.yml" \
-    "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/application-prod.yml.example"
-  print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
-    "${ROOT_DIR}/deploy/templates/knowledge-box.env.example" \
-    "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/knowledge-box.env.example"
+  if [[ -f "${LOCAL_APP_PROD_CONFIG}" ]]; then
+    print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+      "${LOCAL_APP_PROD_CONFIG}" \
+      "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/application-prod.yml"
+  else
+    print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+      "${ROOT_DIR}/deploy/templates/application-prod.yml" \
+      "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/application-prod.yml.example"
+  fi
+  if [[ -f "${LOCAL_ENV_CONFIG}" ]]; then
+    print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+      "${LOCAL_ENV_CONFIG}" \
+      "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/knowledge-box.env"
+  else
+    print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+      "${ROOT_DIR}/deploy/templates/knowledge-box.env.example" \
+      "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/knowledge-box.env.example"
+  fi
   if [[ ${SKIP_RESTART} -eq 0 ]]; then
     print_cmd ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "bash -s <<'EOF' ... EOF"
   fi
@@ -200,13 +215,26 @@ rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
   "${ROOT_DIR}/deploy/bin/stop-backend-flat.sh" \
   "${SSH_TARGET}:${REMOTE_DEPLOY_BIN_DIR}/"
 
-echo "[deploy-remote-flat] Syncing config examples..."
-rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
-  "${ROOT_DIR}/deploy/templates/application-prod.yml" \
-  "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/application-prod.yml.example"
-rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
-  "${ROOT_DIR}/deploy/templates/knowledge-box.env.example" \
-  "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/knowledge-box.env.example"
+echo "[deploy-remote-flat] Syncing config files..."
+if [[ -f "${LOCAL_APP_PROD_CONFIG}" ]]; then
+  rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+    "${LOCAL_APP_PROD_CONFIG}" \
+    "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/application-prod.yml"
+else
+  rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+    "${ROOT_DIR}/deploy/templates/application-prod.yml" \
+    "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/application-prod.yml.example"
+fi
+
+if [[ -f "${LOCAL_ENV_CONFIG}" ]]; then
+  rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+    "${LOCAL_ENV_CONFIG}" \
+    "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/knowledge-box.env"
+else
+  rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+    "${ROOT_DIR}/deploy/templates/knowledge-box.env.example" \
+    "${SSH_TARGET}:${REMOTE_CONFIG_DIR}/knowledge-box.env.example"
+fi
 
 if [[ ${SKIP_RESTART} -eq 1 || ${DRY_RUN} -eq 1 ]]; then
   echo "[deploy-remote-flat] Upload complete. Restart skipped."

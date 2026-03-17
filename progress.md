@@ -9,6 +9,7 @@
 - 用户侧已具备登录、知识库问答、会话持久化、SSE 流式输出、历史恢复、会话删除与“关于”tab。
 - 聊天主链路已切到 AgentScope Java ReActAgent，支持前置知识检索、tool calling、reasoning/tool/citation 展示与 trace。
 - 用户侧引用已内联到回答下方，并支持跳转公开文档详情；文档详情页已具备 Markdown 渲染、标题锚点、大纲、高亮定位与返回对话链路。
+- 已修复公开文档详情页在工作区内无法向下滚动的问题；当前 `/documents/:id` 会接管自身滚动，不再被外层 `overflow: hidden` 锁死。
 - 用户侧已升级为路由级顶部工作区 header：标题与副标题固定在左侧，右侧 tabs 基于 URL 在 `主页 / 关于` 间切换；“关于”已从聊天页左下角迁出，改为独立 `about` 页面渲染。
 - 用户侧已新增匿名可访问的公开文库页 `/articles`：支持左侧分类栏与多标签筛选、右侧公开文章卡片列表，以及在同一工作区内查看完整 Markdown 正文；登录后顶部 header 也已补上 `文库` tab 入口。
 - 用户侧 header 已新增 `工具` tab 与独立 `/tools` 页面：首批内置 `Base64 编码`、`Base64 解码`、`MD5 摘要`，支持前端本地执行与后端统一执行两类模式。
@@ -42,6 +43,7 @@
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页、文档详情页、文档审核页、Trace 管理页、顶部 header/独立 About、主页固定高度与内部滚动、聊天引用样式，以及本次新增的用户工具页、header `工具` tab、管理端工具目录与工具执行日志页面。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的公开文库路由 `/articles`、共享 workspace header、分类/标签筛选栏与公开文章详情渲染。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 文档详情页内部滚动修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖用户工具页 schema 驱动输入/结果渲染与管理端可视化 schema 配置器。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖新增的 URL、SHA-256、JSON、时间戳 `CLIENT` 模板工具执行逻辑。
 - 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖 profile 选择脚本与构建时动态配置加载。

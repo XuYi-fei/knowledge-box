@@ -49,6 +49,15 @@ if [[ ! -f "${BASE_DIR}/knowledge-box-backend.jar" ]]; then
   exit 1
 fi
 
+# Force a UTF-8 process locale so non-ASCII env values (for example KB_MAIL_FROM_PERSONAL)
+# are decoded correctly by the Java process even when the host defaults to LANG=C/POSIX.
+if [[ -z "${LANG:-}" || "${LANG}" == "C" || "${LANG}" == "POSIX" ]]; then
+  export LANG=C.UTF-8
+fi
+if [[ -z "${LC_ALL:-}" || "${LC_ALL}" == "C" || "${LC_ALL}" == "POSIX" ]]; then
+  export LC_ALL=C.UTF-8
+fi
+
 if [[ -f "${CONFIG_DIR}/knowledge-box.env" ]]; then
   # Export sourced env vars so Spring placeholders are visible to the java process.
   set -a

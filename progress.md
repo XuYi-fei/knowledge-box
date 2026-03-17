@@ -27,6 +27,7 @@
 - 远程部署脚本在服务器缺少 `config/knowledge-box.env` 时，会先基于 example 初始化，再提示补齐数据库密码和其他密钥字段。
 - 已支持本地维护 `config/application-prod.yml` 与 `config/knowledge-box.env` 并在远程部署时直接覆盖服务器端配置；当前本地已生成一份可用的 `knowledge-box.env`，仅数据库密码留空待补。
 - 已修复 `deploy/bin/start-backend-flat.sh` 对 `config/knowledge-box.env` 只 `source` 不导出的问题；当前会自动导出 `.env` 里的 `DB_*`、`KB_*` 等变量，远程平铺部署启动时无需把配置文件改写成 `export KEY=...` 格式。
+- 已修复启动 locale 导致的中文环境变量乱码：`start-backend-flat.sh` 与 `start-backend.sh` 现会在 `LANG/LC_ALL` 为空或为 `C/POSIX` 时强制切到 `C.UTF-8`，发件人昵称等中文 env 值可被 Java 正确读取。
 - 已修复 `deploy/bin/stop-backend-flat.sh` 只发 `TERM` 不等待退出的问题；当前平铺部署重启会阻塞等待旧后端实例退出，超时后可按配置回退到强杀，避免旧进程未停完就拉起新实例。
 - 已补充 `scripts/cleanup_stuck_bootstrap_reviews.py`，用于清理因导入中断而卡在 `PROCESSING/CHUNKING` 的 bootstrap 审核单，释放 `importKey` 幂等占位，便于重启后重新导入。
 - 远程平铺部署脚本已支持 `--frontend-only` / `--backend-only`：可单独发布前端静态资源，或仅发布后端 jar+配置+bootstrap 数据并重启后端。
@@ -50,6 +51,7 @@
 - 远程平铺部署脚本：在本地存在 `config/application-prod.yml` / `config/knowledge-box.env` 时，`./deploy/deploy-remote-flat.sh --skip-build --dry-run` 已确认优先上传真实配置文件而非 example。
 - 远程平铺部署脚本：`./deploy/deploy-remote-flat.sh --frontend-only --skip-build --dry-run` 与 `./deploy/deploy-remote-flat.sh --backend-only --skip-build --dry-run` 已验证分别只输出对应端的上传/重启动作。
 - 远程平铺启动脚本：`bash -n deploy/bin/start-backend-flat.sh` 可通过；基于临时假 `java` 进程的本地验证已确认 `config/knowledge-box.env` 中的 `DB_URL/DB_USERNAME/DB_PASSWORD/SPRING_PROFILES_ACTIVE` 会导出到子进程。
+- 启动 locale 修复：基于临时假 `java` 进程的本地验证已确认在 `LANG=C LC_ALL=C` 下执行 `start-backend-flat.sh` 时，脚本会自动切到 `C.UTF-8`，并把 `KB_MAIL_FROM_PERSONAL=小灰飞` 正确传给 Java 子进程。
 - 远程平铺停止脚本：`bash -n deploy/bin/stop-backend-flat.sh` 可通过；基于临时假后端进程的本地验证已确认脚本会在发出 `TERM` 后等待旧进程真正退出再返回。
 - 数据清理：`python3 scripts/cleanup_stuck_bootstrap_reviews.py` dry-run 与 `--apply` 已验证可用；已实际删除 `81` 条卡在 `PROCESSING/CHUNKING` 的 `yuque:*` bootstrap 审核单，当前库内仅剩 `9` 条 `APPROVED` 审核记录。
 - 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本，以及供 bootstrap 导入使用的整棵 `tmp/yuque-batch/`。

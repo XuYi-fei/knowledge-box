@@ -59,6 +59,7 @@
 - 文档 bootstrap 的 `seed-file` / `seed-directory` 相对路径是按 JVM 当前工作目录解析，不是按配置文件所在目录解析；本地启动时应使用仓库根目录下可直接命中的路径。
 - 语雀 bootstrap seed 若通过 `sourceMarkdownPath` 指向 `tmp/yuque-batch/full-*` 正文，发布包必须保留整棵 `tmp/yuque-batch/`，不能只带 `bootstrap-seeds/`。
 - 平铺部署启动脚本若 `source config/knowledge-box.env`，需确保变量已 `export` 给 `java` 子进程；仅 `source` 未导出的 `DB_*`/`KB_*` 会导致 Spring 读取到空配置。
+- 若部署依赖 `.env` 中的中文值（如 `KB_MAIL_FROM_PERSONAL`），启动脚本需确保进程 locale 不是 `LANG=C` / `LC_ALL=C`；否则 Java 读取环境变量时很容易把中文解码成 `???`。
 - 平铺部署停止脚本不能只发 `TERM` 就立刻返回；需等待旧后端进程实际退出，必要时超时强杀，否则重启时容易撞上旧实例尚未释放端口。
 - bootstrap 审核单若卡在 `PROCESSING/CHUNKING`，`importKey` 仍会占用幂等键并阻止后续重启重导；需先恢复任务或清理卡单，再重新执行 bootstrap。
 - 前端健康探测不要直接依赖 `/actuator/health` 聚合状态；邮件等依赖异常会误报 `DOWN`。优先使用业务可用性端点 `/api/public/system/availability`。

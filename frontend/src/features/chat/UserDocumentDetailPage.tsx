@@ -172,9 +172,13 @@ function collectPathIds(nodeMap: Map<string, OutlineNode>, headingId: string | n
   return path;
 }
 
-function scrollToHeadingInWindow(target: HTMLElement, behavior: ScrollBehavior) {
-  const top = Math.max(target.getBoundingClientRect().top + globalThis.window.scrollY - 20, 0);
-  globalThis.window.scrollTo({ top, behavior });
+function scrollToHeadingInContainer(container: HTMLElement | null, target: HTMLElement, behavior: ScrollBehavior) {
+  if (!container) {
+    target.scrollIntoView({ block: 'start', behavior });
+    return;
+  }
+  const top = Math.max(target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 20, 0);
+  container.scrollTo({ top, behavior });
 }
 
 function replaceWindowHash(headingId: string) {
@@ -215,6 +219,7 @@ export function UserDocumentDetailPage() {
     decodeURIComponent(location.hash.replace(/^#/, '').trim()) || null,
   );
   const markdownRootRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const debugSeqRef = useRef(0);
   const lastActiveDebugRef = useRef<string | null>(null);
 
@@ -297,6 +302,7 @@ export function UserDocumentDetailPage() {
     }
     let frameId = 0;
     const resolveActiveHeading = () => {
+      const scrollContainer = scrollContainerRef.current;
       const headingElements = outline
         .map((item) => globalThis.document.getElementById(item.id))
         .filter((item): item is HTMLElement => item instanceof HTMLElement);
@@ -307,9 +313,10 @@ export function UserDocumentDetailPage() {
         return;
       }
       const threshold = 140;
+      const containerTop = scrollContainer?.getBoundingClientRect().top ?? 0;
       let currentHeading = headingElements[0].id;
       for (const headingElement of headingElements) {
-        if (headingElement.getBoundingClientRect().top <= threshold) {
+        if (headingElement.getBoundingClientRect().top - containerTop <= threshold) {
           currentHeading = headingElement.id;
         } else {
           break;
@@ -320,7 +327,7 @@ export function UserDocumentDetailPage() {
         appendDebugLog('activeHeading 更新', {
           currentHeading,
           top: globalThis.document.getElementById(currentHeading)?.getBoundingClientRect().top ?? null,
-          scrollY: globalThis.window.scrollY,
+          scrollTop: scrollContainer?.scrollTop ?? null,
         });
       }
       setActiveHeadingId((current) => (current === currentHeading ? current : currentHeading));
@@ -334,13 +341,14 @@ export function UserDocumentDetailPage() {
     };
 
     resolveActiveHeading();
-    globalThis.window.addEventListener('scroll', handleScroll, { passive: true } as AddEventListenerOptions);
+    const scrollTarget = scrollContainerRef.current;
+    scrollTarget?.addEventListener('scroll', handleScroll, { passive: true } as AddEventListenerOptions);
     globalThis.window.addEventListener('resize', handleScroll);
     return () => {
       if (frameId) {
         cancelAnimationFrame(frameId);
       }
-      globalThis.window.removeEventListener('scroll', handleScroll as EventListener);
+      scrollTarget?.removeEventListener('scroll', handleScroll as EventListener);
       globalThis.window.removeEventListener('resize', handleScroll);
     };
   }, [debugOutline, outline]);
@@ -373,7 +381,7 @@ export function UserDocumentDetailPage() {
         targetTop: target?.getBoundingClientRect().top ?? null,
       });
       if (target) {
-        scrollToHeadingInWindow(target, 'auto');
+        scrollToHeadingInContainer(scrollContainerRef.current, target, 'auto');
       }
     });
   }, [anchor, debugOutline, headingPath, numericDocumentId, outline, outlineTree.nodeMap]);
@@ -411,14 +419,14 @@ export function UserDocumentDetailPage() {
       behavior,
       targetFound: Boolean(target),
       hashBefore: globalThis.window.location.hash,
-      scrollYBefore: globalThis.window.scrollY,
+      scrollTopBefore: scrollContainerRef.current?.scrollTop ?? null,
       targetTopBefore: target?.getBoundingClientRect().top ?? null,
     });
     if (!target) {
       return;
     }
     pushWindowHash(headingId);
-    scrollToHeadingInWindow(target, behavior);
+    scrollToHeadingInContainer(scrollContainerRef.current, target, behavior);
     setActiveHeadingId(headingId);
     setHighlightedHeadingId(headingId);
     const pathIds = Array.from(collectPathIds(outlineTree.nodeMap, headingId));
@@ -426,7 +434,7 @@ export function UserDocumentDetailPage() {
     appendDebugLog('点击大纲完成跳转请求', {
       headingId,
       hashAfter: globalThis.window.location.hash,
-      scrollYAfter: globalThis.window.scrollY,
+      scrollTopAfter: scrollContainerRef.current?.scrollTop ?? null,
       targetTopAfter: target.getBoundingClientRect().top,
     });
   }
@@ -479,7 +487,7 @@ export function UserDocumentDetailPage() {
   }
 
   return (
-    <div className="document-detail-page">
+    <div ref={scrollContainerRef} className="document-detail-page">
       <div className="document-detail-layout">
         <Card className="document-detail-card" loading={documentQuery.isLoading}>
           <div className="document-detail-header">

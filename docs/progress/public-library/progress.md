@@ -11,13 +11,13 @@
 - 公开文档详情已具备 Markdown 渲染、标题锚点、大纲、高亮定位、返回对话，以及同专栏文章侧栏。
 - 已修复 `/documents/:id` 在工作区内无法滚动的问题，并将大纲高亮、点击跳转和初始锚点定位统一切到页面内部滚动容器。
 - 已补齐公开文库单卡宽度、左侧筛选栏拉伸/收起、详情元信息区压缩等阅读体验修复。
-- 已补齐公开文库筛选栏与正文区的细滚动条样式，避免左侧分类/tag 滚动条过粗影响阅读；分类选中后，文章列表会切换为单列横向长条卡片，降低不同窗口宽度下的排版波动。
+- 已补齐公开文库筛选栏与正文区的细滚动条样式，避免左侧分类/tag 滚动条过粗影响阅读；文章列表已统一改为单列横向长条卡片，左侧固定展示“标题 + 标签”两行，右侧展示缩略简介，减少不同窗口宽度下的排版波动。
 - 公开目录与分类/标签计数已按“分类 + 标题 + 正文指纹”聚合去重，避免底层重复文档对外重复展示。
 
 ## 已验证范围
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库路由、筛选栏、公开文章详情与同专栏侧栏。
-- 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库筛选栏细滚动条与“选中分类后横向长条卡片”布局修复。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库筛选栏细滚动条与“默认单列横向长条卡片”布局修复。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖公开文档分页、facet、详情与匿名访问接口。
 - 后端：已用只读 SQL 实查本地 `knowledge_document`，确认存在相同正文的重复正式文档时，当前公开文库目录已在服务层聚合去重。
 - 后端：`KnowledgeBoxPostgresIntegrationTests#shouldServeAnonymousPublicDocumentCatalogAndRespectVisibility` 已补充，但当前沙箱因 PostgreSQL 连接受限未实际跑通。

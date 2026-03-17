@@ -350,26 +350,25 @@ export function PublicArticlesPage() {
               />
             ) : articlesPage && articlesPage.items.length ? (
               <div className="public-articles-main-body">
-                <div className={`public-articles-card-list ${categoryId != null ? 'public-articles-card-list-linear' : ''}`}>
+                <div className="public-articles-card-list public-articles-card-list-linear">
                   {articlesPage.items.map((article) => (
                     <button key={article.id} type="button" className="public-article-card" onClick={() => openDetail(article.id)}>
-                      <div className="public-article-card-head">
-                        <div>
-                          <Typography.Title level={5}>{article.title}</Typography.Title>
-                          <Typography.Text type="secondary">
-                            {article.categoryName || '未分类'} · {new Date(article.updatedAt).toLocaleDateString('zh-CN')}
-                          </Typography.Text>
-                        </div>
-                        <ReadOutlined className="public-article-card-arrow" />
+                      <div className="public-article-card-main">
+                        <Typography.Title level={5}>{article.title}</Typography.Title>
+                        <Space size={[6, 6]} wrap className="public-article-card-tags">
+                          {article.tags.length ? (
+                            article.tags.map((tag) => (
+                              <Tag key={tag} bordered={false} color="geekblue">
+                                {tag}
+                              </Tag>
+                            ))
+                          ) : (
+                            <Tag bordered={false}>{article.categoryName || '未分类'}</Tag>
+                          )}
+                        </Space>
                       </div>
                       <Typography.Paragraph className="public-article-card-excerpt">{article.excerpt}</Typography.Paragraph>
-                      <Space size={[6, 6]} wrap>
-                        {article.tags.map((tag) => (
-                          <Tag key={tag} bordered={false} color="geekblue">
-                            {tag}
-                          </Tag>
-                        ))}
-                      </Space>
+                      <ReadOutlined className="public-article-card-arrow" />
                     </button>
                   ))}
                 </div>

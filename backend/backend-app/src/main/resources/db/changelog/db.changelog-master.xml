@@ -44,4 +44,5 @@
     <include file="db/changelog/db.changelog-037-frontend-profile-release-note.xml"/>
     <include file="db/changelog/db.changelog-038-deploy-release-note.xml"/>
     <include file="db/changelog/db.changelog-039-remote-flat-deploy-release-note.xml"/>
+    <include file="db/changelog/db.changelog-040-partial-remote-deploy-release-note.xml"/>
 </databaseChangeLog>

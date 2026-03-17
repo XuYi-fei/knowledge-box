@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="040-001-about-release-note-partial-remote-deploy" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.17',
+                '远程部署支持单独发前端或后端',
+                '远程平铺部署脚本已支持只发前端静态资源，或只发后端 jar、配置和 bootstrap 数据。',
+                E'## 本次更新\n\n- `deploy/deploy-remote-flat.sh` 新增 `--frontend-only` 与 `--backend-only`\n- 前端单发时只同步 `dist`，不会重启后端\n- 后端单发时会同步 jar、配置、启动脚本与 `tmp/yuque-batch`，并按默认行为重启后端',
+                TIMESTAMPTZ '2026-03-17 23:50:00+08',
+                -9,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.17'
+                   AND title = '远程部署支持单独发前端或后端'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

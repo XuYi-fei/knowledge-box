@@ -184,6 +184,13 @@ JAVA_OPTS="-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=320m -XX:+UseG1GC -XX:MaxGCPa
 ./deploy/deploy-remote-flat.sh
 ```
 
+如果只想部署其中一部分：
+
+```bash
+./deploy/deploy-remote-flat.sh --frontend-only
+./deploy/deploy-remote-flat.sh --backend-only
+```
+
 该脚本默认会：
 
 - 本地执行后端 `package`
@@ -194,6 +201,12 @@ JAVA_OPTS="-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=320m -XX:+UseG1GC -XX:MaxGCPa
 - 上传 `start-backend-flat.sh / stop-backend-flat.sh`
 - 若本地存在 `config/application-prod.yml` 与 `config/knowledge-box.env`，优先直接覆盖上传到服务器 `config/`
 - 远程执行停止旧进程并后台启动新 jar
+
+行为约定：
+
+- `--frontend-only`：只构建/上传前端 `dist`，不会上传 jar、配置、tmp，也不会重启后端
+- `--backend-only`：只构建/上传后端 jar、配置、启动脚本和 `tmp/yuque-batch`，并按默认行为重启后端
+- 不带参数：执行全量部署
 
 推荐在本地先准备：
 
@@ -215,6 +228,8 @@ mkdir -p config
 ```bash
 ./deploy/deploy-remote-flat.sh --skip-build
 ./deploy/deploy-remote-flat.sh --skip-restart
+./deploy/deploy-remote-flat.sh --frontend-only
+./deploy/deploy-remote-flat.sh --backend-only
 ./deploy/deploy-remote-flat.sh --mirror-tmp
 ./deploy/deploy-remote-flat.sh --host 124.221.214.211 --user ubuntu --remote-base /home/ubuntu/repos/knowledge-box
 ```

@@ -962,18 +962,9 @@
             CREATE INDEX IF NOT EXISTS idx_knowledge_document_column_id
                 ON knowledge_document(column_id);
 
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1
-                      FROM pg_constraint
-                     WHERE conname = 'fk_knowledge_document_column'
-                ) THEN
-                    ALTER TABLE knowledge_document
-                        ADD CONSTRAINT fk_knowledge_document_column
-                        FOREIGN KEY (column_id) REFERENCES document_column(id);
-                END IF;
-            END $$;
+            ALTER TABLE knowledge_document
+                ADD CONSTRAINT fk_knowledge_document_column
+                FOREIGN KEY (column_id) REFERENCES document_column(id);
         ]]></sql>
     </changeSet>
     <changeSet id="it-044-document-column-release-note" author="codex">

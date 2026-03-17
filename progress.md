@@ -72,6 +72,7 @@
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖本次新增的重复文档后台预览/清理接口与服务实现。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖本次新增的文档专栏实体、bootstrap 强制分类/专栏、审核页专栏字段与公开详情同专栏文章返回。
+- 后端：已修复 `db.changelog-043-document-column.xml` 中 `DO $$` 被 Liquibase/PostgreSQL 拆句导致的启动迁移失败；当前改为普通外键语句后，`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests package` 可通过，已覆盖本次新增的公开文档分页/facet/详情接口、匿名访问白名单与 release note 变更集。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=DocumentBootstrapImportRunnerTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过，已验证 bootstrap seed 会把 `categoryName/columnName` 带入审核单创建请求。
 - 后端：已用只读 SQL 实查本地 `knowledge_document`，确认 `工具部署` 分类下存在两条标题为 `2. Ollama调用` 且 `source_markdown` MD5 完全一致、仅 `importKey` 不同的公开文档；当前公开文库目录已在服务层按“分类 + 标题 + 正文指纹”聚合去重。

@@ -2,6 +2,7 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import { Spin } from 'antd';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { getAdminAuthToken, getUserAccessToken } from '../lib/auth';
+import { PublicWorkspaceLayout } from '../layouts/PublicWorkspaceLayout';
 import { UserWorkspaceLayout } from '../layouts/UserWorkspaceLayout';
 
 const AdminLayout = lazy(() => import('../layouts/AdminLayout').then((module) => ({ default: module.AdminLayout })));
@@ -18,6 +19,7 @@ const TracesPage = lazy(() => import('../features/admin/TracesPage').then((modul
 const TraceDetailPage = lazy(() => import('../features/admin/TraceDetailPage').then((module) => ({ default: module.TraceDetailPage })));
 const AboutPage = lazy(() => import('../features/chat/AboutPage').then((module) => ({ default: module.AboutPage })));
 const PublicChatPage = lazy(() => import('../features/chat/PublicChatPage').then((module) => ({ default: module.PublicChatPage })));
+const PublicArticlesPage = lazy(() => import('../features/chat/PublicArticlesPage').then((module) => ({ default: module.PublicArticlesPage })));
 const UserToolsPage = lazy(() => import('../features/chat/UserToolsPage').then((module) => ({ default: module.UserToolsPage })));
 const UserDocumentDetailPage = lazy(() => import('../features/chat/UserDocumentDetailPage').then((module) => ({ default: module.UserDocumentDetailPage })));
 const UserLoginPage = lazy(() => import('../features/auth/UserLoginPage').then((module) => ({ default: module.UserLoginPage })));
@@ -43,6 +45,14 @@ function RedirectAuthenticatedAdmin({ children }: { children: ReactNode }) {
 }
 
 export const router = createBrowserRouter([
+  {
+    path: '/articles',
+    element: withSuspense(<PublicWorkspaceLayout />),
+    children: [
+      { index: true, element: withSuspense(<PublicArticlesPage />) },
+      { path: ':documentId', element: withSuspense(<PublicArticlesPage />) },
+    ],
+  },
   {
     path: '/',
     element: withSuspense(

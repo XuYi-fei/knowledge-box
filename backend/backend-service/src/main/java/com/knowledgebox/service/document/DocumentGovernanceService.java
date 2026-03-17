@@ -17,6 +17,11 @@ import com.knowledgebox.api.DocumentReviewRequestPageView;
 import com.knowledgebox.api.DocumentReviewRequestSummaryView;
 import com.knowledgebox.api.DocumentTagView;
 import com.knowledgebox.api.KnowledgeDocumentView;
+import com.knowledgebox.api.PublicDocumentCategoryFacetView;
+import com.knowledgebox.api.PublicDocumentFacetView;
+import com.knowledgebox.api.PublicDocumentPageView;
+import com.knowledgebox.api.PublicDocumentSummaryView;
+import com.knowledgebox.api.PublicDocumentTagFacetView;
 import com.knowledgebox.api.UpdateDocumentSourceRequest;
 import com.knowledgebox.api.UpdateReviewTaxonomyRequest;
 import com.knowledgebox.common.ApiException;
@@ -54,6 +59,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -72,6 +79,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -88,6 +96,7 @@ public class DocumentGovernanceService {
     private static final Pattern MARKDOWN_IMAGE_PATTERN = Pattern.compile("!\\[(.*?)]\\((.*?)\\)");
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
     };
+    private static final int PUBLIC_DOCUMENT_EXCERPT_LIMIT = 180;
 
     private final KnowledgeBoxProperties properties;
     private final KnowledgeDocumentRepository knowledgeDocumentRepository;
@@ -182,6 +191,84 @@ public class DocumentGovernanceService {
                 .map(binding -> binding.getTag().getName())
                 .toList();
         return toDocumentView(document, tags);
+    }
+
+    @Transactional(readOnly = true)
+    public PublicDocumentPageView publicDocuments(@Nullable Long categoryId, List<Long> tagIds, int page, int pageSize) {
+        int safePage = Math.max(page, 1);
+        int safePageSize = Math.min(Math.max(pageSize, 1), 48);
+        List<Long> normalizedTagIds = normalizeTagIds(tagIds);
+        PageRequest pageable = PageRequest.of(
+                safePage - 1,
+                safePageSize,
+                Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id"))
+        );
+        Page<KnowledgeDocument> documentPage = knowledgeDocumentRepository.findAll(
+                publicDocumentSpecification(categoryId, normalizedTagIds),
+                pageable
+        );
+        Map<Long, List<String>> tagNamesByDocumentId = loadTagNamesByDocumentIds(
+                documentPage.getContent().stream().map(KnowledgeDocument::getId).toList()
+        );
+        List<PublicDocumentSummaryView> items = documentPage.getContent().stream()
+                .map(document -> new PublicDocumentSummaryView(
+                        document.getId(),
+                        document.getTitle(),
+                        document.getCategory() == null ? null : document.getCategory().getName(),
+                        tagNamesByDocumentId.getOrDefault(document.getId(), List.of()),
+                        buildPublicDocumentExcerpt(document.getSourceMarkdown()),
+                        document.getUpdatedAt()
+                ))
+                .toList();
+        return new PublicDocumentPageView(items, documentPage.getTotalElements(), safePage, safePageSize);
+    }
+
+    @Transactional(readOnly = true)
+    public PublicDocumentFacetView publicDocumentFacets() {
+        List<KnowledgeDocument> documents = knowledgeDocumentRepository.findAllByVisibilityTypeAndStatusWithCategory(
+                DocumentVisibilityType.PUBLIC,
+                DocumentStatus.READY
+        );
+        Map<Long, List<DocumentTagBinding>> bindingsByDocumentId = loadTagBindingsByDocumentIds(
+                documents.stream().map(KnowledgeDocument::getId).toList()
+        );
+        Map<Long, CategoryFacetAccumulator> categories = new LinkedHashMap<>();
+        Map<Long, TagFacetAccumulator> allTags = new LinkedHashMap<>();
+        for (KnowledgeDocument document : documents) {
+            CategoryFacetAccumulator categoryAccumulator = null;
+            if (document.getCategory() != null) {
+                categoryAccumulator = categories.computeIfAbsent(
+                        document.getCategory().getId(),
+                        ignored -> new CategoryFacetAccumulator(document.getCategory().getId(), document.getCategory().getName())
+                );
+                categoryAccumulator.incrementDocumentCount();
+            }
+
+            Set<Long> seenTagIds = new LinkedHashSet<>();
+            for (DocumentTagBinding binding : bindingsByDocumentId.getOrDefault(document.getId(), List.of())) {
+                if (binding.getTag() == null || binding.getTag().getId() == null || !seenTagIds.add(binding.getTag().getId())) {
+                    continue;
+                }
+                TagFacetAccumulator allTagAccumulator = allTags.computeIfAbsent(
+                        binding.getTag().getId(),
+                        ignored -> new TagFacetAccumulator(binding.getTag().getId(), binding.getTag().getName())
+                );
+                allTagAccumulator.incrementDocumentCount();
+                if (categoryAccumulator != null) {
+                    categoryAccumulator.tag(binding.getTag()).incrementDocumentCount();
+                }
+            }
+        }
+
+        List<PublicDocumentCategoryFacetView> categoryViews = categories.values().stream()
+                .sorted(Comparator.comparing(CategoryFacetAccumulator::name, String.CASE_INSENSITIVE_ORDER))
+                .map(CategoryFacetAccumulator::toView)
+                .toList();
+        List<PublicDocumentTagFacetView> allTagViews = allTags.values().stream()
+                .sorted(Comparator.comparing(TagFacetAccumulator::name, String.CASE_INSENSITIVE_ORDER))
+                .map(TagFacetAccumulator::toView)
+                .toList();
+        return new PublicDocumentFacetView(documents.size(), categoryViews, allTagViews);
     }
 
     @Transactional(readOnly = true)
@@ -590,14 +677,100 @@ public class DocumentGovernanceService {
     }
 
     private Map<Long, List<String>> loadTagNamesByDocumentId(List<KnowledgeDocument> documents) {
+        return loadTagNamesByDocumentIds(documents.stream().map(KnowledgeDocument::getId).toList());
+    }
+
+    private Map<Long, List<String>> loadTagNamesByDocumentIds(Collection<Long> documentIds) {
         Map<Long, List<String>> map = new LinkedHashMap<>();
-        for (KnowledgeDocument document : documents) {
-            List<String> tags = documentTagBindingRepository.findByDocument_IdOrderByIdAsc(document.getId()).stream()
-                    .map(binding -> binding.getTag().getName())
-                    .toList();
-            map.put(document.getId(), tags);
+        if (documentIds == null || documentIds.isEmpty()) {
+            return map;
         }
-        return map;
+        for (Long documentId : documentIds) {
+            map.put(documentId, new ArrayList<>());
+        }
+        for (DocumentTagBinding binding : documentTagBindingRepository.findAllWithTagByDocumentIds(documentIds)) {
+            if (binding.getDocument() == null || binding.getDocument().getId() == null || binding.getTag() == null) {
+                continue;
+            }
+            map.computeIfAbsent(binding.getDocument().getId(), ignored -> new ArrayList<>())
+                    .add(binding.getTag().getName());
+        }
+        return map.entrySet().stream()
+                .collect(LinkedHashMap::new, (target, entry) -> target.put(entry.getKey(), List.copyOf(entry.getValue())), LinkedHashMap::putAll);
+    }
+
+    private Map<Long, List<DocumentTagBinding>> loadTagBindingsByDocumentIds(Collection<Long> documentIds) {
+        Map<Long, List<DocumentTagBinding>> map = new LinkedHashMap<>();
+        if (documentIds == null || documentIds.isEmpty()) {
+            return map;
+        }
+        for (Long documentId : documentIds) {
+            map.put(documentId, new ArrayList<>());
+        }
+        for (DocumentTagBinding binding : documentTagBindingRepository.findAllWithTagByDocumentIds(documentIds)) {
+            if (binding.getDocument() == null || binding.getDocument().getId() == null) {
+                continue;
+            }
+            map.computeIfAbsent(binding.getDocument().getId(), ignored -> new ArrayList<>()).add(binding);
+        }
+        return map.entrySet().stream()
+                .collect(LinkedHashMap::new, (target, entry) -> target.put(entry.getKey(), List.copyOf(entry.getValue())), LinkedHashMap::putAll);
+    }
+
+    private Specification<KnowledgeDocument> publicDocumentSpecification(@Nullable Long categoryId, List<Long> tagIds) {
+        return (root, query, criteriaBuilder) -> {
+            if (query != null) {
+                query.distinct(true);
+            }
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.equal(root.get("visibilityType"), DocumentVisibilityType.PUBLIC));
+            predicates.add(criteriaBuilder.equal(root.get("status"), DocumentStatus.READY));
+            if (categoryId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("category").get("id"), categoryId));
+            }
+            if (!tagIds.isEmpty() && query != null) {
+                var subquery = query.subquery(Long.class);
+                var bindingRoot = subquery.from(DocumentTagBinding.class);
+                subquery.select(bindingRoot.get("document").get("id"));
+                subquery.where(
+                        criteriaBuilder.equal(bindingRoot.get("document").get("id"), root.get("id")),
+                        bindingRoot.get("tag").get("id").in(tagIds)
+                );
+                predicates.add(criteriaBuilder.exists(subquery));
+            }
+            return criteriaBuilder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+    }
+
+    private List<Long> normalizeTagIds(@Nullable List<Long> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return List.of();
+        }
+        return tagIds.stream()
+                .filter(id -> id != null && id > 0)
+                .distinct()
+                .toList();
+    }
+
+    private String buildPublicDocumentExcerpt(String sourceMarkdown) {
+        String plainText = (sourceMarkdown == null ? "" : sourceMarkdown)
+                .replaceAll("(?s)```.*?```", " ")
+                .replaceAll("!\\[[^\\]]*]\\([^)]*\\)", " ")
+                .replaceAll("\\[([^\\]]+)]\\([^)]*\\)", "$1")
+                .replaceAll("`([^`]+)`", "$1")
+                .replaceAll("(?m)^#{1,6}\\s+", "")
+                .replaceAll("(?m)^>\\s*", "")
+                .replaceAll("(?m)^[-*+]\\s+", "")
+                .replaceAll("(?m)^\\d+\\.\\s+", "")
+                .replaceAll("<[^>]+>", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (!StringUtils.hasText(plainText)) {
+            return "当前文档暂未提取到可展示摘要。";
+        }
+        return plainText.length() <= PUBLIC_DOCUMENT_EXCERPT_LIMIT
+                ? plainText
+                : plainText.substring(0, PUBLIC_DOCUMENT_EXCERPT_LIMIT) + "...";
     }
 
     private KnowledgeDocumentView toDocumentView(KnowledgeDocument document, List<String> tags) {
@@ -1086,6 +1259,61 @@ public class DocumentGovernanceService {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
             return "[]";
+        }
+    }
+
+    private static final class TagFacetAccumulator {
+        private final Long id;
+        private final String name;
+        private long documentCount;
+
+        private TagFacetAccumulator(Long id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        private String name() {
+            return name;
+        }
+
+        private void incrementDocumentCount() {
+            documentCount += 1;
+        }
+
+        private PublicDocumentTagFacetView toView() {
+            return new PublicDocumentTagFacetView(id, name, documentCount);
+        }
+    }
+
+    private static final class CategoryFacetAccumulator {
+        private final Long id;
+        private final String name;
+        private long documentCount;
+        private final Map<Long, TagFacetAccumulator> tags = new LinkedHashMap<>();
+
+        private CategoryFacetAccumulator(Long id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        private String name() {
+            return name;
+        }
+
+        private void incrementDocumentCount() {
+            documentCount += 1;
+        }
+
+        private TagFacetAccumulator tag(DocumentTag tag) {
+            return tags.computeIfAbsent(tag.getId(), ignored -> new TagFacetAccumulator(tag.getId(), tag.getName()));
+        }
+
+        private PublicDocumentCategoryFacetView toView() {
+            List<PublicDocumentTagFacetView> tagViews = tags.values().stream()
+                    .sorted(Comparator.comparing(TagFacetAccumulator::name, String.CASE_INSENSITIVE_ORDER))
+                    .map(TagFacetAccumulator::toView)
+                    .toList();
+            return new PublicDocumentCategoryFacetView(id, name, documentCount, tagViews);
         }
     }
 

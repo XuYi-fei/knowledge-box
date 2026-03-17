@@ -159,6 +159,41 @@ export type KnowledgeDocument = {
   updatedAt: string;
 };
 
+export type PublicDocumentSummary = {
+  id: number;
+  title: string;
+  categoryName: string | null;
+  tags: string[];
+  excerpt: string;
+  updatedAt: string;
+};
+
+export type PublicDocumentPage = {
+  items: PublicDocumentSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
+export type PublicDocumentTagFacet = {
+  id: number;
+  name: string;
+  documentCount: number;
+};
+
+export type PublicDocumentCategoryFacet = {
+  id: number;
+  name: string;
+  documentCount: number;
+  tags: PublicDocumentTagFacet[];
+};
+
+export type PublicDocumentFacet = {
+  totalDocumentCount: number;
+  categories: PublicDocumentCategoryFacet[];
+  allTags: PublicDocumentTagFacet[];
+};
+
 export type IngestionJob = {
   id: number;
   documentId: number;

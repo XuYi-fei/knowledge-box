@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="041-001-about-release-note-public-articles" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.17',
+                '公开文库页支持分类与标签筛选',
+                '新增匿名可访问的公开文库页，可按分类和标签筛选文章，并在同页查看完整内容。',
+                E'## 本次更新\n\n- 新增公开文库页 `/articles`，未登录也可以浏览所有 `PUBLIC` 文档\n- 左侧支持按分类与多标签筛选，右侧按卡片列表展示公开文章\n- 点击文章后可在同一工作区内查看完整 Markdown 内容，保留图片缩放、代码高亮与表格横向滚动体验',
+                TIMESTAMPTZ '2026-03-17 23:59:00+08',
+                -10,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.17'
+                   AND title = '公开文库页支持分类与标签筛选'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

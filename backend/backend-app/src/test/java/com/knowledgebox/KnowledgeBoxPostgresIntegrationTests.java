@@ -111,6 +111,87 @@ class KnowledgeBoxPostgresIntegrationTests {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldServeAnonymousPublicDocumentCatalogAndRespectVisibility() {
+        SeededDocument javaBasics = seedDocumentWithTaxonomy(
+                "Java 入门",
+                "java-basics.md",
+                """
+                        # Java 入门
+
+                        Java 适合构建服务端应用，也常与 Spring 生态一起使用。
+                        """,
+                "Java",
+                List.of("基础", "语言"),
+                "PUBLIC"
+        );
+        SeededDocument javaMcp = seedDocumentWithTaxonomy(
+                "Java 与 MCP",
+                "java-mcp.md",
+                """
+                        # Java 与 MCP
+
+                        Java 也可以用于实现 MCP Server 与相关接入层。
+                        """,
+                "Java",
+                List.of("MCP", "集成"),
+                "PUBLIC"
+        );
+        SeededDocument hidden = seedDocumentWithTaxonomy(
+                "隐藏文章",
+                "hidden.md",
+                """
+                        # 隐藏文章
+
+                        这篇文章只允许 Agent 内部使用。
+                        """,
+                "Java",
+                List.of("MCP"),
+                "AGENT_ONLY"
+        );
+
+        ResponseEntity<Map> facetsResponse = testRestTemplate.getForEntity(
+                "http://localhost:" + port + "/api/public/documents/facets",
+                Map.class
+        );
+        ResponseEntity<Map> filteredListResponse = testRestTemplate.getForEntity(
+                "http://localhost:" + port + "/api/public/documents?categoryId=" + javaBasics.categoryId()
+                        + "&tagId=" + javaMcp.tagIds().get(0)
+                        + "&page=1&pageSize=12",
+                Map.class
+        );
+        ResponseEntity<Map> detailResponse = testRestTemplate.getForEntity(
+                "http://localhost:" + port + "/api/public/documents/" + javaMcp.documentId(),
+                Map.class
+        );
+        ResponseEntity<Map> hiddenDetailResponse = testRestTemplate.getForEntity(
+                "http://localhost:" + port + "/api/public/documents/" + hidden.documentId(),
+                Map.class
+        );
+
+        assertThat(facetsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(facetsResponse.getBody()).isNotNull();
+        assertThat(facetsResponse.getBody()).containsKey("categories");
+        List<Map<String, Object>> categories = (List<Map<String, Object>>) facetsResponse.getBody().get("categories");
+        assertThat(categories)
+                .anyMatch(category -> "Java".equals(category.get("name"))
+                        && ((Number) category.get("documentCount")).longValue() >= 2L);
+
+        assertThat(filteredListResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(filteredListResponse.getBody()).isNotNull();
+        List<Map<String, Object>> items = (List<Map<String, Object>>) filteredListResponse.getBody().get("items");
+        assertThat(items)
+                .extracting(item -> item.get("title"))
+                .contains("Java 与 MCP")
+                .doesNotContain("隐藏文章");
+
+        assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(detailResponse.getBody()).containsEntry("title", "Java 与 MCP");
+
+        assertThat(hiddenDetailResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     void shouldServeAuthenticatedUserChatAgainstRealDatabaseBackedApplication() {
         String accessToken = createUserToken("chat-user@example.com", "password123");
         HttpHeaders headers = new HttpHeaders();
@@ -901,6 +982,76 @@ class KnowledgeBoxPostgresIntegrationTests {
                 VALUES (?, 0, ?, ?, ?, ?)
                 """, documentId, headingPath, anchor, content,
                 "{\"documentTitle\":\"" + title + "\",\"headingPath\":\"" + headingPath + "\",\"chunkIndex\":0}");
+    }
+
+    private SeededDocument seedDocumentWithTaxonomy(
+            String title,
+            String sourceFilename,
+            String sourceMarkdown,
+            String categoryName,
+            List<String> tagNames,
+            String visibilityType
+    ) {
+        Long categoryId = jdbcTemplate.queryForObject("""
+                INSERT INTO document_category (name, source)
+                VALUES (?, 'SYSTEM')
+                ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                RETURNING id
+                """, Long.class, categoryName);
+
+        List<Long> tagIds = new java.util.ArrayList<>();
+        for (String tagName : tagNames) {
+            Long tagId = jdbcTemplate.queryForObject("""
+                    INSERT INTO document_tag (name, source)
+                    VALUES (?, 'SYSTEM')
+                    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                    RETURNING id
+                    """, Long.class, tagName);
+            tagIds.add(tagId);
+        }
+
+        Long documentId = jdbcTemplate.queryForObject("""
+                INSERT INTO knowledge_document (
+                    title,
+                    source_filename,
+                    uploader_type,
+                    visibility_type,
+                    status,
+                    normalized_markdown_path,
+                    source_markdown,
+                    extension_json,
+                    vector_config_json,
+                    category_id,
+                    tags
+                )
+                VALUES (?, ?, 'ADMIN', ?, 'READY', ?, ?, '{}', '{}', ?, ?::text)
+                RETURNING id
+                """, Long.class,
+                title,
+                sourceFilename,
+                visibilityType,
+                "/uploads/docs/" + sourceFilename,
+                sourceMarkdown,
+                categoryId,
+                toJsonArray(tagNames));
+
+        for (Long tagId : tagIds) {
+            jdbcTemplate.update("""
+                    INSERT INTO document_tag_binding (document_id, tag_id, created_at, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """, documentId, tagId);
+        }
+
+        return new SeededDocument(documentId, categoryId, tagIds);
+    }
+
+    private String toJsonArray(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + value.replace("\"", "\\\"") + "\"")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+    }
+
+    private record SeededDocument(Long documentId, Long categoryId, List<Long> tagIds) {
     }
 
     private boolean containsIgnoreCase(String value, String needle) {

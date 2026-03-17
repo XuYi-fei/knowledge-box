@@ -28,6 +28,8 @@ import {
   KnowledgeDocument,
   McpServer,
   ModelCatalog,
+  PublicDocumentFacet,
+  PublicDocumentPage,
   PublicChatOptions,
   SkillBinding,
   ToolDefinition,
@@ -313,6 +315,34 @@ export const api = {
   },
   async userDocumentDetail(id: number) {
     return requestJson<KnowledgeDocument>(`/api/app/documents/${id}`, undefined, 'user');
+  },
+  async publicDocumentFacets() {
+    return requestJson<PublicDocumentFacet>('/api/public/documents/facets');
+  },
+  async publicDocuments(params?: {
+    categoryId?: number | null;
+    tagIds?: number[];
+    page?: number;
+    pageSize?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.categoryId) {
+      query.set('categoryId', String(params.categoryId));
+    }
+    for (const tagId of params?.tagIds ?? []) {
+      query.append('tagId', String(tagId));
+    }
+    if (params?.page) {
+      query.set('page', String(params.page));
+    }
+    if (params?.pageSize) {
+      query.set('pageSize', String(params.pageSize));
+    }
+    const path = query.toString() ? `/api/public/documents?${query.toString()}` : '/api/public/documents';
+    return requestJson<PublicDocumentPage>(path);
+  },
+  async publicDocumentDetail(id: number) {
+    return requestJson<KnowledgeDocument>(`/api/public/documents/${id}`);
   },
   async userChatOptions() {
     return requestJson<PublicChatOptions>('/api/app/chat/options', undefined, 'user');

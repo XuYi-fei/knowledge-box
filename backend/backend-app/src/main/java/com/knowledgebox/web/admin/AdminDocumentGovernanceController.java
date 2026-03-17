@@ -3,6 +3,9 @@ package com.knowledgebox.web.admin;
 import com.knowledgebox.api.BatchDocumentReviewActionResultView;
 import com.knowledgebox.api.BatchReviewActionRequest;
 import com.knowledgebox.api.DocumentCategoryView;
+import com.knowledgebox.api.DocumentDuplicateCleanupPreviewView;
+import com.knowledgebox.api.DocumentDuplicateCleanupRequest;
+import com.knowledgebox.api.DocumentDuplicateCleanupResultView;
 import com.knowledgebox.api.DocumentIndexRebuildJobView;
 import com.knowledgebox.api.DocumentReviewRequestPageView;
 import com.knowledgebox.api.DocumentReviewRequestDetailView;
@@ -13,7 +16,10 @@ import com.knowledgebox.api.ReviewActionRequest;
 import com.knowledgebox.api.UpdateDocumentSourceRequest;
 import com.knowledgebox.api.UpdateReviewTaxonomyRequest;
 import com.knowledgebox.domain.document.DocumentReviewStatus;
+import com.knowledgebox.domain.document.DocumentStatus;
+import com.knowledgebox.domain.document.DocumentVisibilityType;
 import com.knowledgebox.service.admin.AdminOperatorService;
+import com.knowledgebox.service.document.DocumentDuplicateCleanupService;
 import com.knowledgebox.service.document.DocumentGovernanceService;
 import jakarta.validation.Valid;
 import java.security.Principal;
@@ -32,13 +38,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminDocumentGovernanceController {
 
     private final DocumentGovernanceService documentGovernanceService;
+    private final DocumentDuplicateCleanupService documentDuplicateCleanupService;
     private final AdminOperatorService adminOperatorService;
 
     public AdminDocumentGovernanceController(
             DocumentGovernanceService documentGovernanceService,
+            DocumentDuplicateCleanupService documentDuplicateCleanupService,
             AdminOperatorService adminOperatorService
     ) {
         this.documentGovernanceService = documentGovernanceService;
+        this.documentDuplicateCleanupService = documentDuplicateCleanupService;
         this.adminOperatorService = adminOperatorService;
     }
 
@@ -65,6 +74,43 @@ public class AdminDocumentGovernanceController {
     @GetMapping("/document-tags")
     public List<DocumentTagView> tags() {
         return documentGovernanceService.tags();
+    }
+
+    @GetMapping("/document-duplicates")
+    public DocumentDuplicateCleanupPreviewView duplicatePreview(
+            @RequestParam(required = false) DocumentVisibilityType visibilityType,
+            @RequestParam(required = false) DocumentStatus status,
+            @RequestParam(required = false) String keepStrategy,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return documentDuplicateCleanupService.preview(visibilityType, status, keepStrategy, limit);
+    }
+
+    @PostMapping("/document-duplicates/cleanup")
+    public DocumentDuplicateCleanupResultView cleanupDuplicates(
+            @Valid @RequestBody DocumentDuplicateCleanupRequest request,
+            Principal principal
+    ) {
+        DocumentDuplicateCleanupResultView cleanupResult = documentDuplicateCleanupService.cleanup(request);
+        DocumentIndexRebuildJobView indexRebuildJob = null;
+        if (request.triggerIndexRebuild() && cleanupResult.duplicateDocumentsDeleted() > 0) {
+            Long operatorId = adminOperatorService.resolveOperatorId(principal == null ? "admin" : principal.getName());
+            indexRebuildJob = documentGovernanceService.triggerIndexRebuild(operatorId);
+        }
+        return new DocumentDuplicateCleanupResultView(
+                cleanupResult.duplicateDocumentsDeleted(),
+                cleanupResult.mergedTagBindings(),
+                cleanupResult.rewiredSourceReviews(),
+                cleanupResult.rewiredPublishedReviews(),
+                cleanupResult.rewiredIngestionJobs(),
+                cleanupResult.deletedTagBindings(),
+                cleanupResult.deletedAssets(),
+                cleanupResult.deletedChunks(),
+                cleanupResult.vectorRowsDeleted(),
+                cleanupResult.refreshedKeeperTags(),
+                cleanupResult.deletedDocuments(),
+                indexRebuildJob
+        );
     }
 
     @GetMapping("/document-reviews")

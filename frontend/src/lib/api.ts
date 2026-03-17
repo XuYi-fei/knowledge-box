@@ -14,6 +14,9 @@ import {
   AppToolRateLimitScope,
   ChatMessageStatus,
   DocumentCategory,
+  DocumentDuplicateCleanupPreview,
+  DocumentDuplicateCleanupResult,
+  DocumentDuplicateKeepStrategy,
   DocumentIndexRebuildJob,
   DocumentReviewRequestDetail,
   DocumentReviewRequestPage,
@@ -491,6 +494,45 @@ export const api = {
   },
   async documentTags() {
     return requestJson<DocumentTag[]>('/api/admin/document-tags', undefined, 'admin');
+  },
+  async previewDocumentDuplicates(params?: {
+    visibilityType?: KnowledgeDocument['visibilityType'];
+    status?: KnowledgeDocument['status'];
+    keepStrategy?: DocumentDuplicateKeepStrategy;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.visibilityType) {
+      query.set('visibilityType', params.visibilityType);
+    }
+    if (params?.status) {
+      query.set('status', params.status);
+    }
+    if (params?.keepStrategy) {
+      query.set('keepStrategy', params.keepStrategy);
+    }
+    if (params?.limit != null) {
+      query.set('limit', String(params.limit));
+    }
+    const queryString = query.toString();
+    const path = queryString ? `/api/admin/document-duplicates?${queryString}` : '/api/admin/document-duplicates';
+    return requestJson<DocumentDuplicateCleanupPreview>(path, undefined, 'admin');
+  },
+  async cleanupDocumentDuplicates(payload: {
+    visibilityType?: KnowledgeDocument['visibilityType'];
+    status?: KnowledgeDocument['status'];
+    keepStrategy?: DocumentDuplicateKeepStrategy;
+    limit?: number;
+    triggerIndexRebuild?: boolean;
+  }) {
+    return requestJson<DocumentDuplicateCleanupResult>(
+      '/api/admin/document-duplicates/cleanup',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
   },
   async documentReviews(params?: {
     status?: DocumentReviewStatus;

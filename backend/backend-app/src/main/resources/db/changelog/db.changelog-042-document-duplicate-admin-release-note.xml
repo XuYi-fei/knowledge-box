@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="042-001-about-release-note-document-duplicate-admin" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.17',
+                '管理端新增重复文档治理页',
+                '管理员现在可以在后台预览并清理重复正式文档，并可选联动重建索引。',
+                E'## 本次更新\n\n- 管理后台新增“重复治理”页，仅管理员可访问\n- 支持按可见性、状态、保留策略、预览上限筛选重复正式文档\n- 支持先预览后执行清理，并重挂审核单 / ingestion 引用\n- 清理完成后可选自动触发一次索引重建，便于同步修复检索侧残留',
+                TIMESTAMPTZ '2026-03-17 23:59:00+08',
+                -11,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.17'
+                   AND title = '管理端新增重复文档治理页'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

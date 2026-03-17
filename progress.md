@@ -16,6 +16,7 @@
 - 已修复公开文库页单条文章列表场景下卡片被整行拉满的问题；当前卡片列表改为响应式网格，既会铺满内容区宽度，也不会在单篇结果时出现异常超宽展示。
 - 已修复公开文库底层重复数据导致的重复展示问题；当前若存在不同 `importKey` 但标题和正文相同的公开文档，目录与分类/标签计数会按内容指纹去重后再对外展示。
 - 文档导入已升级为“双重判定”：启动 bootstrap 与运行时 `upload-json/init-review` 导入，除 `importKey` 幂等外，还会按正文内容指纹拦截“不同来源但正文相同”的重复导入；同时已补充 `scripts/cleanup_duplicate_documents.py`，可 dry-run/执行清理历史重复正式文档，并重挂审核单/ingestion 引用与清理向量行。
+- 管理端已新增“重复治理”页：管理员可在后台预览重复正式文档、执行清理、重挂审核单/ingestion 引用，并可选自动触发索引重建。
 - 用户侧 header 已新增 `工具` tab 与独立 `/tools` 页面：首批内置 `Base64 编码`、`Base64 解码`、`MD5 摘要`，支持前端本地执行与后端统一执行两类模式。
 - 主页对话区已补齐稳定高度链：`chat-shell -> chat-content -> chat-main -> chat-card -> chat-messages` 统一使用 `flex + min-height: 0` 约束，消息增多时仅主会话区内部滚动，不再把整页不断撑高。
 - 主页工作区外层已显式禁用窗口级滚动：`app-shell / app-shell-main / user-workspace-shell / user-workspace-content / chat-shell / chat-content` 统一补上 `overflow: hidden`，避免浏览器窗口继续接管滚动条，保证滚动只发生在主消息区和左侧历史列表内部。
@@ -46,6 +47,7 @@
 ## 已验证范围
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页、文档详情页、文档审核页、Trace 管理页、顶部 header/独立 About、主页固定高度与内部滚动、聊天引用样式，以及本次新增的用户工具页、header `工具` tab、管理端工具目录与工具执行日志页面。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的管理端“重复治理”路由、菜单入口、预览表格与清理交互。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的公开文库路由 `/articles`、共享 workspace header、分类/标签筛选栏与公开文章详情渲染。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库单卡宽度修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 文档详情页内部滚动修复。
@@ -66,6 +68,7 @@
 - 数据清理：`python3 scripts/cleanup_stuck_bootstrap_reviews.py` dry-run 与 `--apply` 已验证可用；已实际删除 `81` 条卡在 `PROCESSING/CHUNKING` 的 `yuque:*` bootstrap 审核单，当前库内仅剩 `9` 条 `APPROVED` 审核记录。
 - 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本，以及供 bootstrap 导入使用的整棵 `tmp/yuque-batch/`。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖本次新增的重复文档后台预览/清理接口与服务实现。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests package` 可通过，已覆盖本次新增的公开文档分页/facet/详情接口、匿名访问白名单与 release note 变更集。
 - 后端：已用只读 SQL 实查本地 `knowledge_document`，确认 `工具部署` 分类下存在两条标题为 `2. Ollama调用` 且 `source_markdown` MD5 完全一致、仅 `importKey` 不同的公开文档；当前公开文库目录已在服务层按“分类 + 标题 + 正文指纹”聚合去重。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。

@@ -11,6 +11,7 @@ const DashboardPage = lazy(() => import('../features/admin/DashboardPage').then(
 const ProfileVersionsPage = lazy(() => import('../features/admin/ProfileVersionsPage').then((module) => ({ default: module.ProfileVersionsPage })));
 const DocumentsPage = lazy(() => import('../features/admin/DocumentsPage').then((module) => ({ default: module.DocumentsPage })));
 const DocumentReviewsPage = lazy(() => import('../features/admin/DocumentReviewsPage').then((module) => ({ default: module.DocumentReviewsPage })));
+const DocumentDuplicatesPage = lazy(() => import('../features/admin/DocumentDuplicatesPage').then((module) => ({ default: module.DocumentDuplicatesPage })));
 const AppToolsPage = lazy(() => import('../features/admin/AppToolsPage').then((module) => ({ default: module.AppToolsPage })));
 const AppToolExecutionsPage = lazy(() => import('../features/admin/AppToolExecutionsPage').then((module) => ({ default: module.AppToolExecutionsPage })));
 const IntegrationsPage = lazy(() => import('../features/admin/IntegrationsPage').then((module) => ({ default: module.IntegrationsPage })));
@@ -92,6 +93,7 @@ export const router = createBrowserRouter([
       { path: 'profiles', element: withSuspense(<ProfileVersionsPage />) },
       { path: 'documents', element: withSuspense(<DocumentsPage />) },
       { path: 'document-reviews', element: withSuspense(<DocumentReviewsPage />) },
+      { path: 'document-duplicates', element: withSuspense(<DocumentDuplicatesPage />) },
       { path: 'app-tools', element: withSuspense(<AppToolsPage />) },
       { path: 'app-tool-executions', element: withSuspense(<AppToolExecutionsPage />) },
       { path: 'integrations', element: withSuspense(<IntegrationsPage />) },

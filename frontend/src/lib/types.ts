@@ -159,6 +159,50 @@ export type KnowledgeDocument = {
   updatedAt: string;
 };
 
+export type DocumentDuplicateKeepStrategy = 'OLDEST' | 'NEWEST';
+
+export type DocumentDuplicateCleanupItem = {
+  keepDocumentId: number;
+  keepSourceFilename: string;
+  keepImportKey: string | null;
+  duplicateDocumentId: number;
+  duplicateSourceFilename: string;
+  duplicateImportKey: string | null;
+  categoryName: string | null;
+  title: string;
+  contentFingerprint: string;
+  chunkCount: number;
+  assetCount: number;
+  tagCount: number;
+  sourceReviewRefCount: number;
+  publishedReviewRefCount: number;
+  ingestionRefCount: number;
+};
+
+export type DocumentDuplicateCleanupPreview = {
+  items: DocumentDuplicateCleanupItem[];
+  previewCount: number;
+  visibilityType: KnowledgeDocument['visibilityType'];
+  status: KnowledgeDocument['status'];
+  keepStrategy: DocumentDuplicateKeepStrategy;
+  limit: number;
+};
+
+export type DocumentDuplicateCleanupResult = {
+  duplicateDocumentsDeleted: number;
+  mergedTagBindings: number;
+  rewiredSourceReviews: number;
+  rewiredPublishedReviews: number;
+  rewiredIngestionJobs: number;
+  deletedTagBindings: number;
+  deletedAssets: number;
+  deletedChunks: number;
+  vectorRowsDeleted: number;
+  refreshedKeeperTags: number;
+  deletedDocuments: number;
+  indexRebuildJob: DocumentIndexRebuildJob | null;
+};
+
 export type PublicDocumentSummary = {
   id: number;
   title: string;

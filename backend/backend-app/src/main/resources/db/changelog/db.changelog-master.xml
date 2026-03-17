@@ -46,4 +46,5 @@
     <include file="db/changelog/db.changelog-039-remote-flat-deploy-release-note.xml"/>
     <include file="db/changelog/db.changelog-040-partial-remote-deploy-release-note.xml"/>
     <include file="db/changelog/db.changelog-041-public-articles-release-note.xml"/>
+    <include file="db/changelog/db.changelog-042-document-duplicate-admin-release-note.xml"/>
 </databaseChangeLog>

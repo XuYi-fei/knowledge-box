@@ -50,8 +50,11 @@ if [[ ! -f "${BASE_DIR}/knowledge-box-backend.jar" ]]; then
 fi
 
 if [[ -f "${CONFIG_DIR}/knowledge-box.env" ]]; then
+  # Export sourced env vars so Spring placeholders are visible to the java process.
+  set -a
   # shellcheck disable=SC1091
   source "${CONFIG_DIR}/knowledge-box.env"
+  set +a
 fi
 
 export SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}

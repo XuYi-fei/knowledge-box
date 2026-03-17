@@ -58,6 +58,7 @@
 - 后端已拆分为 `backend-app/service/repository/domain` 多模块；日常编译/测试/启动建议以 `backend/backend-app` 为目标模块并加 `-am` 联动依赖模块。
 - 文档 bootstrap 的 `seed-file` / `seed-directory` 相对路径是按 JVM 当前工作目录解析，不是按配置文件所在目录解析；本地启动时应使用仓库根目录下可直接命中的路径。
 - 语雀 bootstrap seed 若通过 `sourceMarkdownPath` 指向 `tmp/yuque-batch/full-*` 正文，发布包必须保留整棵 `tmp/yuque-batch/`，不能只带 `bootstrap-seeds/`。
+- 平铺部署启动脚本若 `source config/knowledge-box.env`，需确保变量已 `export` 给 `java` 子进程；仅 `source` 未导出的 `DB_*`/`KB_*` 会导致 Spring 读取到空配置。
 - 前端健康探测不要直接依赖 `/actuator/health` 聚合状态；邮件等依赖异常会误报 `DOWN`。优先使用业务可用性端点 `/api/public/system/availability`。
 - 测试专用 `db.changelog-it.xml` 若追加 `about_release_note` 相关 release note 变更，需先同步建表基线，否则 PostgreSQL 集成测试会在 Liquibase 迁移阶段直接失败。
 - AgentScope Hook 事件对象的部分调试字段（如 `generateOptions`）允许为 `null`；记录 trace/debug payload 时不要直接用 `Map.of(...)` 组装可空值。

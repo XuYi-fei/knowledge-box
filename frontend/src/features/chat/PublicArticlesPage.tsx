@@ -299,23 +299,23 @@ export function PublicArticlesPage() {
               ) : detailDocument ? (
                 <div className="public-articles-detail">
                   <div className="document-detail-meta public-articles-detail-meta">
-                    <div className="document-detail-meta-item">
+                    <div className="document-detail-meta-item public-articles-detail-meta-item">
                       <Typography.Text type="secondary">分类</Typography.Text>
                       <Typography.Text>{detailDocument.categoryName || '未分类'}</Typography.Text>
                     </div>
-                    <div className="document-detail-meta-item">
+                    <div className="document-detail-meta-item public-articles-detail-meta-item">
                       <Typography.Text type="secondary">来源文件</Typography.Text>
                       <Typography.Text>{detailDocument.sourceFilename}</Typography.Text>
                     </div>
-                    <div className="document-detail-meta-item">
+                    <div className="document-detail-meta-item public-articles-detail-meta-item">
                       <Typography.Text type="secondary">专栏</Typography.Text>
                       <Typography.Text>{detailDocument.columnName || '无'}</Typography.Text>
                     </div>
-                    <div className="document-detail-meta-item">
+                    <div className="document-detail-meta-item public-articles-detail-meta-item">
                       <Typography.Text type="secondary">最近更新</Typography.Text>
                       <Typography.Text>{new Date(detailDocument.updatedAt).toLocaleString('zh-CN')}</Typography.Text>
                     </div>
-                    <div className="document-detail-meta-item">
+                    <div className="document-detail-meta-item public-articles-detail-meta-item public-articles-detail-meta-item-tags">
                       <Typography.Text type="secondary">标签</Typography.Text>
                       <Space size={[6, 6]} wrap>
                         {detailTags.length ? detailTags.map((tag) => <Tag key={tag}>{tag}</Tag>) : <Typography.Text>无</Typography.Text>}

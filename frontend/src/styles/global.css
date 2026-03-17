@@ -1829,6 +1829,49 @@ a {
 
 .public-articles-detail-meta {
   flex: 0 0 auto;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.public-articles-detail-meta .public-articles-detail-meta-item {
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.public-articles-detail-meta .public-articles-detail-meta-item .ant-typography {
+  margin-bottom: 0;
+}
+
+.public-articles-detail-meta .public-articles-detail-meta-item .ant-typography-secondary {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.public-articles-detail-meta .public-articles-detail-meta-item .ant-typography:not(.ant-typography-secondary) {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.public-articles-detail-meta .public-articles-detail-meta-item-tags {
+  grid-column: 1 / -1;
+  align-items: flex-start;
+}
+
+.public-articles-detail-meta .public-articles-detail-meta-item-tags .ant-space {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.public-articles-detail-meta .public-articles-detail-meta-item-tags .ant-typography:not(.ant-typography-secondary) {
+  white-space: normal;
 }
 
 .public-articles-detail-markdown {

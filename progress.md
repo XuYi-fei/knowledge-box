@@ -32,5 +32,6 @@
 - `application-local.yml` 仅在 `local` profile 生效，且视为用户本地敏感配置，不要覆盖。
 - 模块任务先读根 `progress.md`，再读对应 `docs/progress/<module>/progress.md`；根文档只保留索引与共享状态。
 - “关于”tab 的更新日志来自数据库；独立功能完成后要补增量 changelog 往 `about_release_note` 写数据。
+- Git 提交默认使用中文“简短标题 + 详细正文”；正文尽量完整说明对应 bug/优化/功能、问题背景和解决办法。
+- 每次提交后都要回到对应模块 progress 检查并补齐当前进度；若进度因此变更，也要继续提交这些文档更新。
 - 发布包中的语雀 bootstrap seed 若通过 `sourceMarkdownPath` 指向 `tmp/yuque-batch/full-*` 正文，不能只打包 `bootstrap-seeds/`，必须保留整棵 `tmp/yuque-batch/`。
-- Git 提交信息默认使用中文。

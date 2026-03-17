@@ -21,17 +21,20 @@ Keep the root progress and each module progress small. Do not paste them into ne
 1. Build context from `rule.md`, root `progress.md`, the relevant module progress, and the touched modules.
 2. Implement the requested change while following the project constraints.
 3. Run targeted verification when feasible.
-4. If this task is a completed feature/bugfix and verification passed, stage related files and create a git commit before finishing, using a Chinese commit message.
-5. Update the relevant `../../../docs/progress/<module>/progress.md` if the task changes module status, completed scope, or verification scope; update `../../../progress.md` only for project-wide stage, module index, or shared notes changes.
-6. If the task delivers an independent feature, also sync a concise release note for the About tab by adding database data through an additive changelog/script against `about_release_note`.
-7. If the task introduces a new recurring constraint or a new pitfall, add a short note to `../../../rule.md`.
+4. If this task is a completed feature/bugfix and verification passed, stage related files and create a git commit before finishing, using a Chinese commit message with a short subject and a detailed body.
+5. After each commit, update the relevant `../../../docs/progress/<module>/progress.md` to reflect the committed state if the task changed module status, completed scope, or verification scope; update `../../../progress.md` only for project-wide stage, module index, or shared notes changes.
+6. If step 5 changes progress files, stage and commit those progress updates in the same turn so the docs match the latest committed state.
+7. If this task delivers an independent feature, also sync a concise release note for the About tab by adding database data through an additive changelog/script against `about_release_note`.
+8. If the task introduces a new recurring constraint or a new pitfall, add a short note to `../../../rule.md`.
 
 ## Update Rules
 
 - Keep root `progress.md` as the project index/summary, and keep module detail in `docs/progress/<module>/progress.md`.
-- Update the relevant module progress after meaningful feature work, bug fixes, infrastructure changes, or verification changes.
+- Update the relevant module progress after meaningful feature work, bug fixes, infrastructure changes, or verification changes, and re-check it immediately after each commit.
 - For completed feature/bugfix work, do not stop at code + tests: create a git commit in the same turn after verification passes.
 - When creating git commits in this repo, use Chinese commit messages by default unless the user explicitly asks otherwise.
+- Git commit messages should use a short subject plus a detailed body; in the body, describe as completely as practical the bug/optimization/feature being delivered, the observed problem or goal, and the solution taken.
+- If progress changes are discovered or added after the main commit, create a follow-up commit in the same turn so committed code and committed progress stay aligned.
 - Keep root and module progress factual and compressed. Preserve only current stage, core completed capabilities, verified scope, and the next focus.
 - Separate "completed" from "verified".
 - When an independent feature ships, do not stop at `progress.md`: also append a concise About-tab release note through an additive database change, rather than hiding the change only in docs.

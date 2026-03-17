@@ -1641,6 +1641,11 @@ a {
   grid-template-columns: 292px minmax(0, 1fr);
   gap: 16px;
   overflow: hidden;
+  transition: grid-template-columns 0.18s ease;
+}
+
+.public-articles-layout-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .public-articles-sidebar {

@@ -16,6 +16,7 @@
 - 文档导入与公开文档详情已新增“专栏”能力：bootstrap / 运行时 `init-review` 可直接指定强制分类与专栏，管理端审核页可编辑专栏，公开文档详情与引用详情页左侧会展示同专栏文章列表；当前语雀 bootstrap seed 中 `Spring AI Alibaba` 的 12 篇文档已回填分类与专栏。
 - 已修复公开文库页单条文章列表场景下卡片被整行拉满的问题；当前卡片列表改为响应式网格，既会铺满内容区宽度，也不会在单篇结果时出现异常超宽展示。
 - 已修复公开文库页左侧筛选栏在分类/标签数量较少时被纵向拉伸的问题；当前筛选区固定按内容高度堆叠，不再因剩余高度过大而把分类/tag 按钮撑成大卡片。
+- 已修复公开文库页左侧筛选栏收起后仅内部变窄、右侧主区不扩张的问题；当前收起侧栏会同步压缩外层 grid 列宽，主内容区会接管释放出的横向空间。
 - 已修复公开文库底层重复数据导致的重复展示问题；当前若存在不同 `importKey` 但标题和正文相同的公开文档，目录与分类/标签计数会按内容指纹去重后再对外展示。
 - 文档导入已升级为“双重判定”：启动 bootstrap 与运行时 `upload-json/init-review` 导入，除 `importKey` 幂等外，还会按正文内容指纹拦截“不同来源但正文相同”的重复导入；同时已补充 `scripts/cleanup_duplicate_documents.py`，可 dry-run/执行清理历史重复正式文档，并重挂审核单/ingestion 引用与清理向量行。
 - 管理端已新增“重复治理”页：管理员可在后台预览重复正式文档、执行清理、重挂审核单/ingestion 引用，并可选自动触发索引重建。
@@ -54,6 +55,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的审核页专栏编辑、公开文档详情/引用详情页同专栏文章侧栏展示，以及专栏字段类型与 API 接线。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库单卡宽度修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库左侧筛选栏少数据场景下的纵向拉伸修复。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库左侧筛选栏收起后主区扩张布局修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 文档详情页内部滚动修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 大纲高亮/点击跳转/初始锚点定位切换到内部滚动容器后的构建链路。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖用户工具页 schema 驱动输入/结果渲染与管理端可视化 schema 配置器。

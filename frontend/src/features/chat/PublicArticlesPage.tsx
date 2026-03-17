@@ -153,7 +153,7 @@ export function PublicArticlesPage() {
 
   return (
     <div className="chat-shell public-articles-shell">
-      <div className="public-articles-layout">
+      <div className={`public-articles-layout ${sidebarCollapsed ? 'public-articles-layout-collapsed' : ''}`}>
         <aside className={`public-articles-sidebar ${sidebarCollapsed ? 'public-articles-sidebar-collapsed' : ''}`}>
           <Card
             className="chat-panel public-articles-sidebar-card"

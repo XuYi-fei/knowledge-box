@@ -44,6 +44,7 @@
 - AgentScope `StreamOptions.eventTypes(...)` 里的 `EventType.ALL` 不是“订阅全部事件”的通配符；聊天主链路若要保留正文流式输出与 thinking/tool 展示，需显式订阅 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`。
 - AgentScope 1.0.9 的 DashScope 原生端点自动路由对 `qwen3.5-*` 覆盖不完整，相关模型需走 `knowledge-box.chat.dashscope-compatible.*` 兼容端点策略。
 - 已发布 `agent_profile_version.routing_model` 必须指向已启用的 CHAT 模型；启动期会进行强校验，不满足会直接启动失败。
+- 已发布公开聊天入口版本必须保持 `agent_profile_version.agent_type=ENTRY`；子 Agent 绑定仅允许 `ENTRY/ORCHESTRATOR -> ATOMIC`，且绑定目标固定到具体版本。
 - AgentScope 1.0.9 下，若 `DashScopeChatModel.enableThinking(false)`，不要在对应 `GenerateOptions` 里设置 `thinkingBudget`（即使为 0），否则会抛 `IllegalStateException`。
 - AgentScope `Toolkit.registration().group(...)` 不会自动建组；动态注册 Tool/MCP 前必须先 `createToolGroup`，否则会抛 `Tool group ... does not exist`。
 - AgentScope 工具执行可能切换线程，`ThreadLocal` 上下文不应作为关键持久化字段（如 `sessionCode`）的唯一来源；落库前需做非空保护或使用显式参数传递。

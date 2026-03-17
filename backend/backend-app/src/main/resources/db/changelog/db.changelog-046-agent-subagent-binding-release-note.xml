@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="046-001-about-release-note-agent-subagent-binding" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.19',
+                'Agent 配置支持调用原子子 Agent',
+                'Agent 版本现在支持 ENTRY / ORCHESTRATOR / ATOMIC 三种类型，并能按版本绑定可调用的原子子 Agent。',
+                E'## 本次更新\n\n- `agent_profile_version` 新增 `ENTRY / ORCHESTRATOR / ATOMIC` 类型，用于区分公开入口、内部编排和原子能力\n- 管理端可为一个 Agent 版本绑定多个 `ATOMIC` 子 Agent，运行时会按绑定结果注册到当前 Agent 的工具集中\n- 聊天链路继续基于 AgentScope ReActAgent，但子 Agent 会以 Agent Tool 形式接入，并保留独立 trace 过程，方便排障与分析',
+                TIMESTAMPTZ '2026-03-19 12:00:00+08',
+                -13,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.19'
+                   AND title = 'Agent 配置支持调用原子子 Agent'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

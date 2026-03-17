@@ -487,8 +487,8 @@ class ChatOrchestratorTests {
 
     private AgentCapabilityAssemblyService emptyCapabilitiesAssembler() {
         AgentCapabilityAssemblyService assemblyService = mock(AgentCapabilityAssemblyService.class);
-        when(assemblyService.assemble(nullable(Long.class), anyBoolean()))
-                .thenReturn(new AgentCapabilityAssemblyService.AgentRuntimeCapabilities(new Toolkit(), null, List.of()));
+        when(assemblyService.assemble(nullable(Long.class), anyBoolean(), any(), any()))
+                .thenReturn(new AgentCapabilityAssemblyService.AgentRuntimeCapabilities(new Toolkit(), null, List.of(), Map.of()));
         return assemblyService;
     }
 

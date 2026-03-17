@@ -17,6 +17,7 @@ import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.KnowledgeDocumentRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import com.knowledgebox.service.document.DocumentGovernanceService;
+import com.knowledgebox.service.integration.AgentProfileVersionPolicyService;
 import com.knowledgebox.service.integration.IntegrationAdminService;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class AdminQueryService {
     private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
     private final DocumentGovernanceService documentGovernanceService;
     private final IntegrationAdminService integrationAdminService;
+    private final AgentProfileVersionPolicyService policyService;
 
     public AdminQueryService(
             AgentProfileVersionRepository agentProfileVersionRepository,
@@ -37,7 +39,8 @@ public class AdminQueryService {
             KnowledgeDocumentRepository knowledgeDocumentRepository,
             AgentExecutionTraceQueryService agentExecutionTraceQueryService,
             DocumentGovernanceService documentGovernanceService,
-            IntegrationAdminService integrationAdminService
+            IntegrationAdminService integrationAdminService,
+            AgentProfileVersionPolicyService policyService
     ) {
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.modelCatalogRepository = modelCatalogRepository;
@@ -45,6 +48,7 @@ public class AdminQueryService {
         this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
         this.documentGovernanceService = documentGovernanceService;
         this.integrationAdminService = integrationAdminService;
+        this.policyService = policyService;
     }
 
     public AdminDashboardView dashboard() {
@@ -101,9 +105,11 @@ public class AdminQueryService {
         return new AgentProfileVersionView(
                 version.getId(),
                 version.getProfile().getCode(),
+                version.getProfile().getName(),
                 version.getVersionNumber(),
                 version.getStatus(),
                 Boolean.TRUE.equals(version.getPublished()),
+                policyService.normalizeType(version.getAgentType()),
                 version.getChatModel(),
                 version.getRoutingModel(),
                 version.getEmbeddingModel(),

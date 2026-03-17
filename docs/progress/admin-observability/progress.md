@@ -7,6 +7,7 @@
 ## 已完成
 
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理，以及动态 Tool/MCP/Skill 绑定管理。
+- Agent Profile Version 现已支持 `ENTRY / ORCHESTRATOR / ATOMIC` 三种类型，并可按“具体版本”绑定允许调用的原子子 Agent。
 - Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
 - 管理端公共布局已修复为内容区独立滚动，`知识文档` 与 `文档审核` 页面在关闭窗口级滚动后仍可正常使用。
 
@@ -14,6 +15,7 @@
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 Trace 管理页、后台布局滚动修复和相关运营页面。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖 Trace、Agent 配置与后台管理接口。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖 Agent 类型约束、子 Agent 绑定与运行时装配。
 
 ## 待继续推进
 
@@ -27,3 +29,4 @@
 - Trace 详情里的 `sequenceNo` 是全局序号，不适合直接当“步骤号”。
 - Hook 事件里的调试字段可能为 `null`，trace/debug payload 组装时不要直接用 `Map.of(...)`。
 - 若日志写库发生在 `@Transactional(readOnly = true)` 服务方法内，开始/结束 span 的持久化必须使用独立事务。
+- 已发布公开入口版本必须保持为 `ENTRY`；子 Agent 绑定仅允许 `ENTRY/ORCHESTRATOR -> ATOMIC`，且绑定目标固定到具体版本。

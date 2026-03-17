@@ -115,9 +115,11 @@ export type DashboardStats = {
 export type AgentProfileVersion = {
   id: number;
   profileCode: string;
+  profileName: string;
   versionNumber: number;
   status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
   published: boolean;
+  agentType: 'ENTRY' | 'ORCHESTRATOR' | 'ATOMIC';
   chatModel: string;
   routingModel: string | null;
   embeddingModel: string;
@@ -375,11 +377,21 @@ export type AgentProfileVersionMcpBinding = {
   disableTools: string[];
 };
 
+export type AgentProfileVersionAgentBinding = {
+  profileVersionId: number;
+  profileCode: string;
+  profileName: string;
+  versionNumber: number;
+  agentType: AgentProfileVersion['agentType'];
+  published: boolean;
+};
+
 export type AgentProfileVersionBindings = {
   profileVersionId: number;
   toolCodes: string[];
   skillCodes: string[];
   mcpBindings: AgentProfileVersionMcpBinding[];
+  childAgentBindings: AgentProfileVersionAgentBinding[];
 };
 
 export type WebhookSubscription = {

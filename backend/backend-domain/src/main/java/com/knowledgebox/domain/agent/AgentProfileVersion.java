@@ -25,6 +25,10 @@ public class AgentProfileVersion extends BaseEntity {
     @Column(nullable = false, length = 16)
     private ProfileStatus status = ProfileStatus.DRAFT;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private AgentProfileVersionType agentType = AgentProfileVersionType.ENTRY;
+
     @Column(nullable = false, length = 64)
     private String chatModel;
 
@@ -83,6 +87,14 @@ public class AgentProfileVersion extends BaseEntity {
 
     public void setStatus(ProfileStatus status) {
         this.status = status;
+    }
+
+    public AgentProfileVersionType getAgentType() {
+        return agentType;
+    }
+
+    public void setAgentType(AgentProfileVersionType agentType) {
+        this.agentType = agentType;
     }
 
     public String getChatModel() {

@@ -4,6 +4,7 @@ import com.knowledgebox.api.*;
 import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.domain.agent.ModelCatalog;
 import com.knowledgebox.domain.agent.ModelType;
 import com.knowledgebox.domain.chat.ChatMessageStatus;
@@ -1004,7 +1005,7 @@ public class ChatOrchestrator {
 
 
     private AgentProfileVersion publishedProfile() {
-        return agentProfileVersionRepository.findFirstByPublishedTrueOrderByUpdatedAtDesc()
+        return agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.ENTRY)
                 .orElseThrow(() -> new IllegalStateException("No published agent profile version found"));
     }
 
@@ -1031,13 +1032,22 @@ public class ChatOrchestrator {
     ) {
         AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(
                 profile.getId(),
-                enableKnowledgeBaseTool
+                enableKnowledgeBaseTool,
+                traceContext,
+                exchangeRuntime
         );
         List<io.agentscope.core.hook.Hook> hooks = new ArrayList<>();
         if (capabilities.hooks() != null && !capabilities.hooks().isEmpty()) {
             hooks.addAll(capabilities.hooks());
         }
-        hooks.add(new AgentExecutionTraceHook(agentExecutionTraceService, traceContext));
+        hooks.add(new AgentExecutionTraceHook(
+                agentExecutionTraceService,
+                traceContext,
+                traceContext.requestSpanId(),
+                traceContext::answerStreamSpanId,
+                null,
+                capabilities.subAgentToolMetadataByName()
+        ));
         return chatModelFactory.createReActAgent(
                 profile,
                 chatModelCode,

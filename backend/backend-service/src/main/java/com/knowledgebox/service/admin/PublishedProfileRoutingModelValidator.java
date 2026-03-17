@@ -1,6 +1,7 @@
 package com.knowledgebox.service.admin;
 
 import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.domain.agent.ModelType;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
@@ -31,7 +32,22 @@ public class PublishedProfileRoutingModelValidator implements ApplicationRunner 
                 .filter(version -> Boolean.TRUE.equals(version.getPublished()))
                 .toList();
         for (AgentProfileVersion version : publishedVersions) {
+            validatePublishedEntryType(version);
             validateRoutingModel(version);
+        }
+    }
+
+    private void validatePublishedEntryType(AgentProfileVersion version) {
+        AgentProfileVersionType agentType = version.getAgentType() == null ? AgentProfileVersionType.ENTRY : version.getAgentType();
+        if (agentType != AgentProfileVersionType.ENTRY) {
+            throw new IllegalStateException(
+                    "Published agent profile version must be ENTRY: profile="
+                            + version.getProfile().getCode()
+                            + ", version="
+                            + version.getVersionNumber()
+                            + ", agentType="
+                            + agentType
+            );
         }
     }
 

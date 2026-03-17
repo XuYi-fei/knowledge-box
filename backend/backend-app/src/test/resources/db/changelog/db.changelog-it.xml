@@ -994,4 +994,58 @@
             );
         ]]></sql>
     </changeSet>
+    <changeSet id="it-045-agent-subagent-binding" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS agent_type VARCHAR(32);
+
+            UPDATE agent_profile_version
+               SET agent_type = COALESCE(NULLIF(agent_type, ''), 'ENTRY');
+
+            ALTER TABLE agent_profile_version
+                ALTER COLUMN agent_type SET NOT NULL;
+
+            CREATE TABLE IF NOT EXISTS agent_profile_version_agent_binding (
+                id BIGSERIAL PRIMARY KEY,
+                parent_profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
+                child_profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT ck_agent_profile_version_agent_binding_self_ref
+                    CHECK (parent_profile_version_id <> child_profile_version_id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_agent_binding
+                ON agent_profile_version_agent_binding(parent_profile_version_id, child_profile_version_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_agent_binding_child_id
+                ON agent_profile_version_agent_binding(child_profile_version_id);
+        ]]></sql>
+    </changeSet>
+    <changeSet id="it-046-agent-subagent-binding-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.19',
+                'Agent 配置支持调用原子子 Agent',
+                'Agent 版本现在支持 ENTRY / ORCHESTRATOR / ATOMIC 三种类型，并能按版本绑定可调用的原子子 Agent。',
+                E'## 本次更新\n\n- `agent_profile_version` 新增 `ENTRY / ORCHESTRATOR / ATOMIC` 类型，用于区分公开入口、内部编排和原子能力\n- 管理端可为一个 Agent 版本绑定多个 `ATOMIC` 子 Agent，运行时会按绑定结果注册到当前 Agent 的工具集中\n- 聊天链路继续基于 AgentScope ReActAgent，但子 Agent 会以 Agent Tool 形式接入，并保留独立 trace 过程，方便排障与分析',
+                TIMESTAMPTZ '2026-03-19 12:00:00+08',
+                -13,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.19'
+                   AND title = 'Agent 配置支持调用原子子 Agent'
+            );
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

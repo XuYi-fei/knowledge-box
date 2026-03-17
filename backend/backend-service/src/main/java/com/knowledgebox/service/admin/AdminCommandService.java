@@ -6,10 +6,12 @@ import com.knowledgebox.api.ModelCatalogView;
 import com.knowledgebox.api.UpdateAgentProfileVersionRequest;
 import com.knowledgebox.api.UpdateModelCatalogRequest;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.domain.agent.ModelCatalog;
 import com.knowledgebox.domain.agent.ModelType;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
+import com.knowledgebox.service.integration.AgentProfileVersionPolicyService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,15 +21,18 @@ public class AdminCommandService {
     private final AgentProfileVersionRepository agentProfileVersionRepository;
     private final ModelCatalogRepository modelCatalogRepository;
     private final AdminSecurityService adminSecurityService;
+    private final AgentProfileVersionPolicyService policyService;
 
     public AdminCommandService(
             AgentProfileVersionRepository agentProfileVersionRepository,
             ModelCatalogRepository modelCatalogRepository,
-            AdminSecurityService adminSecurityService
+            AdminSecurityService adminSecurityService,
+            AgentProfileVersionPolicyService policyService
     ) {
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.modelCatalogRepository = modelCatalogRepository;
         this.adminSecurityService = adminSecurityService;
+        this.policyService = policyService;
     }
 
     @Transactional
@@ -40,6 +45,9 @@ public class AdminCommandService {
         AgentProfileVersion version = agentProfileVersionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Agent profile version not found: " + id));
 
+        AgentProfileVersionType targetType = policyService.normalizeType(request.agentType());
+        policyService.validateTypeTransition(version, targetType);
+        version.setAgentType(targetType);
         version.setChatModel(requireEnabledModel(request.chatModel(), ModelType.CHAT).getCode());
         version.setRoutingModel(requireEnabledModel(request.routingModel(), ModelType.CHAT).getCode());
         version.setEmbeddingModel(requireEnabledModel(request.embeddingModel(), ModelType.EMBEDDING).getCode());
@@ -148,9 +156,11 @@ public class AdminCommandService {
         return new AgentProfileVersionView(
                 version.getId(),
                 version.getProfile().getCode(),
+                version.getProfile().getName(),
                 version.getVersionNumber(),
                 version.getStatus(),
                 Boolean.TRUE.equals(version.getPublished()),
+                policyService.normalizeType(version.getAgentType()),
                 version.getChatModel(),
                 version.getRoutingModel(),
                 version.getEmbeddingModel(),

@@ -2,15 +2,19 @@ package com.knowledgebox.service.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.api.AgentProfileVersionMcpBindingView;
 import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
+import com.knowledgebox.domain.agent.AgentProfile;
+import com.knowledgebox.domain.agent.AgentProfileVersion;
 import com.knowledgebox.domain.integration.McpServerConfig;
 import com.knowledgebox.domain.integration.SkillBinding;
 import com.knowledgebox.domain.integration.ToolDefinition;
+import com.knowledgebox.repository.AgentProfileVersionAgentBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionMcpBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.AgentProfileVersionSkillBindingRepository;
@@ -32,6 +36,8 @@ class AgentProfileBindingServiceTests {
     @Mock
     private AgentProfileVersionRepository agentProfileVersionRepository;
     @Mock
+    private AgentProfileVersionAgentBindingRepository agentBindingRepository;
+    @Mock
     private AgentProfileVersionToolBindingRepository toolBindingRepository;
     @Mock
     private AgentProfileVersionMcpBindingRepository mcpBindingRepository;
@@ -43,6 +49,8 @@ class AgentProfileBindingServiceTests {
     private McpServerConfigRepository mcpServerConfigRepository;
     @Mock
     private SkillBindingRepository skillCatalogRepository;
+    @Mock
+    private AgentProfileVersionPolicyService policyService;
 
     private AgentProfileBindingService service;
 
@@ -50,19 +58,35 @@ class AgentProfileBindingServiceTests {
     void setUp() {
         service = new AgentProfileBindingService(
                 agentProfileVersionRepository,
+                agentBindingRepository,
                 toolBindingRepository,
                 mcpBindingRepository,
                 skillBindingRepository,
                 toolDefinitionRepository,
                 mcpServerConfigRepository,
                 skillCatalogRepository,
-                new ObjectMapper()
+                new ObjectMapper(),
+                policyService
         );
     }
 
     @Test
     void shouldNormalizeAndReplaceBindingsWithoutDuplicates() {
-        when(agentProfileVersionRepository.existsById(1L)).thenReturn(true);
+        AgentProfile profile = new AgentProfile();
+        profile.setCode("entry-agent");
+        profile.setName("Entry Agent");
+        AgentProfileVersion version = new AgentProfileVersion();
+        version.setProfile(profile);
+        version.setVersionNumber(1);
+        try {
+            java.lang.reflect.Field versionIdField = com.knowledgebox.common.BaseEntity.class.getDeclaredField("id");
+            versionIdField.setAccessible(true);
+            versionIdField.set(version, 1L);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+        when(policyService.requireVersion(1L)).thenReturn(version);
+        when(policyService.normalizeAndValidateChildBindings(eq(version), anyList())).thenReturn(List.of());
 
         ToolDefinition tool = new ToolDefinition();
         tool.setCode("http-search");
@@ -101,6 +125,7 @@ class AgentProfileBindingServiceTests {
         when(toolBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
         when(skillBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
         when(mcpBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(agentBindingRepository.findByParentProfileVersionId(1L)).thenReturn(List.of());
 
         when(toolBindingRepository.saveAll(anyList())).thenAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -136,7 +161,8 @@ class AgentProfileBindingServiceTests {
                         new AgentProfileVersionMcpBindingView("local-mcp", List.of("http-search", "HTTP-SEARCH"), List.of()),
                         new AgentProfileVersionMcpBindingView("LOCAL-MCP", List.of("http-search"), List.of("http-search")),
                         new AgentProfileVersionMcpBindingView(" ", List.of(), List.of())
-                )
+                ),
+                List.of()
         );
 
         var response = service.updateBindings(1L, request);
@@ -148,5 +174,6 @@ class AgentProfileBindingServiceTests {
         verify(toolBindingRepository).deleteByProfileVersionId(1L);
         verify(skillBindingRepository).deleteByProfileVersionId(1L);
         verify(mcpBindingRepository).deleteByProfileVersionId(1L);
+        verify(agentBindingRepository).deleteByParentProfileVersionId(1L);
     }
 }

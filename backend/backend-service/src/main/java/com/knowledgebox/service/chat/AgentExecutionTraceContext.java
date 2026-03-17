@@ -126,6 +126,12 @@ final class AgentExecutionTraceContext {
         }
     }
 
+    String currentActiveSpanId() {
+        synchronized (activeSpans) {
+            return activeSpans.peek();
+        }
+    }
+
     void bindToolSpan(String toolCallId, String spanId) {
         if (toolCallId != null && !toolCallId.isBlank()) {
             toolSpanIdsByToolCallId.put(toolCallId, spanId);

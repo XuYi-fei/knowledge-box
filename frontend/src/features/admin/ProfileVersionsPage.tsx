@@ -8,7 +8,16 @@ import { AgentProfileVersion, AgentProfileVersionBindings, ModelCatalog, ModelTy
 
 const columns: ColumnsType<AgentProfileVersion> = [
   { title: 'Profile', dataIndex: 'profileCode' },
+  { title: '名称', dataIndex: 'profileName' },
   { title: '版本', dataIndex: 'versionNumber' },
+  {
+    title: '类型',
+    dataIndex: 'agentType',
+    render: (value: AgentProfileVersion['agentType']) => {
+      const color = value === 'ENTRY' ? 'blue' : value === 'ORCHESTRATOR' ? 'purple' : 'gold';
+      return <Tag color={color}>{value}</Tag>;
+    },
+  },
   { title: '聊天模型', dataIndex: 'chatModel' },
   {
     title: '路由模型',
@@ -33,6 +42,7 @@ const columns: ColumnsType<AgentProfileVersion> = [
 type ProfileBindingsFormValues = {
   toolCodes: string[];
   skillCodes: string[];
+  childAgentVersionIds: number[];
   mcpBindings: {
     mcpCode: string;
     enableTools: string[];
@@ -62,6 +72,7 @@ export function ProfileVersionsPage() {
   const { modal, message } = App.useApp();
   const queryClient = useQueryClient();
   const [profileForm] = Form.useForm<{
+    agentType: AgentProfileVersion['agentType'];
     chatModel: string;
     routingModel: string;
     embeddingModel: string;
@@ -123,6 +134,7 @@ export function ProfileVersionsPage() {
       bindingsForm.setFieldsValue({
         toolCodes: [],
         skillCodes: [],
+        childAgentVersionIds: [],
         mcpBindings: [],
       });
       return;
@@ -130,12 +142,14 @@ export function ProfileVersionsPage() {
     bindingsForm.setFieldsValue({
       toolCodes: profileBindings.toolCodes ?? [],
       skillCodes: profileBindings.skillCodes ?? [],
+      childAgentVersionIds: (profileBindings.childAgentBindings ?? []).map((binding) => binding.profileVersionId),
       mcpBindings: normalizeMcpBindingsForForm(profileBindings.mcpBindings),
     });
   }, [bindingsModalOpen, profileBindings, bindingsForm]);
 
   const updateProfileMutation = useMutation({
     mutationFn: (values: {
+      agentType: AgentProfileVersion['agentType'];
       chatModel: string;
       routingModel: string;
       embeddingModel: string;
@@ -215,7 +229,7 @@ export function ProfileVersionsPage() {
       if (!bindingProfile) {
         throw new Error('未选中配置版本');
       }
-      const payload: Omit<AgentProfileVersionBindings, 'profileVersionId'> = {
+      const payload = {
         toolCodes: values.toolCodes ?? [],
         skillCodes: values.skillCodes ?? [],
         mcpBindings: (values.mcpBindings ?? [])
@@ -225,6 +239,7 @@ export function ProfileVersionsPage() {
             enableTools: (binding.enableTools ?? []).filter((code) => Boolean(code && code.trim())),
             disableTools: (binding.disableTools ?? []).filter((code) => Boolean(code && code.trim())),
           })),
+        childAgentVersionIds: values.childAgentVersionIds ?? [],
       };
       return api.updateProfileVersionBindings(bindingProfile.id, payload);
     },
@@ -262,6 +277,12 @@ export function ProfileVersionsPage() {
     label: `${item.code} (${item.transportType})`,
     value: item.code,
   }));
+  const atomicAgentOptions = data
+    .filter((item) => item.agentType === 'ATOMIC' && item.id !== bindingProfile?.id)
+    .map((item) => ({
+      label: `${item.profileName} (${item.profileCode} v${item.versionNumber})`,
+      value: item.id,
+    }));
 
   const profileColumns: ColumnsType<AgentProfileVersion> = columns.map((column) => {
     if (column.title !== '操作') {
@@ -276,6 +297,7 @@ export function ProfileVersionsPage() {
             onClick={() => {
               setEditingProfile(record);
               profileForm.setFieldsValue({
+                agentType: record.agentType,
                 chatModel: record.chatModel,
                 routingModel: record.routingModel ?? record.chatModel,
                 embeddingModel: record.embeddingModel,
@@ -298,6 +320,7 @@ export function ProfileVersionsPage() {
               bindingsForm.setFieldsValue({
                 toolCodes: [],
                 skillCodes: [],
+                childAgentVersionIds: [],
                 mcpBindings: [],
               });
             }}
@@ -411,6 +434,15 @@ export function ProfileVersionsPage() {
             })
           }
         >
+          <Form.Item label="Agent 类型" name="agentType" rules={[{ required: true, message: '请选择 Agent 类型' }]}>
+            <Select
+              options={[
+                { label: 'ENTRY', value: 'ENTRY' },
+                { label: 'ORCHESTRATOR', value: 'ORCHESTRATOR' },
+                { label: 'ATOMIC', value: 'ATOMIC' },
+              ]}
+            />
+          </Form.Item>
           <Form.Item label="聊天模型" name="chatModel" rules={[{ required: true, message: '请选择聊天模型' }]}>
             <Select
               options={chatOptions.map((item) => ({
@@ -484,7 +516,7 @@ export function ProfileVersionsPage() {
           layout="vertical"
           form={bindingsForm}
           onFinish={(values) => saveBindingsMutation.mutate(values)}
-          initialValues={{ toolCodes: [], skillCodes: [], mcpBindings: [] }}
+          initialValues={{ toolCodes: [], skillCodes: [], childAgentVersionIds: [], mcpBindings: [] }}
         >
           <Form.Item label="工具绑定" name="toolCodes" extra="该版本默认可用的 Tool 编码集合。">
             <Select
@@ -502,6 +534,24 @@ export function ProfileVersionsPage() {
               showSearch
               options={skillCodeOptions}
               placeholder="选择 skillCodes"
+            />
+          </Form.Item>
+          <Form.Item
+            label="子 Agent 绑定"
+            name="childAgentVersionIds"
+            extra={
+              bindingProfile?.agentType === 'ATOMIC'
+                ? 'ATOMIC 版本不能绑定子 Agent。'
+                : '仅允许绑定 ATOMIC 版本；运行时只会注册这里选中的子 Agent。'
+            }
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              disabled={bindingProfile?.agentType === 'ATOMIC'}
+              options={atomicAgentOptions}
+              placeholder="选择可调用的原子 Agent 版本"
             />
           </Form.Item>
           <Form.List name="mcpBindings">

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.service.chat.AgentCapabilityAssemblyService;
 import io.agentscope.core.ReActAgent;
@@ -88,7 +89,7 @@ public class DocumentTaxonomyAgentService {
     }
 
     private String invokeAgent(String modelCode, String userPrompt) {
-        Long profileVersionId = agentProfileVersionRepository.findFirstByPublishedTrueOrderByUpdatedAtDesc()
+        Long profileVersionId = agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.ENTRY)
                 .map(version -> version.getId())
                 .orElse(null);
         AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(

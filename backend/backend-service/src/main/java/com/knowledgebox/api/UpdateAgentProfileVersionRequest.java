@@ -1,5 +1,6 @@
 package com.knowledgebox.api;
 
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record UpdateAgentProfileVersionRequest(
+        @NotNull AgentProfileVersionType agentType,
         @NotBlank @Size(max = 64) String chatModel,
         @NotBlank @Size(max = 64) String routingModel,
         @NotBlank @Size(max = 64) String embeddingModel,

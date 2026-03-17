@@ -2,15 +2,19 @@ package com.knowledgebox.service.integration;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knowledgebox.api.AgentProfileVersionAgentBindingView;
 import com.knowledgebox.api.AgentProfileVersionBindingsView;
 import com.knowledgebox.api.AgentProfileVersionMcpBindingView;
 import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
+import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.integration.AgentProfileVersionAgentBinding;
 import com.knowledgebox.domain.integration.McpServerConfig;
 import com.knowledgebox.domain.integration.SkillBinding;
 import com.knowledgebox.domain.integration.ToolDefinition;
 import com.knowledgebox.domain.integration.AgentProfileVersionMcpBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionSkillBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionToolBinding;
+import com.knowledgebox.repository.AgentProfileVersionAgentBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionMcpBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.AgentProfileVersionSkillBindingRepository;
@@ -31,6 +35,7 @@ import org.springframework.util.StringUtils;
 public class AgentProfileBindingService {
 
     private final AgentProfileVersionRepository agentProfileVersionRepository;
+    private final AgentProfileVersionAgentBindingRepository agentBindingRepository;
     private final AgentProfileVersionToolBindingRepository toolBindingRepository;
     private final AgentProfileVersionMcpBindingRepository mcpBindingRepository;
     private final AgentProfileVersionSkillBindingRepository skillBindingRepository;
@@ -38,18 +43,22 @@ public class AgentProfileBindingService {
     private final McpServerConfigRepository mcpServerConfigRepository;
     private final SkillBindingRepository skillCatalogRepository;
     private final ObjectMapper objectMapper;
+    private final AgentProfileVersionPolicyService policyService;
 
     public AgentProfileBindingService(
             AgentProfileVersionRepository agentProfileVersionRepository,
+            AgentProfileVersionAgentBindingRepository agentBindingRepository,
             AgentProfileVersionToolBindingRepository toolBindingRepository,
             AgentProfileVersionMcpBindingRepository mcpBindingRepository,
             AgentProfileVersionSkillBindingRepository skillBindingRepository,
             ToolDefinitionRepository toolDefinitionRepository,
             McpServerConfigRepository mcpServerConfigRepository,
             SkillBindingRepository skillCatalogRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AgentProfileVersionPolicyService policyService
     ) {
         this.agentProfileVersionRepository = agentProfileVersionRepository;
+        this.agentBindingRepository = agentBindingRepository;
         this.toolBindingRepository = toolBindingRepository;
         this.mcpBindingRepository = mcpBindingRepository;
         this.skillBindingRepository = skillBindingRepository;
@@ -57,11 +66,12 @@ public class AgentProfileBindingService {
         this.mcpServerConfigRepository = mcpServerConfigRepository;
         this.skillCatalogRepository = skillCatalogRepository;
         this.objectMapper = objectMapper;
+        this.policyService = policyService;
     }
 
     @Transactional(readOnly = true)
     public AgentProfileVersionBindingsView bindings(Long profileVersionId) {
-        ensureProfileVersionExists(profileVersionId);
+        AgentProfileVersion parentVersion = policyService.requireVersion(profileVersionId);
         List<String> toolCodes = new ArrayList<>();
         for (AgentProfileVersionToolBinding binding : toolBindingRepository.findByProfileVersionId(profileVersionId)) {
             String code = resolveToolCode(binding.getToolId());
@@ -88,18 +98,38 @@ public class AgentProfileBindingService {
                     readStringList(binding.getDisableToolsJson())
             ));
         }
-        return new AgentProfileVersionBindingsView(profileVersionId, toolCodes, skillCodes, mcpBindings);
+        List<Long> childAgentVersionIds = agentBindingRepository.findByParentProfileVersionId(profileVersionId)
+                .stream()
+                .map(AgentProfileVersionAgentBinding::getChildProfileVersionId)
+                .distinct()
+                .toList();
+        List<AgentProfileVersionAgentBindingView> childAgentBindings = childAgentVersionIds.isEmpty()
+                ? List.of()
+                : agentProfileVersionRepository.findAllByIdIn(childAgentVersionIds).stream()
+                        .map(this::toChildBindingView)
+                        .toList();
+        return new AgentProfileVersionBindingsView(
+                parentVersion.getId(),
+                toolCodes,
+                skillCodes,
+                mcpBindings,
+                childAgentBindings
+        );
     }
 
     @Transactional
     public AgentProfileVersionBindingsView updateBindings(Long profileVersionId, UpdateAgentProfileVersionBindingsRequest request) {
-        ensureProfileVersionExists(profileVersionId);
+        AgentProfileVersion parentVersion = policyService.requireVersion(profileVersionId);
 
         List<String> toolCodes = normalizeCodes(request.toolCodes());
         List<String> skillCodes = normalizeCodes(request.skillCodes());
         List<AgentProfileVersionMcpBindingView> mcpBindings = request.mcpBindings() == null
                 ? List.of()
                 : request.mcpBindings();
+        List<AgentProfileVersion> childVersions = policyService.normalizeAndValidateChildBindings(
+                parentVersion,
+                request.childAgentVersionIds()
+        );
 
         List<Long> toolIds = toolCodes.stream().map(this::requireToolId).toList();
         List<Long> skillIds = skillCodes.stream().map(this::requireSkillId).toList();
@@ -123,6 +153,7 @@ public class AgentProfileBindingService {
         toolBindingRepository.deleteByProfileVersionId(profileVersionId);
         mcpBindingRepository.deleteByProfileVersionId(profileVersionId);
         skillBindingRepository.deleteByProfileVersionId(profileVersionId);
+        agentBindingRepository.deleteByParentProfileVersionId(profileVersionId);
 
         if (!toolCodes.isEmpty()) {
             toolBindingRepository.saveAll(toolIds.stream()
@@ -159,16 +190,18 @@ public class AgentProfileBindingService {
                     .toList());
         }
 
-        return bindings(profileVersionId);
-    }
+        if (!childVersions.isEmpty()) {
+            agentBindingRepository.saveAll(childVersions.stream()
+                    .map(childVersion -> {
+                        AgentProfileVersionAgentBinding binding = new AgentProfileVersionAgentBinding();
+                        binding.setParentProfileVersionId(profileVersionId);
+                        binding.setChildProfileVersionId(childVersion.getId());
+                        return binding;
+                    })
+                    .toList());
+        }
 
-    private void ensureProfileVersionExists(Long profileVersionId) {
-        if (profileVersionId == null) {
-            throw new IllegalArgumentException("profileVersionId is required");
-        }
-        if (!agentProfileVersionRepository.existsById(profileVersionId)) {
-            throw new IllegalArgumentException("Agent profile version not found: " + profileVersionId);
-        }
+        return bindings(profileVersionId);
     }
 
     private Long requireToolId(String code) {
@@ -248,5 +281,16 @@ public class AgentProfileBindingService {
         } catch (Exception exception) {
             return List.of();
         }
+    }
+
+    private AgentProfileVersionAgentBindingView toChildBindingView(AgentProfileVersion version) {
+        return new AgentProfileVersionAgentBindingView(
+                version.getId(),
+                version.getProfile().getCode(),
+                version.getProfile().getName(),
+                version.getVersionNumber(),
+                policyService.normalizeType(version.getAgentType()),
+                Boolean.TRUE.equals(version.getPublished())
+        );
     }
 }

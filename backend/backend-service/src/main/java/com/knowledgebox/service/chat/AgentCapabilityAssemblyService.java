@@ -2,36 +2,49 @@ package com.knowledgebox.service.chat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knowledgebox.config.KnowledgeBoxProperties;
+import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
+import com.knowledgebox.domain.integration.AgentProfileVersionAgentBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionMcpBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionSkillBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionToolBinding;
 import com.knowledgebox.domain.integration.McpServerConfig;
 import com.knowledgebox.domain.integration.SkillBinding;
 import com.knowledgebox.domain.integration.ToolDefinition;
+import com.knowledgebox.repository.AgentProfileVersionAgentBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionMcpBindingRepository;
+import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.AgentProfileVersionSkillBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionToolBindingRepository;
 import com.knowledgebox.repository.McpServerConfigRepository;
 import com.knowledgebox.repository.SkillBindingRepository;
 import com.knowledgebox.repository.ToolDefinitionRepository;
+import com.knowledgebox.service.integration.AgentProfileVersionPolicyService;
 import com.knowledgebox.service.integration.IntegrationSecretCipherService;
 import com.knowledgebox.service.integration.SkillPackageStorageService;
 import com.knowledgebox.service.integration.ToolRuntimeFactoryService;
+import io.agentscope.core.ReActAgent;
 import io.agentscope.core.hook.Hook;
 import io.agentscope.core.skill.AgentSkill;
 import io.agentscope.core.skill.SkillBox;
 import io.agentscope.core.skill.SkillHook;
 import io.agentscope.core.skill.util.SkillUtil;
 import io.agentscope.core.tool.Toolkit;
+import io.agentscope.core.tool.ToolExecutionContext;
 import io.agentscope.core.tool.mcp.McpClientBuilder;
+import io.agentscope.core.tool.subagent.SubAgentConfig;
+import io.agentscope.core.tool.subagent.SubAgentTool;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -41,6 +54,8 @@ public class AgentCapabilityAssemblyService {
     private static final Logger log = LoggerFactory.getLogger(AgentCapabilityAssemblyService.class);
     private static final String BUILTIN_KB_GROUP = "builtin-kb";
 
+    private final AgentProfileVersionRepository agentProfileVersionRepository;
+    private final AgentProfileVersionAgentBindingRepository agentBindingRepository;
     private final AgentProfileVersionToolBindingRepository toolBindingRepository;
     private final AgentProfileVersionMcpBindingRepository mcpBindingRepository;
     private final AgentProfileVersionSkillBindingRepository skillBindingRepository;
@@ -50,11 +65,17 @@ public class AgentCapabilityAssemblyService {
     private final ToolRuntimeFactoryService toolRuntimeFactoryService;
     private final SkillPackageStorageService skillPackageStorageService;
     private final IntegrationSecretCipherService secretCipherService;
+    private final AgentProfileVersionPolicyService policyService;
+    private final AgentExecutionTraceService agentExecutionTraceService;
     private final KnowledgeBaseSearchTool knowledgeBaseSearchTool;
     private final ObjectMapper objectMapper;
+    private final ChatModelFactory chatModelFactory;
     private final Map<String, AgentSkill> skillCache = new ConcurrentHashMap<>();
 
     public AgentCapabilityAssemblyService(
+            KnowledgeBoxProperties properties,
+            AgentProfileVersionRepository agentProfileVersionRepository,
+            AgentProfileVersionAgentBindingRepository agentBindingRepository,
             AgentProfileVersionToolBindingRepository toolBindingRepository,
             AgentProfileVersionMcpBindingRepository mcpBindingRepository,
             AgentProfileVersionSkillBindingRepository skillBindingRepository,
@@ -64,9 +85,15 @@ public class AgentCapabilityAssemblyService {
             ToolRuntimeFactoryService toolRuntimeFactoryService,
             SkillPackageStorageService skillPackageStorageService,
             IntegrationSecretCipherService secretCipherService,
+            AgentProfileVersionPolicyService policyService,
+            AgentExecutionTraceService agentExecutionTraceService,
             KnowledgeBaseSearchTool knowledgeBaseSearchTool,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
+            @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
     ) {
+        this.agentProfileVersionRepository = agentProfileVersionRepository;
+        this.agentBindingRepository = agentBindingRepository;
         this.toolBindingRepository = toolBindingRepository;
         this.mcpBindingRepository = mcpBindingRepository;
         this.skillBindingRepository = skillBindingRepository;
@@ -76,12 +103,35 @@ public class AgentCapabilityAssemblyService {
         this.toolRuntimeFactoryService = toolRuntimeFactoryService;
         this.skillPackageStorageService = skillPackageStorageService;
         this.secretCipherService = secretCipherService;
+        this.policyService = policyService;
+        this.agentExecutionTraceService = agentExecutionTraceService;
         this.knowledgeBaseSearchTool = knowledgeBaseSearchTool;
         this.objectMapper = objectMapper;
+        this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
     }
 
     public AgentRuntimeCapabilities assemble(Long profileVersionId, boolean includeKnowledgeBaseTool) {
+        return assemble(profileVersionId, includeKnowledgeBaseTool, null, null);
+    }
+
+    public AgentRuntimeCapabilities assemble(
+            Long profileVersionId,
+            boolean includeKnowledgeBaseTool,
+            AgentExecutionTraceContext traceContext,
+            ChatExchangeRuntime exchangeRuntime
+    ) {
+        return assembleInternal(profileVersionId, includeKnowledgeBaseTool, true, traceContext, exchangeRuntime);
+    }
+
+    private AgentRuntimeCapabilities assembleInternal(
+            Long profileVersionId,
+            boolean includeKnowledgeBaseTool,
+            boolean includeChildAgents,
+            AgentExecutionTraceContext traceContext,
+            ChatExchangeRuntime exchangeRuntime
+    ) {
         Toolkit toolkit = new Toolkit();
+        Map<String, Map<String, Object>> subAgentToolMetadata = new LinkedHashMap<>();
         if (includeKnowledgeBaseTool) {
             ensureToolGroup(toolkit, BUILTIN_KB_GROUP, "Built-in Knowledge Box tools");
             toolkit.registration()
@@ -90,16 +140,25 @@ public class AgentCapabilityAssemblyService {
                     .apply();
         }
         if (profileVersionId == null) {
-            return new AgentRuntimeCapabilities(toolkit, null, List.of());
+            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata);
         }
 
+        AgentProfileVersion profileVersion = policyService.requireVersion(profileVersionId);
         registerDynamicTools(profileVersionId, toolkit);
         registerDynamicMcpClients(profileVersionId, toolkit);
+        if (includeChildAgents && canBindChildAgents(profileVersion)) {
+            registerChildAgents(profileVersion, toolkit, subAgentToolMetadata, traceContext, exchangeRuntime);
+        }
         SkillBox skillBox = registerDynamicSkills(profileVersionId, toolkit);
         if (skillBox == null) {
-            return new AgentRuntimeCapabilities(toolkit, null, List.of());
+            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata);
         }
-        return new AgentRuntimeCapabilities(toolkit, skillBox, List.of(new SkillHook(skillBox)));
+        return new AgentRuntimeCapabilities(toolkit, skillBox, List.of(new SkillHook(skillBox)), subAgentToolMetadata);
+    }
+
+    private boolean canBindChildAgents(AgentProfileVersion profileVersion) {
+        AgentProfileVersionType agentType = policyService.normalizeType(profileVersion.getAgentType());
+        return agentType == AgentProfileVersionType.ENTRY || agentType == AgentProfileVersionType.ORCHESTRATOR;
     }
 
     private void registerDynamicTools(Long profileVersionId, Toolkit toolkit) {
@@ -179,6 +238,118 @@ public class AgentCapabilityAssemblyService {
         }
     }
 
+    private void registerChildAgents(
+            AgentProfileVersion parentProfileVersion,
+            Toolkit toolkit,
+            Map<String, Map<String, Object>> subAgentToolMetadata,
+            AgentExecutionTraceContext traceContext,
+            ChatExchangeRuntime exchangeRuntime
+    ) {
+        List<Long> childIds = agentBindingRepository.findByParentProfileVersionId(parentProfileVersion.getId())
+                .stream()
+                .map(AgentProfileVersionAgentBinding::getChildProfileVersionId)
+                .distinct()
+                .toList();
+        if (childIds.isEmpty()) {
+            return;
+        }
+        List<AgentProfileVersion> childVersions = agentProfileVersionRepository.findAllByIdIn(childIds).stream()
+                .filter(version -> policyService.normalizeType(version.getAgentType()) == AgentProfileVersionType.ATOMIC)
+                .toList();
+        for (AgentProfileVersion childVersion : childVersions) {
+            try {
+                String toolName = subAgentToolName(childVersion);
+                toolkit.registerAgentTool(new SubAgentTool(
+                        () -> createChildAgent(childVersion, traceContext, exchangeRuntime),
+                        SubAgentConfig.builder()
+                                .toolName(toolName)
+                                .description(subAgentDescription(childVersion))
+                                .forwardEvents(false)
+                                .build()
+                ));
+                subAgentToolMetadata.put(toolName, Map.of(
+                        "toolKind", "SUB_AGENT",
+                        "childProfileVersionId", childVersion.getId(),
+                        "childProfileCode", childVersion.getProfile().getCode(),
+                        "childProfileName", childVersion.getProfile().getName(),
+                        "childVersionNumber", childVersion.getVersionNumber(),
+                        "childAgentType", policyService.normalizeType(childVersion.getAgentType()).name()
+                ));
+            } catch (Exception exception) {
+                log.warn(
+                        "Skip child agent registration for parent={} child={} v{}",
+                        parentProfileVersion.getProfile().getCode(),
+                        childVersion.getProfile().getCode(),
+                        childVersion.getVersionNumber(),
+                        exception
+                );
+            }
+        }
+    }
+
+    private ReActAgent createChildAgent(
+            AgentProfileVersion childVersion,
+            AgentExecutionTraceContext traceContext,
+            ChatExchangeRuntime exchangeRuntime
+    ) {
+        AgentRuntimeCapabilities childCapabilities = assembleInternal(
+                childVersion.getId(),
+                false,
+                false,
+                traceContext,
+                exchangeRuntime
+        );
+        List<Hook> hooks = new ArrayList<>();
+        if (childCapabilities.hooks() != null && !childCapabilities.hooks().isEmpty()) {
+            hooks.addAll(childCapabilities.hooks());
+        }
+        if (traceContext != null) {
+            String spanId = agentExecutionTraceService.nextSpanIdValue();
+            Map<String, Object> spanTags = new LinkedHashMap<>();
+            spanTags.put("agentKind", "SUB_AGENT");
+            spanTags.put("profileCode", childVersion.getProfile().getCode());
+            spanTags.put("profileName", childVersion.getProfile().getName());
+            spanTags.put("profileVersionId", childVersion.getId());
+            spanTags.put("versionNumber", childVersion.getVersionNumber());
+            hooks.add(new AgentExecutionTraceHook(
+                    agentExecutionTraceService,
+                    traceContext,
+                    spanId,
+                    () -> spanId,
+                    new AgentExecutionTraceHook.InvocationSpanDescriptor(
+                            spanId,
+                            null,
+                            "agent.execute[" + childVersion.getProfile().getCode() + " v" + childVersion.getVersionNumber() + "]",
+                            com.knowledgebox.domain.chat.AgentExecutionSpanType.AGENT,
+                            spanTags
+                    ),
+                    childCapabilities.subAgentToolMetadataByName()
+            ));
+        }
+        ToolExecutionContext toolExecutionContext = null;
+        if (traceContext != null || exchangeRuntime != null) {
+            ToolExecutionContext.Builder builder = ToolExecutionContext.builder();
+            if (traceContext != null) {
+                builder.register(AgentExecutionTraceContext.class, traceContext);
+            }
+            if (exchangeRuntime != null) {
+                builder.register(ChatExchangeRuntime.class, exchangeRuntime);
+            }
+            toolExecutionContext = builder.build();
+        }
+        return chatModelFactory.createReActAgent(
+                childVersion,
+                childVersion.getChatModel(),
+                false,
+                false,
+                false,
+                childCapabilities.toolkit(),
+                childCapabilities.skillBox(),
+                hooks,
+                toolExecutionContext
+        );
+    }
+
     private SkillBox registerDynamicSkills(Long profileVersionId, Toolkit toolkit) {
         List<AgentProfileVersionSkillBinding> bindings = skillBindingRepository.findByProfileVersionId(profileVersionId);
         List<AgentSkill> skills = new ArrayList<>();
@@ -209,6 +380,25 @@ public class AgentCapabilityAssemblyService {
             skillBox.registerSkill(skill);
         }
         return skillBox;
+    }
+
+    private String subAgentToolName(AgentProfileVersion version) {
+        return "agent_" + sanitizeToolToken(version.getProfile().getCode()) + "_v" + version.getVersionNumber();
+    }
+
+    private String subAgentDescription(AgentProfileVersion version) {
+        String description = version.getProfile().getDescription();
+        String suffix = StringUtils.hasText(description) ? "。用途：" + description.trim() : "";
+        return "调用原子 Agent " + version.getProfile().getName() + "（" + version.getProfile().getCode() + " v" + version.getVersionNumber() + "）" + suffix;
+    }
+
+    private String sanitizeToolToken(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return "atomic_agent";
+        }
+        String normalized = raw.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
+        normalized = normalized.replaceAll("^_+|_+$", "");
+        return normalized.isBlank() ? "atomic_agent" : normalized;
     }
 
     private Map<String, Map<String, Object>> readPresetParameters(String json) {
@@ -292,7 +482,8 @@ public class AgentCapabilityAssemblyService {
     public record AgentRuntimeCapabilities(
             Toolkit toolkit,
             SkillBox skillBox,
-            List<Hook> hooks
+            List<Hook> hooks,
+            Map<String, Map<String, Object>> subAgentToolMetadataByName
     ) {
     }
 }

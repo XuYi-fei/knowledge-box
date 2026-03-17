@@ -56,6 +56,7 @@ import { ApiRequestError, isApiErrorPayload } from './errors';
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
 
 type UpdateProfileVersionPayload = {
+  agentType: AgentProfileVersion['agentType'];
   chatModel: string;
   routingModel?: string | null;
   embeddingModel: string;
@@ -69,6 +70,7 @@ type UpdateProfileVersionBindingsPayload = {
   toolCodes: string[];
   skillCodes: string[];
   mcpBindings: AgentProfileVersionMcpBinding[];
+  childAgentVersionIds: number[];
 };
 
 type CreateToolPayload = {

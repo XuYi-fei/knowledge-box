@@ -49,4 +49,6 @@
     <include file="db/changelog/db.changelog-042-document-duplicate-admin-release-note.xml"/>
     <include file="db/changelog/db.changelog-043-document-column.xml"/>
     <include file="db/changelog/db.changelog-044-document-column-release-note.xml"/>
+    <include file="db/changelog/db.changelog-045-agent-subagent-binding.xml"/>
+    <include file="db/changelog/db.changelog-046-agent-subagent-binding-release-note.xml"/>
 </databaseChangeLog>

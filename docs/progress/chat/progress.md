@@ -8,6 +8,7 @@
 
 - 用户侧已具备登录后的知识库问答、会话持久化、历史恢复、删除会话与 SSE 流式输出。
 - 聊天主链路已切到 AgentScope Java ReActAgent，支持前置知识检索、tool calling、reasoning/tool/citation 展示与 trace。
+- 聊天链路现已支持通过 AgentScope `SubAgentTool` 调用绑定的原子子 Agent；子 Agent 自身仍可装配 Tool / MCP / Skill，并在统一 trace 中留下独立执行过程。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
@@ -18,6 +19,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页、引用展示、会话区固定高度与内部滚动。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页细滚动条、引用详情页左上返回按钮等本次 UI 修复。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。
 
 ## 待继续推进
 
@@ -30,3 +32,4 @@
 - AgentScope 事件分支需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`，不要依赖默认分支兜底。
 - `@ToolParam` 必须显式声明 `name`。
 - AgentScope 工具执行可能切线程，关键上下文不要只依赖 `ThreadLocal`。
+- 子 Agent 运行时按 `SubAgentTool` 作为工具注册；当前仅支持单层调用，且父 Agent 只能绑定 `ATOMIC` 版本。

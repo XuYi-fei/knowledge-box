@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="045-001-agent-profile-version-type" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS agent_type VARCHAR(32);
+
+            UPDATE agent_profile_version
+               SET agent_type = COALESCE(NULLIF(agent_type, ''), 'ENTRY');
+
+            ALTER TABLE agent_profile_version
+                ALTER COLUMN agent_type SET NOT NULL;
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="045-002-agent-profile-version-agent-binding" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS agent_profile_version_agent_binding (
+                id BIGSERIAL PRIMARY KEY,
+                parent_profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
+                child_profile_version_id BIGINT NOT NULL REFERENCES agent_profile_version(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT ck_agent_profile_version_agent_binding_self_ref
+                    CHECK (parent_profile_version_id <> child_profile_version_id)
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS uk_profile_agent_binding
+                ON agent_profile_version_agent_binding(parent_profile_version_id, child_profile_version_id);
+            CREATE INDEX IF NOT EXISTS idx_profile_agent_binding_child_id
+                ON agent_profile_version_agent_binding(child_profile_version_id);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

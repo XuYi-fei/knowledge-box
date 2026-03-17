@@ -1,5 +1,7 @@
 package com.knowledgebox.service.chat;
 
+import com.knowledgebox.domain.chat.AgentExecutionSpanType;
+import com.knowledgebox.domain.chat.AgentExecutionStatus;
 import io.agentscope.core.hook.ActingChunkEvent;
 import io.agentscope.core.hook.ErrorEvent;
 import io.agentscope.core.hook.Hook;
@@ -18,58 +20,91 @@ import io.agentscope.core.message.ToolUseBlock;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
 
 final class AgentExecutionTraceHook implements Hook {
 
     private final AgentExecutionTraceService traceService;
     private final AgentExecutionTraceContext traceContext;
+    private final String requestSpanId;
+    private final Supplier<String> answerSpanIdSupplier;
+    private final InvocationSpanDescriptor invocationSpanDescriptor;
+    private final Map<String, Map<String, Object>> subAgentToolMetadataByName;
+    private volatile boolean invocationSpanStarted;
 
     AgentExecutionTraceHook(AgentExecutionTraceService traceService, AgentExecutionTraceContext traceContext) {
+        this(traceService, traceContext, traceContext.requestSpanId(), traceContext::answerStreamSpanId, null, Map.of());
+    }
+
+    AgentExecutionTraceHook(
+            AgentExecutionTraceService traceService,
+            AgentExecutionTraceContext traceContext,
+            String requestSpanId,
+            Supplier<String> answerSpanIdSupplier,
+            InvocationSpanDescriptor invocationSpanDescriptor,
+            Map<String, Map<String, Object>> subAgentToolMetadataByName
+    ) {
         this.traceService = traceService;
         this.traceContext = traceContext;
+        this.requestSpanId = requestSpanId;
+        this.answerSpanIdSupplier = answerSpanIdSupplier;
+        this.invocationSpanDescriptor = invocationSpanDescriptor;
+        this.subAgentToolMetadataByName = subAgentToolMetadataByName == null ? Map.of() : Map.copyOf(subAgentToolMetadataByName);
     }
 
     @Override
     public <T extends HookEvent> Mono<T> onEvent(T event) {
         switch (event) {
-            case PreCallEvent preCallEvent -> traceService.recordEvent(
-                    traceContext,
-                    traceContext.requestSpanId(),
-                    "agent.call.start",
-                    payload("inputMessages", serializeMessages(preCallEvent.getInputMessages()))
-            );
-            case PostCallEvent postCallEvent -> traceService.recordEvent(
-                    traceContext,
-                    traceContext.requestSpanId(),
-                    "agent.call.end",
-                    payload("finalMessage", serializeMessage(postCallEvent.getFinalMessage()))
-            );
-            case PreReasoningEvent preReasoningEvent -> traceService.recordEvent(
-                    traceContext,
-                    traceContext.answerStreamSpanId(),
-                    "prompt.injected",
-                    payload(
-                            "phase", "reasoning",
-                            "modelName", preReasoningEvent.getModelName(),
-                            "generateOptions", preReasoningEvent.getGenerateOptions(),
-                            "inputMessages", serializeMessages(preReasoningEvent.getInputMessages())
-                    )
-            );
-            case PreSummaryEvent preSummaryEvent -> traceService.recordEvent(
-                    traceContext,
-                    traceContext.answerStreamSpanId(),
-                    "prompt.injected",
-                    payload(
-                            "phase", "summary",
-                            "modelName", preSummaryEvent.getModelName(),
-                            "generateOptions", preSummaryEvent.getGenerateOptions(),
-                            "inputMessages", serializeMessages(preSummaryEvent.getInputMessages()),
-                            "currentIteration", preSummaryEvent.getCurrentIteration(),
-                            "maxIterations", preSummaryEvent.getMaxIterations()
-                    )
-            );
-            case PreActingEvent preActingEvent -> startToolSpan(preActingEvent);
+            case PreCallEvent preCallEvent -> {
+                ensureInvocationSpanStarted(preCallEvent);
+                traceService.recordEvent(
+                        traceContext,
+                        requestSpanId,
+                        "agent.call.start",
+                        payload("inputMessages", serializeMessages(preCallEvent.getInputMessages()))
+                );
+            }
+            case PostCallEvent postCallEvent -> {
+                ensureInvocationSpanStarted(null);
+                Map<String, Object> finalPayload = payload("finalMessage", serializeMessage(postCallEvent.getFinalMessage()));
+                traceService.recordEvent(traceContext, requestSpanId, "agent.call.end", finalPayload);
+                closeInvocationSpan(AgentExecutionStatus.COMPLETED, finalPayload, Map.of(), null);
+            }
+            case PreReasoningEvent preReasoningEvent -> {
+                ensureInvocationSpanStarted(null);
+                traceService.recordEvent(
+                        traceContext,
+                        resolveAnswerSpanId(),
+                        "prompt.injected",
+                        payload(
+                                "phase", "reasoning",
+                                "modelName", preReasoningEvent.getModelName(),
+                                "generateOptions", preReasoningEvent.getGenerateOptions(),
+                                "inputMessages", serializeMessages(preReasoningEvent.getInputMessages())
+                        )
+                );
+            }
+            case PreSummaryEvent preSummaryEvent -> {
+                ensureInvocationSpanStarted(null);
+                traceService.recordEvent(
+                        traceContext,
+                        resolveAnswerSpanId(),
+                        "prompt.injected",
+                        payload(
+                                "phase", "summary",
+                                "modelName", preSummaryEvent.getModelName(),
+                                "generateOptions", preSummaryEvent.getGenerateOptions(),
+                                "inputMessages", serializeMessages(preSummaryEvent.getInputMessages()),
+                                "currentIteration", preSummaryEvent.getCurrentIteration(),
+                                "maxIterations", preSummaryEvent.getMaxIterations()
+                        )
+                );
+            }
+            case PreActingEvent preActingEvent -> {
+                ensureInvocationSpanStarted(null);
+                startToolSpan(preActingEvent);
+            }
             case ActingChunkEvent actingChunkEvent -> traceService.recordEvent(
                     traceContext,
                     resolveToolSpanId(actingChunkEvent.getToolUse()),
@@ -77,16 +112,55 @@ final class AgentExecutionTraceHook implements Hook {
                     payload("chunk", serializeToolResult(actingChunkEvent.getChunk()))
             );
             case PostActingEvent postActingEvent -> finishToolSpan(postActingEvent);
-            case ErrorEvent errorEvent -> traceService.recordEvent(
-                    traceContext,
-                    traceContext.requestSpanId(),
-                    "agent.error",
-                    errorPayload(errorEvent)
-            );
+            case ErrorEvent errorEvent -> {
+                ensureInvocationSpanStarted(null);
+                Map<String, Object> errorPayload = errorPayload(errorEvent);
+                traceService.recordEvent(traceContext, requestSpanId, "agent.error", errorPayload);
+                closeInvocationSpan(AgentExecutionStatus.FAILED, Map.of(), Map.of(), errorPayload);
+            }
             default -> {
             }
         }
         return Mono.just(event);
+    }
+
+    private void ensureInvocationSpanStarted(PreCallEvent preCallEvent) {
+        if (invocationSpanDescriptor == null || invocationSpanStarted) {
+            return;
+        }
+        String parentSpanId = traceContext.currentActiveSpanId();
+        if (parentSpanId != null && parentSpanId.equals(invocationSpanDescriptor.spanId())) {
+            parentSpanId = invocationSpanDescriptor.parentSpanId();
+        }
+        traceService.startSpan(
+                traceContext,
+                parentSpanId,
+                invocationSpanDescriptor.spanId(),
+                invocationSpanDescriptor.spanName(),
+                invocationSpanDescriptor.spanType(),
+                preCallEvent == null ? Map.of() : payload("inputMessages", serializeMessages(preCallEvent.getInputMessages())),
+                invocationSpanDescriptor.tags()
+        );
+        invocationSpanStarted = true;
+    }
+
+    private void closeInvocationSpan(
+            AgentExecutionStatus status,
+            Map<String, ?> output,
+            Map<String, ?> tags,
+            Map<String, ?> error
+    ) {
+        if (invocationSpanDescriptor == null || !invocationSpanStarted) {
+            return;
+        }
+        traceService.endSpan(
+                traceContext,
+                invocationSpanDescriptor.spanId(),
+                status,
+                output,
+                tags,
+                error
+        );
     }
 
     private void startToolSpan(PreActingEvent event) {
@@ -97,10 +171,10 @@ final class AgentExecutionTraceHook implements Hook {
         traceContext.bindToolSpan(toolCallId, spanId);
         traceService.startSpan(
                 traceContext,
-                traceContext.answerStreamSpanId(),
+                resolveAnswerSpanId(),
                 spanId,
                 "tool.call[" + toolIndex + "]",
-                com.knowledgebox.domain.chat.AgentExecutionSpanType.TOOL,
+                AgentExecutionSpanType.TOOL,
                 toolStartPayload(toolUse),
                 payload("toolIndex", toolIndex)
         );
@@ -125,9 +199,7 @@ final class AgentExecutionTraceHook implements Hook {
         traceService.endSpan(
                 traceContext,
                 spanId,
-                result != null && result.isSuspended()
-                        ? com.knowledgebox.domain.chat.AgentExecutionStatus.CANCELLED
-                        : com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
+                result != null && result.isSuspended() ? AgentExecutionStatus.CANCELLED : AgentExecutionStatus.COMPLETED,
                 payload("toolResult", serializeToolResult(result)),
                 Map.of(),
                 null
@@ -137,12 +209,20 @@ final class AgentExecutionTraceHook implements Hook {
         }
     }
 
+    private String resolveAnswerSpanId() {
+        String answerSpanId = answerSpanIdSupplier == null ? null : answerSpanIdSupplier.get();
+        if (answerSpanId == null || answerSpanId.isBlank()) {
+            return requestSpanId;
+        }
+        return answerSpanId;
+    }
+
     private String resolveToolSpanId(ToolUseBlock toolUse) {
         if (toolUse == null) {
-            return traceContext.answerStreamSpanId();
+            return resolveAnswerSpanId();
         }
         String existing = traceContext.findToolSpan(toolUse.getId());
-        return existing == null ? traceContext.answerStreamSpanId() : existing;
+        return existing == null ? resolveAnswerSpanId() : existing;
     }
 
     private List<Map<String, Object>> serializeMessages(List<Msg> messages) {
@@ -208,6 +288,7 @@ final class AgentExecutionTraceHook implements Hook {
         payload.put("toolName", toolUse == null ? null : toolUse.getName());
         payload.put("toolCallId", toolUse == null ? null : toolUse.getId());
         payload.put("toolInput", toolUse == null ? Map.of() : toolUse.getInput());
+        appendSubAgentToolMetadata(payload, toolUse);
         return payload;
     }
 
@@ -216,7 +297,19 @@ final class AgentExecutionTraceHook implements Hook {
         payload.put("toolName", toolUse == null ? null : toolUse.getName());
         payload.put("toolCallId", toolUse == null ? null : toolUse.getId());
         payload.put("toolResult", serializeToolResult(result));
+        appendSubAgentToolMetadata(payload, toolUse);
         return payload;
+    }
+
+    private void appendSubAgentToolMetadata(Map<String, Object> payload, ToolUseBlock toolUse) {
+        if (toolUse == null || toolUse.getName() == null) {
+            return;
+        }
+        Map<String, Object> metadata = subAgentToolMetadataByName.get(toolUse.getName());
+        if (metadata == null || metadata.isEmpty()) {
+            return;
+        }
+        payload.putAll(metadata);
     }
 
     private Map<String, Object> payload(Object... keyValues) {
@@ -225,5 +318,14 @@ final class AgentExecutionTraceHook implements Hook {
             payload.put((String) keyValues[index], keyValues[index + 1]);
         }
         return payload;
+    }
+
+    record InvocationSpanDescriptor(
+            String spanId,
+            String parentSpanId,
+            String spanName,
+            AgentExecutionSpanType spanType,
+            Map<String, Object> tags
+    ) {
     }
 }

@@ -497,13 +497,15 @@ export function UserDocumentDetailPage() {
         <Card className="document-detail-card" loading={documentQuery.isLoading}>
           <div className="document-detail-header">
             <div>
+              <Space wrap style={{ marginBottom: 10 }}>
+                <Button icon={<LeftOutlined />} onClick={() => navigate('/', { replace: false })}>
+                  返回对话
+                </Button>
+              </Space>
               <Typography.Text type="secondary">关联文档详情</Typography.Text>
               <Typography.Title level={3}>{detailDocument?.title ?? '文档详情'}</Typography.Title>
             </div>
             <Space wrap>
-              <Button icon={<LeftOutlined />} onClick={() => navigate('/', { replace: false })}>
-                返回对话
-              </Button>
               <Button onClick={() => window.close()}>关闭窗口</Button>
             </Space>
           </div>

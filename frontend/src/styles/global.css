@@ -23,6 +23,73 @@ body {
   font-family: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+.chat-messages,
+.citation-list,
+.about-release-list,
+.public-articles-sidebar-body,
+.public-articles-card-list,
+.public-articles-detail-markdown,
+.document-detail-page,
+.document-column-list,
+.document-outline-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 118, 110, 0.28) transparent;
+}
+
+.chat-messages::-webkit-scrollbar,
+.citation-list::-webkit-scrollbar,
+.about-release-list::-webkit-scrollbar,
+.public-articles-sidebar-body::-webkit-scrollbar,
+.public-articles-card-list::-webkit-scrollbar,
+.public-articles-detail-markdown::-webkit-scrollbar,
+.document-detail-page::-webkit-scrollbar,
+.document-column-list::-webkit-scrollbar,
+.document-outline-list::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track,
+.citation-list::-webkit-scrollbar-track,
+.about-release-list::-webkit-scrollbar-track,
+.public-articles-sidebar-body::-webkit-scrollbar-track,
+.public-articles-card-list::-webkit-scrollbar-track,
+.public-articles-detail-markdown::-webkit-scrollbar-track,
+.document-detail-page::-webkit-scrollbar-track,
+.document-column-list::-webkit-scrollbar-track,
+.document-outline-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb,
+.citation-list::-webkit-scrollbar-thumb,
+.about-release-list::-webkit-scrollbar-thumb,
+.public-articles-sidebar-body::-webkit-scrollbar-thumb,
+.public-articles-card-list::-webkit-scrollbar-thumb,
+.public-articles-detail-markdown::-webkit-scrollbar-thumb,
+.document-detail-page::-webkit-scrollbar-thumb,
+.document-column-list::-webkit-scrollbar-thumb,
+.document-outline-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.28);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover,
+.citation-list::-webkit-scrollbar-thumb:hover,
+.about-release-list::-webkit-scrollbar-thumb:hover,
+.public-articles-sidebar-body::-webkit-scrollbar-thumb:hover,
+.public-articles-card-list::-webkit-scrollbar-thumb:hover,
+.public-articles-detail-markdown::-webkit-scrollbar-thumb:hover,
+.document-detail-page::-webkit-scrollbar-thumb:hover,
+.document-column-list::-webkit-scrollbar-thumb:hover,
+.document-outline-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 118, 110, 0.4);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
 .app-shell {
   height: 100dvh;
   min-height: 100dvh;
@@ -534,6 +601,7 @@ a {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding-right: 8px;
 }
 
 .chat-messages .ant-list-items {
@@ -1774,6 +1842,10 @@ a {
   align-content: start;
 }
 
+.public-articles-card-list-linear {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .public-article-card {
   border: 0;
   width: 100%;
@@ -1789,6 +1861,13 @@ a {
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
 
+.public-articles-card-list-linear .public-article-card {
+  grid-template-columns: minmax(0, 1.2fr) minmax(180px, 0.8fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 20px;
+}
+
 .public-article-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 18px 34px rgba(15, 118, 110, 0.16);
@@ -1799,6 +1878,11 @@ a {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.public-articles-card-list-linear .public-article-card-head {
+  min-width: 0;
+  align-items: center;
 }
 
 .public-article-card-head .ant-typography {
@@ -1819,6 +1903,14 @@ a {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.public-articles-card-list-linear .public-article-card-excerpt.ant-typography {
+  -webkit-line-clamp: 2;
+}
+
+.public-articles-card-list-linear .ant-space {
+  justify-content: flex-end;
 }
 
 .public-articles-pagination {
@@ -2088,6 +2180,14 @@ a {
 
   .public-article-card-head {
     flex-direction: column;
+  }
+
+  .public-articles-card-list-linear .public-article-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-articles-card-list-linear .ant-space {
+    justify-content: flex-start;
   }
 
   .public-articles-pagination {

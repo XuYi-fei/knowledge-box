@@ -350,7 +350,7 @@ export function PublicArticlesPage() {
               />
             ) : articlesPage && articlesPage.items.length ? (
               <div className="public-articles-main-body">
-                <div className="public-articles-card-list">
+                <div className={`public-articles-card-list ${categoryId != null ? 'public-articles-card-list-linear' : ''}`}>
                   {articlesPage.items.map((article) => (
                     <button key={article.id} type="button" className="public-article-card" onClick={() => openDetail(article.id)}>
                       <div className="public-article-card-head">

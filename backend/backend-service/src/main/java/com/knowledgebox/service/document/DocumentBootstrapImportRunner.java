@@ -29,6 +29,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
+import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 @Component
@@ -178,13 +179,21 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
             BootstrapSeedItem item = items.get(index);
             try {
                 String importKey = requireImportKey(item, index);
-                if (alreadyImported(importKey)) {
+                String markdown = resolveMarkdown(item, seedBaseDirectory);
+                String contentFingerprint = contentFingerprint(markdown);
+                DuplicateReason duplicateReason = duplicateReason(importKey, contentFingerprint);
+                if (duplicateReason != null) {
                     skipped++;
-                    log.info("{} skip seed item because importKey already exists. importKey={}", LOG_PREFIX, importKey);
+                    log.info(
+                            "{} skip seed item because duplicate already exists. importKey={}, contentFingerprint={}, reason={}",
+                            LOG_PREFIX,
+                            importKey,
+                            contentFingerprint,
+                            duplicateReason
+                    );
                     continue;
                 }
-                String markdown = resolveMarkdown(item, seedBaseDirectory);
-                String extensionJson = resolveExtensionJson(item, importKey);
+                String extensionJson = resolveExtensionJson(item, importKey, contentFingerprint);
                 String title = requireText(item.title(), "title", index);
                 String sourceFilename = requireText(item.sourceFilename(), "sourceFilename", index);
                 DocumentVisibilityType visibilityType = resolveVisibility(item.visibilityType());
@@ -303,6 +312,21 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
                 || knowledgeDocumentRepository.existsByImportKey(importKey);
     }
 
+    private DuplicateReason duplicateReason(String importKey, String contentFingerprint) {
+        if (alreadyImported(importKey)) {
+            return DuplicateReason.IMPORT_KEY;
+        }
+        if (documentReviewRequestRepository.existsActiveOrApprovedByContentFingerprint(contentFingerprint)
+                || knowledgeDocumentRepository.existsByContentFingerprint(contentFingerprint)) {
+            return DuplicateReason.CONTENT_FINGERPRINT;
+        }
+        return null;
+    }
+
+    private String contentFingerprint(String markdown) {
+        return DigestUtils.md5DigestAsHex((markdown == null ? "" : markdown).getBytes(StandardCharsets.UTF_8));
+    }
+
     private Resource resolveSeedResource(String seedFile) {
         String trimmed = seedFile.trim();
         if (trimmed.startsWith("classpath:") || trimmed.startsWith("file:")) {
@@ -412,9 +436,10 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
         throw new IllegalStateException("Failed to read sourceMarkdownPath from candidates: " + candidates);
     }
 
-    private String resolveExtensionJson(BootstrapSeedItem item, String importKey) {
+    private String resolveExtensionJson(BootstrapSeedItem item, String importKey, String contentFingerprint) {
         Map<String, Object> extension = new LinkedHashMap<>();
         extension.put("importKey", importKey);
+        extension.put("contentFingerprint", contentFingerprint);
         extension.put("bootstrapImportedAt", OffsetDateTime.now().toString());
         if (item.extensionJson() != null) {
             if (!(item.extensionJson() instanceof Map<?, ?> mapValue)) {
@@ -422,6 +447,7 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
             }
             mapValue.forEach((key, value) -> extension.put(String.valueOf(key), value));
             extension.put("importKey", importKey);
+            extension.put("contentFingerprint", contentFingerprint);
         }
         try {
             return objectMapper.writeValueAsString(extension);
@@ -447,5 +473,10 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
             int failedCount,
             List<Map<String, String>> errors
     ) {
+    }
+
+    private enum DuplicateReason {
+        IMPORT_KEY,
+        CONTENT_FINGERPRINT
     }
 }

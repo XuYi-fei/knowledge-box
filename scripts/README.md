@@ -114,3 +114,29 @@ python3 scripts/cleanup_stuck_bootstrap_reviews.py --apply
 ```
 
 默认仅清理带 `importKey` 且前缀为 `yuque:` 的 `PROCESSING/CHUNKING` 审核单；删除 `document_review_request` 时，关联的 `document_review_chunk` / `document_review_asset` 会通过数据库级联一并删除。
+
+## 清理重复正式文档
+
+如果历史上已经把“不同 `importKey` 但正文完全相同”的文档发布进了 `knowledge_document`，可先 dry-run 预览，再确认执行清理：
+
+```bash
+python3 scripts/cleanup_duplicate_documents.py
+python3 scripts/cleanup_duplicate_documents.py --apply
+```
+
+默认行为：
+
+- 仅扫描 `visibility_type=PUBLIC` 且 `status=READY` 的正式文档。
+- 按“分类 + 标题 + 正文 MD5 + 可见性 + 状态”分组。
+- 每组默认保留最早的一条文档，其余重复文档会重挂审核单/ingestion 引用后再删除。
+- 会同步删除重复文档的 chunk / asset / tag binding，并尝试清理 `public.kb_vector_store` 里的对应向量行。
+
+常用参数：
+
+```bash
+python3 scripts/cleanup_duplicate_documents.py --keep newest --limit 10
+python3 scripts/cleanup_duplicate_documents.py --skip-vector-delete --apply
+python3 scripts/cleanup_duplicate_documents.py --vector-table public.kb_vector_store --apply
+```
+
+如果你跳过了向量删除，或者清理后仍担心检索残留，建议再执行一次全量索引重建。

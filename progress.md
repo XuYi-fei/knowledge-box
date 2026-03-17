@@ -15,6 +15,7 @@
 - 用户侧已新增匿名可访问的公开文库页 `/articles`：支持左侧分类栏与多标签筛选、右侧公开文章卡片列表，以及在同一工作区内查看完整 Markdown 正文；登录后顶部 header 也已补上 `文库` tab 入口。
 - 已修复公开文库页单条文章列表场景下卡片被整行拉满的问题；当前卡片列表改为响应式网格，既会铺满内容区宽度，也不会在单篇结果时出现异常超宽展示。
 - 已修复公开文库底层重复数据导致的重复展示问题；当前若存在不同 `importKey` 但标题和正文相同的公开文档，目录与分类/标签计数会按内容指纹去重后再对外展示。
+- 文档 bootstrap 导入已升级为“双重判定”：除 `importKey` 幂等外，还会按正文内容指纹拦截“不同来源但正文相同”的重复导入；同时已补充 `scripts/cleanup_duplicate_documents.py`，可 dry-run/执行清理历史重复正式文档，并重挂审核单/ingestion 引用与清理向量行。
 - 用户侧 header 已新增 `工具` tab 与独立 `/tools` 页面：首批内置 `Base64 编码`、`Base64 解码`、`MD5 摘要`，支持前端本地执行与后端统一执行两类模式。
 - 主页对话区已补齐稳定高度链：`chat-shell -> chat-content -> chat-main -> chat-card -> chat-messages` 统一使用 `flex + min-height: 0` 约束，消息增多时仅主会话区内部滚动，不再把整页不断撑高。
 - 主页工作区外层已显式禁用窗口级滚动：`app-shell / app-shell-main / user-workspace-shell / user-workspace-content / chat-shell / chat-content` 统一补上 `overflow: hidden`，避免浏览器窗口继续接管滚动条，保证滚动只发生在主消息区和左侧历史列表内部。
@@ -73,6 +74,7 @@
 - 本地启动：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动；bootstrap 导入按 `importKey` 幂等跳过已有数据。
 - 本地可用性：`/api/public/system/availability` 可正常返回 `UP`。
 - 辅助脚本：语雀 OpenAPI 脚本与导入脚本 `--help` 已验证可执行。
+- 辅助脚本：`python3 scripts/cleanup_duplicate_documents.py --help` 与 `python3 scripts/cleanup_stuck_bootstrap_reviews.py --help` 可执行。
 
 ## 待继续推进
 

@@ -46,11 +46,13 @@ def write_seed(seed_path: Path, items: list[dict[str, Any]]) -> None:
 
 def merge_extension(
     import_key: str,
+    content_fingerprint: str,
     yuque_meta: dict[str, Any] | None,
     extra_extension: dict[str, Any] | None,
 ) -> dict[str, Any]:
     extension: dict[str, Any] = {
         "importKey": import_key,
+        "contentFingerprint": content_fingerprint,
         "migration": {
             "tool": "scripts/prepare_bootstrap_seed.py",
             "preparedAtEpochMs": int(time.time() * 1000),
@@ -70,6 +72,7 @@ def merge_extension(
     if extra_extension:
         extension.update(extra_extension)
         extension["importKey"] = import_key
+        extension["contentFingerprint"] = content_fingerprint
     return extension
 
 
@@ -94,9 +97,10 @@ def main() -> int:
     extra_extension = load_json_object(Path(args.extra_extension_json)) if args.extra_extension_json else None
 
     import_key = args.import_key or derive_import_key(yuque_meta or {}, markdown)
+    content_fingerprint = hashlib.md5(markdown.encode("utf-8")).hexdigest()
     title = args.title or (yuque_meta.get("title") if yuque_meta else None) or input_md_path.stem
     source_filename = args.source_filename or input_md_path.name
-    extension_json = merge_extension(import_key, yuque_meta, extra_extension)
+    extension_json = merge_extension(import_key, content_fingerprint, yuque_meta, extra_extension)
 
     seed_item = {
         "importKey": import_key,
@@ -125,6 +129,7 @@ def main() -> int:
                 "ok": True,
                 "seedJson": str(seed_path),
                 "importKey": import_key,
+                "contentFingerprint": content_fingerprint,
                 "replaced": replaced,
                 "itemCount": len(seed_items),
                 "sourceMarkdownPath": str(input_md_path),

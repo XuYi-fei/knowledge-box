@@ -68,4 +68,16 @@ public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocu
             nativeQuery = true
     )
     boolean existsByImportKey(@Param("importKey") String importKey);
+
+    @Query(
+            value = """
+                    select exists(
+                        select 1
+                        from knowledge_document
+                        where md5(coalesce(source_markdown, '')) = :contentFingerprint
+                    )
+                    """,
+            nativeQuery = true
+    )
+    boolean existsByContentFingerprint(@Param("contentFingerprint") String contentFingerprint);
 }

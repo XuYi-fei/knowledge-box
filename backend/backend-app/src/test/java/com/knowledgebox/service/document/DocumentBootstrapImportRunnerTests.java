@@ -26,6 +26,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.util.DigestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class DocumentBootstrapImportRunnerTests {
@@ -95,6 +96,9 @@ class DocumentBootstrapImportRunnerTests {
         assertThat(captured.sourceFilename()).isEqualTo("spring-interview.md");
         assertThat(captured.sourceMarkdown()).isEqualTo("# Spring 面试");
         assertThat(captured.extensionJson()).contains("\"importKey\":\"yuque:51241102:238740054\"");
+        assertThat(captured.extensionJson()).contains("\"contentFingerprint\":\""
+                + DigestUtils.md5DigestAsHex("# Spring 面试".getBytes(StandardCharsets.UTF_8))
+                + "\"");
     }
 
     @Test
@@ -131,6 +135,46 @@ class DocumentBootstrapImportRunnerTests {
         assertThat(summary.createdCount()).isEqualTo(0);
         assertThat(summary.skippedCount()).isEqualTo(1);
         assertThat(summary.failedCount()).isEqualTo(0);
+    }
+
+    @Test
+    void shouldSkipItemWhenContentFingerprintAlreadyExists() {
+        KnowledgeBoxProperties properties = new KnowledgeBoxProperties();
+        String seedJson = """
+                [
+                  {
+                    "importKey": "yuque:another-source:1",
+                    "title": "Spring面试题副本",
+                    "sourceFilename": "spring-interview-copy.md",
+                    "visibilityType": "PUBLIC",
+                    "sourceMarkdown": "# Spring 面试"
+                  }
+                ]
+                """;
+        Resource seedResource = new ByteArrayResource(seedJson.getBytes(StandardCharsets.UTF_8));
+        String contentFingerprint = DigestUtils.md5DigestAsHex("# Spring 面试".getBytes(StandardCharsets.UTF_8));
+        when(resourceLoader.getResource("classpath:bootstrap-seed.json")).thenReturn(seedResource);
+        when(adminOperatorService.resolveOperatorId(any())).thenReturn(1L);
+        when(documentReviewRequestRepository.existsByImportKey("yuque:another-source:1")).thenReturn(false);
+        when(knowledgeDocumentRepository.existsByImportKey("yuque:another-source:1")).thenReturn(false);
+        when(documentReviewRequestRepository.existsActiveOrApprovedByContentFingerprint(contentFingerprint)).thenReturn(true);
+
+        DocumentBootstrapImportRunner runner = new DocumentBootstrapImportRunner(
+                properties,
+                new ObjectMapper(),
+                resourceLoader,
+                adminOperatorService,
+                documentGovernanceService,
+                documentReviewRequestRepository,
+                knowledgeDocumentRepository
+        );
+
+        DocumentBootstrapImportRunner.BootstrapRunSummary summary = runner.importFromSeedFile("classpath:bootstrap-seed.json", true);
+
+        assertThat(summary.createdCount()).isEqualTo(0);
+        assertThat(summary.skippedCount()).isEqualTo(1);
+        assertThat(summary.failedCount()).isEqualTo(0);
+        verify(documentGovernanceService, times(0)).createUploadReview(any(CreateDocumentReviewRequest.class), eq(1L));
     }
 
     @Test

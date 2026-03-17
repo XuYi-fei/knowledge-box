@@ -52,6 +52,7 @@
 - 文档标签在落库绑定前需要按大小写无关去重，避免触发 `uk_document_tag_binding_doc_tag` 唯一键冲突。
 - 手动 `new PgVectorStore(...).build()` 不会自动触发 Spring 生命周期；若依赖 `initializeSchema`，必须显式调用 `afterPropertiesSet()`。
 - 启动期文档初始化导入（bootstrap）必须使用稳定 `importKey` 做幂等去重，避免每次重启重复创建审核单。
+- 文档 bootstrap 若来源系统会为“同正文不同来源”生成不同 `importKey`，则导入判重不能只看 `importKey`；还需追加正文内容指纹判重，避免跨来源重复内容再次入库。
 - DashScope embedding 接口存在严格单次输入文本条数上限（当前实测上限 10）；向量写入需分批 `add` 且批次不得超过 10，避免审核通过/全量重建时报 `batch size is invalid`。
 - 语雀文档迁移/粘贴图片链路若包含大图，需显式配置 `spring.servlet.multipart.max-file-size` 与 `max-request-size`；Spring 默认 1MB 会导致 `/api/admin/documents/paste-image` 抛 `MaxUploadSizeExceededException`。
 - 对带唯一键的“绑定表”执行同事务“删除旧绑定+插入新绑定”时，优先使用 JPQL bulk delete（`@Modifying @Query`）或显式 flush，避免 Hibernate 写入顺序触发唯一键冲突。

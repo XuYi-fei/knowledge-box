@@ -36,4 +36,17 @@ public interface DocumentReviewRequestRepository extends JpaRepository<DocumentR
             nativeQuery = true
     )
     boolean existsByImportKey(@Param("importKey") String importKey);
+
+    @Query(
+            value = """
+                    select exists(
+                        select 1
+                        from document_review_request
+                        where md5(coalesce(source_markdown, '')) = :contentFingerprint
+                          and status in ('CREATED', 'PROCESSING', 'PENDING_REVIEW', 'APPROVED')
+                    )
+                    """,
+            nativeQuery = true
+    )
+    boolean existsActiveOrApprovedByContentFingerprint(@Param("contentFingerprint") String contentFingerprint);
 }

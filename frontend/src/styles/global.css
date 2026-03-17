@@ -1716,16 +1716,15 @@ a {
   min-height: 0;
   overflow: auto;
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 14px;
   padding-right: 2px;
   align-content: start;
-  justify-items: start;
 }
 
 .public-article-card {
   border: 0;
-  width: min(100%, 760px);
-  max-width: 760px;
+  width: 100%;
   padding: 18px 20px;
   border-radius: 20px;
   text-align: left;

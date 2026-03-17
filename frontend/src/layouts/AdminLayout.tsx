@@ -74,7 +74,7 @@ export function AdminLayout() {
   };
 
   return (
-    <div style={{ minHeight: '100%', background: '#eef4f3' }}>
+    <div className="admin-shell">
       <ProLayout
         title="Knowledge Box Admin"
         logo={<ProfileOutlined />}
@@ -95,9 +95,12 @@ export function AdminLayout() {
           ),
         }}
         layout="mix"
-        contentStyle={{ padding: 24 }}
+        style={{ height: '100%', minHeight: 0, background: '#eef4f3' }}
+        contentStyle={{ padding: 0, minHeight: 0 }}
       >
-        <Outlet />
+        <div className="admin-content-scroll">
+          <Outlet />
+        </div>
       </ProLayout>
       <Modal
         title="修改管理员密码"

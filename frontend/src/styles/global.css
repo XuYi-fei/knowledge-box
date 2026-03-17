@@ -1470,6 +1470,32 @@ a {
   gap: 16px;
 }
 
+.admin-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #eef4f3;
+}
+
+.admin-shell .ant-pro-layout,
+.admin-shell .ant-layout {
+  height: 100%;
+  min-height: 0;
+}
+
+.admin-shell .ant-pro-layout-container,
+.admin-shell .ant-pro-layout-content {
+  min-height: 0;
+}
+
+.admin-content-scroll {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+}
+
 .user-tools-layout {
   flex: 1 1 auto;
   min-height: 0;

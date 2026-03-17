@@ -53,6 +53,8 @@ class DocumentBootstrapImportRunnerTests {
                     "title": "Spring面试题",
                     "sourceFilename": "spring-interview.md",
                     "visibilityType": "PUBLIC",
+                    "categoryName": "Spring AI Alibaba",
+                    "columnName": "Spring AI Alibaba",
                     "sourceMarkdown": "# Spring 面试",
                     "extensionJson": {
                       "yuqueSource": {
@@ -96,6 +98,8 @@ class DocumentBootstrapImportRunnerTests {
         assertThat(captured.sourceFilename()).isEqualTo("spring-interview.md");
         assertThat(captured.sourceMarkdown()).isEqualTo("# Spring 面试");
         assertThat(captured.extensionJson()).contains("\"importKey\":\"yuque:51241102:238740054\"");
+        assertThat(captured.selectedCategoryName()).isEqualTo("Spring AI Alibaba");
+        assertThat(captured.selectedColumnName()).isEqualTo("Spring AI Alibaba");
         assertThat(captured.extensionJson()).contains("\"contentFingerprint\":\""
                 + DigestUtils.md5DigestAsHex("# Spring 面试".getBytes(StandardCharsets.UTF_8))
                 + "\"");

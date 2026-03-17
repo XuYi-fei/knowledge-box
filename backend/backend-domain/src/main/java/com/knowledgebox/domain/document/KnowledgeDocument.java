@@ -51,6 +51,10 @@ public class KnowledgeDocument extends BaseEntity {
     @JoinColumn(name = "category_id")
     private DocumentCategory category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "column_id")
+    private DocumentColumn documentColumn;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String tags = "[]";
 
@@ -140,6 +144,14 @@ public class KnowledgeDocument extends BaseEntity {
 
     public void setCategory(DocumentCategory category) {
         this.category = category;
+    }
+
+    public DocumentColumn getDocumentColumn() {
+        return documentColumn;
+    }
+
+    public void setDocumentColumn(DocumentColumn documentColumn) {
+        this.documentColumn = documentColumn;
     }
 
     public String getTags() {

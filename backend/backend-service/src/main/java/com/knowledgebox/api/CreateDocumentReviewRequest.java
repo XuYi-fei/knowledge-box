@@ -9,6 +9,8 @@ public record CreateDocumentReviewRequest(
         @NotBlank @Size(max = 256) String sourceFilename,
         DocumentVisibilityType visibilityType,
         @NotBlank String sourceMarkdown,
-        String extensionJson
+        String extensionJson,
+        @Size(max = 128) String selectedCategoryName,
+        @Size(max = 128) String selectedColumnName
 ) {
 }

@@ -9,6 +9,8 @@ import com.knowledgebox.api.BatchDocumentReviewActionResultView;
 import com.knowledgebox.api.CreateDocumentReviewRequest;
 import com.knowledgebox.api.DocumentAssetView;
 import com.knowledgebox.api.DocumentCategoryView;
+import com.knowledgebox.api.DocumentColumnDocumentView;
+import com.knowledgebox.api.DocumentColumnView;
 import com.knowledgebox.api.DocumentIndexRebuildJobView;
 import com.knowledgebox.api.DocumentPastedImageUploadView;
 import com.knowledgebox.api.DocumentReviewAssetView;
@@ -30,6 +32,7 @@ import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.document.DocumentAsset;
 import com.knowledgebox.domain.document.DocumentCategory;
 import com.knowledgebox.domain.document.DocumentChunk;
+import com.knowledgebox.domain.document.DocumentColumn;
 import com.knowledgebox.domain.document.DocumentIndexRebuildJob;
 import com.knowledgebox.domain.document.DocumentIndexRebuildStatus;
 import com.knowledgebox.domain.document.DocumentReviewAsset;
@@ -46,6 +49,7 @@ import com.knowledgebox.domain.document.KnowledgeDocument;
 import com.knowledgebox.repository.DocumentAssetRepository;
 import com.knowledgebox.repository.DocumentCategoryRepository;
 import com.knowledgebox.repository.DocumentChunkRepository;
+import com.knowledgebox.repository.DocumentColumnRepository;
 import com.knowledgebox.repository.DocumentIndexRebuildJobRepository;
 import com.knowledgebox.repository.DocumentReviewAssetRepository;
 import com.knowledgebox.repository.DocumentReviewChunkRepository;
@@ -104,6 +108,7 @@ public class DocumentGovernanceService {
     private final DocumentAssetRepository documentAssetRepository;
     private final DocumentChunkRepository documentChunkRepository;
     private final DocumentCategoryRepository documentCategoryRepository;
+    private final DocumentColumnRepository documentColumnRepository;
     private final DocumentTagRepository documentTagRepository;
     private final DocumentTagBindingRepository documentTagBindingRepository;
     private final DocumentReviewRequestRepository documentReviewRequestRepository;
@@ -125,6 +130,7 @@ public class DocumentGovernanceService {
             DocumentAssetRepository documentAssetRepository,
             DocumentChunkRepository documentChunkRepository,
             DocumentCategoryRepository documentCategoryRepository,
+            DocumentColumnRepository documentColumnRepository,
             DocumentTagRepository documentTagRepository,
             DocumentTagBindingRepository documentTagBindingRepository,
             DocumentReviewRequestRepository documentReviewRequestRepository,
@@ -145,6 +151,7 @@ public class DocumentGovernanceService {
         this.documentAssetRepository = documentAssetRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.documentCategoryRepository = documentCategoryRepository;
+        this.documentColumnRepository = documentColumnRepository;
         this.documentTagRepository = documentTagRepository;
         this.documentTagBindingRepository = documentTagBindingRepository;
         this.documentReviewRequestRepository = documentReviewRequestRepository;
@@ -191,7 +198,7 @@ public class DocumentGovernanceService {
         List<String> tags = documentTagBindingRepository.findByDocument_IdOrderByIdAsc(id).stream()
                 .map(binding -> binding.getTag().getName())
                 .toList();
-        return toDocumentView(document, tags);
+        return toDocumentView(document, tags, loadColumnDocuments(document));
     }
 
     @Transactional(readOnly = true)
@@ -261,6 +268,13 @@ public class DocumentGovernanceService {
     public List<DocumentCategoryView> categories() {
         return documentCategoryRepository.findAllByOrderByNameAsc().stream()
                 .map(category -> new DocumentCategoryView(category.getId(), category.getName(), category.getSource()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DocumentColumnView> columns() {
+        return documentColumnRepository.findAllByOrderByNameAsc().stream()
+                .map(column -> new DocumentColumnView(column.getId(), column.getName(), column.getSource()))
                 .toList();
     }
 
@@ -342,6 +356,8 @@ public class DocumentGovernanceService {
         review.setProgressPercent(0);
         review.setSourceMarkdown(markdownContent);
         review.setExtensionJson(normalizedExtension.json());
+        review.setSelectedCategoryName(null);
+        review.setSelectedColumnName(null);
         review.setSelectedTagsJson("[]");
         review.setSuggestedTagsJson("[]");
         review = documentReviewRequestRepository.save(review);
@@ -377,6 +393,8 @@ public class DocumentGovernanceService {
         review.setProgressPercent(0);
         review.setSourceMarkdown(sourceMarkdown);
         review.setExtensionJson(normalizedExtension.json());
+        review.setSelectedCategoryName(normalizeOptionalName(request.selectedCategoryName()));
+        review.setSelectedColumnName(normalizeOptionalName(request.selectedColumnName()));
         review.setSelectedTagsJson("[]");
         review.setSuggestedTagsJson("[]");
         review = documentReviewRequestRepository.save(review);
@@ -448,6 +466,8 @@ public class DocumentGovernanceService {
         review.setProgressPercent(0);
         review.setSourceMarkdown(request.sourceMarkdown());
         review.setExtensionJson(normalizeJsonObject(request.extensionJson()));
+        review.setSelectedCategoryName(sourceDocument.getCategory() == null ? null : sourceDocument.getCategory().getName());
+        review.setSelectedColumnName(sourceDocument.getDocumentColumn() == null ? null : sourceDocument.getDocumentColumn().getName());
         review.setSelectedTagsJson("[]");
         review.setSuggestedTagsJson("[]");
         review = documentReviewRequestRepository.save(review);
@@ -461,6 +481,7 @@ public class DocumentGovernanceService {
         DocumentReviewRequest review = loadReviewRequest(reviewId);
         ensureReviewPending(review);
         review.setSelectedCategoryName(request.categoryName().trim());
+        review.setSelectedColumnName(normalizeOptionalName(request.columnName()));
         review.setSelectedTagsJson(writeJson(normalizeTagNames(request.tags())));
         return toReviewSummaryView(documentReviewRequestRepository.save(review));
     }
@@ -598,8 +619,12 @@ public class DocumentGovernanceService {
             );
             review.setSuggestedCategoryName(taxonomySuggestion.categoryName());
             review.setSuggestedTagsJson(writeJson(normalizeTagNames(taxonomySuggestion.tagNames())));
-            review.setSelectedCategoryName(taxonomySuggestion.categoryName());
-            review.setSelectedTagsJson(writeJson(normalizeTagNames(taxonomySuggestion.tagNames())));
+            if (!StringUtils.hasText(review.getSelectedCategoryName())) {
+                review.setSelectedCategoryName(taxonomySuggestion.categoryName());
+            }
+            if (!StringUtils.hasText(review.getSelectedTagsJson()) || "[]".equals(review.getSelectedTagsJson().trim())) {
+                review.setSelectedTagsJson(writeJson(normalizeTagNames(taxonomySuggestion.tagNames())));
+            }
             review.setTaxonomyReasoning(taxonomySuggestion.reasoning());
             review.setSourceMarkdown(markdown);
             review.setStatus(DocumentReviewStatus.PENDING_REVIEW);
@@ -794,6 +819,14 @@ public class DocumentGovernanceService {
     }
 
     private KnowledgeDocumentView toDocumentView(KnowledgeDocument document, List<String> tags) {
+        return toDocumentView(document, tags, List.of());
+    }
+
+    private KnowledgeDocumentView toDocumentView(
+            KnowledgeDocument document,
+            List<String> tags,
+            List<DocumentColumnDocumentView> columnDocuments
+    ) {
         return new KnowledgeDocumentView(
                 document.getId(),
                 document.getTitle(),
@@ -807,10 +840,38 @@ public class DocumentGovernanceService {
                 document.getExtensionJson(),
                 document.getVectorConfigJson(),
                 document.getCategory() == null ? null : document.getCategory().getName(),
+                document.getDocumentColumn() == null ? null : document.getDocumentColumn().getName(),
                 writeJson(tags),
+                columnDocuments,
                 document.getCreatedAt(),
                 document.getUpdatedAt()
         );
+    }
+
+    private List<DocumentColumnDocumentView> loadColumnDocuments(KnowledgeDocument currentDocument) {
+        if (currentDocument.getDocumentColumn() == null || currentDocument.getDocumentColumn().getId() == null) {
+            return List.of();
+        }
+        List<KnowledgeDocument> documents = knowledgeDocumentRepository.findAllByColumnIdAndVisibilityTypeAndStatusOrderByTimeline(
+                currentDocument.getDocumentColumn().getId(),
+                DocumentVisibilityType.PUBLIC,
+                DocumentStatus.READY
+        );
+        LinkedHashMap<String, KnowledgeDocument> deduplicated = new LinkedHashMap<>();
+        for (KnowledgeDocument candidate : documents) {
+            String key = buildPublicDocumentDedupKey(candidate);
+            KnowledgeDocument existing = deduplicated.get(key);
+            if (existing == null || currentDocument.getId().equals(candidate.getId())) {
+                deduplicated.put(key, candidate);
+            }
+        }
+        return deduplicated.values().stream()
+                .map(document -> new DocumentColumnDocumentView(
+                        document.getId(),
+                        document.getTitle(),
+                        document.getCreatedAt()
+                ))
+                .toList();
     }
 
     private DocumentReviewRequestSummaryView toReviewSummaryView(DocumentReviewRequest review) {
@@ -830,6 +891,7 @@ public class DocumentGovernanceService {
                 review.getSuggestedCategoryName(),
                 review.getSuggestedTagsJson(),
                 review.getSelectedCategoryName(),
+                review.getSelectedColumnName(),
                 review.getSelectedTagsJson(),
                 review.getErrorMessage(),
                 review.getCreatedAt(),
@@ -862,6 +924,7 @@ public class DocumentGovernanceService {
                 review.getSuggestedCategoryName(),
                 review.getSuggestedTagsJson(),
                 review.getSelectedCategoryName(),
+                review.getSelectedColumnName(),
                 review.getSelectedTagsJson(),
                 review.getTaxonomyReasoning(),
                 review.getReviewReason(),
@@ -1104,12 +1167,14 @@ public class DocumentGovernanceService {
         String categoryName = StringUtils.hasText(review.getSelectedCategoryName())
                 ? review.getSelectedCategoryName().trim()
                 : review.getSuggestedCategoryName();
+        String columnName = normalizeOptionalName(review.getSelectedColumnName());
         List<String> tagNames = parseTagNames(review.getSelectedTagsJson());
         if (tagNames.isEmpty()) {
             tagNames = parseTagNames(review.getSuggestedTagsJson());
         }
 
         DocumentCategory category = ensureCategory(categoryName, DocumentTaxonomySource.MANUAL);
+        DocumentColumn documentColumn = ensureColumn(columnName, DocumentTaxonomySource.MANUAL);
         List<DocumentTag> tags = ensureTags(tagNames, DocumentTaxonomySource.MANUAL);
 
         KnowledgeDocument published = review.getSourceDocument() == null
@@ -1126,6 +1191,7 @@ public class DocumentGovernanceService {
         published.setExtensionJson(review.getExtensionJson());
         published.setVectorConfigJson(review.getVectorConfigJson());
         published.setCategory(category);
+        published.setDocumentColumn(documentColumn);
         published.setTags(writeJson(tagNames));
         published = knowledgeDocumentRepository.save(published);
         final KnowledgeDocument publishedDocument = published;
@@ -1215,6 +1281,24 @@ public class DocumentGovernanceService {
                     category.setSource(source);
                     return documentCategoryRepository.save(category);
                 });
+    }
+
+    private DocumentColumn ensureColumn(@Nullable String name, DocumentTaxonomySource source) {
+        String normalized = normalizeOptionalName(name);
+        if (!StringUtils.hasText(normalized)) {
+            return null;
+        }
+        return documentColumnRepository.findByNameIgnoreCase(normalized)
+                .orElseGet(() -> {
+                    DocumentColumn column = new DocumentColumn();
+                    column.setName(normalized);
+                    column.setSource(source);
+                    return documentColumnRepository.save(column);
+                });
+    }
+
+    private String normalizeOptionalName(@Nullable String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private List<DocumentTag> ensureTags(List<String> names, DocumentTaxonomySource source) {

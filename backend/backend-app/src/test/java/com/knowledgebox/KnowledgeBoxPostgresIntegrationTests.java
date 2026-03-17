@@ -135,7 +135,34 @@ class KnowledgeBoxPostgresIntegrationTests {
                         """,
                 "Java",
                 List.of("MCP", "集成"),
-                "PUBLIC"
+                "PUBLIC",
+                "Java MCP 专栏"
+        );
+        SeededDocument javaMcpFollowup = seedDocumentWithTaxonomy(
+                "Java MCP 进阶",
+                "java-mcp-advanced.md",
+                """
+                        # Java MCP 进阶
+
+                        继续介绍 Java 在 MCP 体系中的应用。
+                        """,
+                "Java",
+                List.of("MCP", "进阶"),
+                "PUBLIC",
+                "Java MCP 专栏"
+        );
+        seedDocumentWithTaxonomy(
+                "Java MCP 入门",
+                "java-mcp-intro.md",
+                """
+                        # Java MCP 入门
+
+                        介绍 Java MCP 的基础概念。
+                        """,
+                "Java",
+                List.of("MCP"),
+                "PUBLIC",
+                "Java MCP 专栏"
         );
         seedDocumentWithTaxonomy(
                 "Java 与 MCP",
@@ -202,6 +229,15 @@ class KnowledgeBoxPostgresIntegrationTests {
 
         assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(detailResponse.getBody()).containsEntry("title", "Java 与 MCP");
+        assertThat(detailResponse.getBody()).containsEntry("columnName", "Java MCP 专栏");
+        List<Map<String, Object>> columnDocuments = (List<Map<String, Object>>) detailResponse.getBody().get("columnDocuments");
+        assertThat(columnDocuments)
+                .extracting(item -> item.get("title"))
+                .containsExactly("Java MCP 入门", "Java MCP 进阶", "Java 与 MCP");
+        assertThat(columnDocuments)
+                .extracting(item -> item.get("id"))
+                .contains(javaMcp.documentId())
+                .contains(javaMcpFollowup.documentId());
 
         assertThat(hiddenDetailResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -1007,12 +1043,30 @@ class KnowledgeBoxPostgresIntegrationTests {
             List<String> tagNames,
             String visibilityType
     ) {
+        return seedDocumentWithTaxonomy(title, sourceFilename, sourceMarkdown, categoryName, tagNames, visibilityType, null);
+    }
+
+    private SeededDocument seedDocumentWithTaxonomy(
+            String title,
+            String sourceFilename,
+            String sourceMarkdown,
+            String categoryName,
+            List<String> tagNames,
+            String visibilityType,
+            String columnName
+    ) {
         Long categoryId = jdbcTemplate.queryForObject("""
                 INSERT INTO document_category (name, source)
                 VALUES (?, 'SYSTEM')
                 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
                 RETURNING id
                 """, Long.class, categoryName);
+        Long columnId = columnName == null ? null : jdbcTemplate.queryForObject("""
+                INSERT INTO document_column (name, source)
+                VALUES (?, 'SYSTEM')
+                ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                RETURNING id
+                """, Long.class, columnName);
 
         List<Long> tagIds = new java.util.ArrayList<>();
         for (String tagName : tagNames) {
@@ -1037,9 +1091,10 @@ class KnowledgeBoxPostgresIntegrationTests {
                     extension_json,
                     vector_config_json,
                     category_id,
+                    column_id,
                     tags
                 )
-                VALUES (?, ?, 'ADMIN', ?, 'READY', ?, ?, '{}', '{}', ?, ?::text)
+                VALUES (?, ?, 'ADMIN', ?, 'READY', ?, ?, '{}', '{}', ?, ?, ?::text)
                 RETURNING id
                 """, Long.class,
                 title,
@@ -1048,6 +1103,7 @@ class KnowledgeBoxPostgresIntegrationTests {
                 "/uploads/docs/" + sourceFilename,
                 sourceMarkdown,
                 categoryId,
+                columnId,
                 toJsonArray(tagNames));
 
         for (Long tagId : tagIds) {

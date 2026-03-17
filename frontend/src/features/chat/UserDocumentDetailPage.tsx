@@ -241,6 +241,7 @@ export function UserDocumentDetailPage() {
 
   const detailDocument = documentQuery.data;
   const tagNames = detailDocument ? parseTagNames(detailDocument.tags) : [];
+  const columnDocuments = detailDocument?.columnDocuments ?? [];
   const headingIdPrefix = `doc-outline-${numericDocumentId}`;
   const fallbackOutline = useMemo(
     () => (detailDocument ? extractMarkdownOutline(detailDocument.sourceMarkdown, headingIdPrefix) : []),
@@ -444,6 +445,10 @@ export function UserDocumentDetailPage() {
     scrollToHeading(headingId);
   }
 
+  function openColumnDocument(targetDocumentId: number) {
+    navigate(`/documents/${targetDocumentId}`);
+  }
+
   function toggleHeading(node: OutlineNode) {
     setExpandedHeadingIds((current) => {
       if (current.includes(node.id)) {
@@ -534,6 +539,10 @@ export function UserDocumentDetailPage() {
                   <Typography.Text>{detailDocument.sourceFilename}</Typography.Text>
                 </div>
                 <div className="document-detail-meta-item">
+                  <Typography.Text type="secondary">专栏</Typography.Text>
+                  <Typography.Text>{detailDocument.columnName || '-'}</Typography.Text>
+                </div>
+                <div className="document-detail-meta-item">
                   <Typography.Text type="secondary">更新时间</Typography.Text>
                   <Typography.Text>{new Date(detailDocument.updatedAt).toLocaleString('zh-CN')}</Typography.Text>
                 </div>
@@ -562,13 +571,35 @@ export function UserDocumentDetailPage() {
           )}
         </Card>
 
-        {outline.length ? (
+        {columnDocuments.length || outline.length ? (
           <aside className="document-outline">
-            <div className="document-outline-card">
-              <Typography.Text type="secondary">文档大纲</Typography.Text>
-              <div className="document-outline-list">
-                {renderOutlineNodes(outlineTree.rootNodes)}
-              </div>
+            <div className="document-outline-stack">
+              {columnDocuments.length ? (
+                <div className="document-outline-card">
+                  <Typography.Text type="secondary">专栏文章</Typography.Text>
+                  <div className="document-column-list">
+                    {columnDocuments.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`document-column-item ${item.id === detailDocument?.id ? 'document-column-item-active' : ''}`}
+                        onClick={() => openColumnDocument(item.id)}
+                      >
+                        <span>{item.title}</span>
+                        <small>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {outline.length ? (
+                <div className="document-outline-card">
+                  <Typography.Text type="secondary">文档大纲</Typography.Text>
+                  <div className="document-outline-list">
+                    {renderOutlineNodes(outlineTree.rootNodes)}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </aside>
         ) : null}

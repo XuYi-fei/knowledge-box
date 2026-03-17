@@ -91,6 +91,7 @@ export function PublicArticlesPage() {
   const availableTags = selectedCategory?.tags ?? facets?.allTags ?? [];
   const detailDocument = detailQuery.data;
   const detailTags = detailDocument ? parseTagNames(detailDocument.tags) : [];
+  const columnDocuments = detailDocument?.columnDocuments ?? [];
 
   function navigateToList(nextSearchParams: URLSearchParams) {
     navigate({ pathname: '/articles', search: buildSearch(nextSearchParams) });
@@ -144,6 +145,10 @@ export function PublicArticlesPage() {
     navigate({ pathname: `/articles/${id}`, search: buildSearch(new URLSearchParams(searchParams)) });
   }
 
+  function openColumnDocument(id: number) {
+    navigate({ pathname: `/articles/${id}`, search: buildSearch(new URLSearchParams(searchParams)) });
+  }
+
   const resultCountLabel = articlesPage ? `共 ${articlesPage.total} 篇公开文章` : '公开文章';
 
   return (
@@ -185,6 +190,27 @@ export function PublicArticlesPage() {
               />
             ) : (
               <div className="public-articles-sidebar-body">
+                {numericDocumentId && columnDocuments.length ? (
+                  <div className="public-articles-filter-block">
+                    <div className="public-articles-filter-title">
+                      <ReadOutlined />
+                      <span>{detailDocument?.columnName ? `专栏 · ${detailDocument.columnName}` : '专栏文章'}</span>
+                    </div>
+                    <div className="public-articles-category-list">
+                      {columnDocuments.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`public-articles-category-item ${item.id === numericDocumentId ? 'public-articles-category-item-active' : ''}`}
+                          onClick={() => openColumnDocument(item.id)}
+                        >
+                          <span>{item.title}</span>
+                          <span>{new Date(item.createdAt).toLocaleDateString('zh-CN')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="public-articles-filter-block">
                   <div className="public-articles-filter-title">
                     <ReadOutlined />
@@ -280,6 +306,10 @@ export function PublicArticlesPage() {
                     <div className="document-detail-meta-item">
                       <Typography.Text type="secondary">来源文件</Typography.Text>
                       <Typography.Text>{detailDocument.sourceFilename}</Typography.Text>
+                    </div>
+                    <div className="document-detail-meta-item">
+                      <Typography.Text type="secondary">专栏</Typography.Text>
+                      <Typography.Text>{detailDocument.columnName || '无'}</Typography.Text>
                     </div>
                     <div className="document-detail-meta-item">
                       <Typography.Text type="secondary">最近更新</Typography.Text>

@@ -13,6 +13,7 @@
 - 已修复公开文档详情页大纲与滚动容器脱节的问题；当前 `/documents/:id` 的大纲高亮、点击跳转与初始锚点定位都改为基于页面内部滚动容器工作。
 - 用户侧已升级为路由级顶部工作区 header：标题与副标题固定在左侧，右侧 tabs 基于 URL 在 `主页 / 关于` 间切换；“关于”已从聊天页左下角迁出，改为独立 `about` 页面渲染。
 - 用户侧已新增匿名可访问的公开文库页 `/articles`：支持左侧分类栏与多标签筛选、右侧公开文章卡片列表，以及在同一工作区内查看完整 Markdown 正文；登录后顶部 header 也已补上 `文库` tab 入口。
+- 文档导入与公开文档详情已新增“专栏”能力：bootstrap / 运行时 `init-review` 可直接指定强制分类与专栏，管理端审核页可编辑专栏，公开文档详情与引用详情页左侧会展示同专栏文章列表；当前语雀 bootstrap seed 中 `Spring AI Alibaba` 的 12 篇文档已回填分类与专栏。
 - 已修复公开文库页单条文章列表场景下卡片被整行拉满的问题；当前卡片列表改为响应式网格，既会铺满内容区宽度，也不会在单篇结果时出现异常超宽展示。
 - 已修复公开文库底层重复数据导致的重复展示问题；当前若存在不同 `importKey` 但标题和正文相同的公开文档，目录与分类/标签计数会按内容指纹去重后再对外展示。
 - 文档导入已升级为“双重判定”：启动 bootstrap 与运行时 `upload-json/init-review` 导入，除 `importKey` 幂等外，还会按正文内容指纹拦截“不同来源但正文相同”的重复导入；同时已补充 `scripts/cleanup_duplicate_documents.py`，可 dry-run/执行清理历史重复正式文档，并重挂审核单/ingestion 引用与清理向量行。
@@ -49,6 +50,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页、文档详情页、文档审核页、Trace 管理页、顶部 header/独立 About、主页固定高度与内部滚动、聊天引用样式，以及本次新增的用户工具页、header `工具` tab、管理端工具目录与工具执行日志页面。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的管理端“重复治理”路由、菜单入口、预览表格与清理交互。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的公开文库路由 `/articles`、共享 workspace header、分类/标签筛选栏与公开文章详情渲染。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的审核页专栏编辑、公开文档详情/引用详情页同专栏文章侧栏展示，以及专栏字段类型与 API 接线。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库单卡宽度修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 文档详情页内部滚动修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 大纲高亮/点击跳转/初始锚点定位切换到内部滚动容器后的构建链路。
@@ -69,7 +71,9 @@
 - 发布脚本：`./deploy/build-release.sh --skip-build --keep-dir --output-dir /tmp/knowledge-box-release-test` 可生成 release 目录与 tar.gz，并确认包含后端 `jar`、前端 `dist`、生产模板、启动脚本，以及供 bootstrap 导入使用的整棵 `tmp/yuque-batch/`。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖用户工具数据模型、Liquibase、公开/管理接口、执行器注册链路，以及近期聊天编排、Trace、文档审核相关改动。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖本次新增的重复文档后台预览/清理接口与服务实现。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖本次新增的文档专栏实体、bootstrap 强制分类/专栏、审核页专栏字段与公开详情同专栏文章返回。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests package` 可通过，已覆盖本次新增的公开文档分页/facet/详情接口、匿名访问白名单与 release note 变更集。
+- 后端：`mvn -q -pl backend/backend-app -am -Dtest=DocumentBootstrapImportRunnerTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过，已验证 bootstrap seed 会把 `categoryName/columnName` 带入审核单创建请求。
 - 后端：已用只读 SQL 实查本地 `knowledge_document`，确认 `工具部署` 分类下存在两条标题为 `2. Ollama调用` 且 `source_markdown` MD5 完全一致、仅 `importKey` 不同的公开文档；当前公开文库目录已在服务层按“分类 + 标题 + 正文指纹”聚合去重。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=Md5DigestAppToolExecutorTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过。
 - 后端：全量 `mvn -q -pl backend/backend-app -am test` 在当前沙箱环境下因无法连本机 PostgreSQL（`SocketException: Operation not permitted`）失败，非本次代码编译错误。

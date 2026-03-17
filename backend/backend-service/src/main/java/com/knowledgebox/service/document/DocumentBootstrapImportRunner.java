@@ -197,6 +197,8 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
                 String title = requireText(item.title(), "title", index);
                 String sourceFilename = requireText(item.sourceFilename(), "sourceFilename", index);
                 DocumentVisibilityType visibilityType = resolveVisibility(item.visibilityType());
+                String categoryName = normalizeOptionalText(item.categoryName());
+                String columnName = normalizeOptionalText(item.columnName());
 
                 documentGovernanceService.createUploadReview(
                         new CreateDocumentReviewRequest(
@@ -204,18 +206,22 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
                                 sourceFilename,
                                 visibilityType,
                                 markdown,
-                                extensionJson
+                                extensionJson,
+                                categoryName,
+                                columnName
                         ),
                         operatorId
                 );
                 created++;
                 log.info(
-                        "{} created review request. importKey={}, title={}, sourceFilename={}, visibility={}",
+                        "{} created review request. importKey={}, title={}, sourceFilename={}, visibility={}, categoryName={}, columnName={}",
                         LOG_PREFIX,
                         importKey,
                         title,
                         sourceFilename,
-                        visibilityType
+                        visibilityType,
+                        categoryName,
+                        columnName
                 );
             } catch (Exception exception) {
                 failed++;
@@ -404,6 +410,10 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
         return DocumentVisibilityType.valueOf(visibilityType.trim().toUpperCase(Locale.ROOT));
     }
 
+    private String normalizeOptionalText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
     private String resolveMarkdown(BootstrapSeedItem item, Path seedBaseDirectory) {
         if (StringUtils.hasText(item.sourceMarkdown())) {
             return item.sourceMarkdown();
@@ -461,6 +471,8 @@ public class DocumentBootstrapImportRunner implements ApplicationRunner {
             String title,
             String sourceFilename,
             String visibilityType,
+            String categoryName,
+            String columnName,
             String sourceMarkdownPath,
             String sourceMarkdown,
             Object extensionJson

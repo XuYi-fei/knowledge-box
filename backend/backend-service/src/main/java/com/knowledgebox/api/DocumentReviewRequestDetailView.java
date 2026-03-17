@@ -26,6 +26,7 @@ public record DocumentReviewRequestDetailView(
         String suggestedCategoryName,
         String suggestedTagsJson,
         String selectedCategoryName,
+        String selectedColumnName,
         String selectedTagsJson,
         String taxonomyReasoning,
         String reviewReason,

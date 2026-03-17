@@ -8,6 +8,7 @@ import { MarkdownWorkbench } from './components/MarkdownWorkbench';
 
 type TaxonomyFormValues = {
   categoryName: string;
+  columnName: string;
   tags: string[];
 };
 
@@ -127,6 +128,10 @@ export function DocumentReviewsPage() {
     queryKey: ['documentCategories'],
     queryFn: api.documentCategories,
   });
+  const { data: columns = [] } = useQuery({
+    queryKey: ['documentColumns'],
+    queryFn: api.documentColumns,
+  });
   const { data: tags = [] } = useQuery({
     queryKey: ['documentTags'],
     queryFn: api.documentTags,
@@ -138,6 +143,7 @@ export function DocumentReviewsPage() {
     }
     taxonomyForm.setFieldsValue({
       categoryName: detail.selectedCategoryName || detail.suggestedCategoryName || '',
+      columnName: detail.selectedColumnName || '',
       tags: parseTagsJson(detail.selectedTagsJson || detail.suggestedTagsJson),
     });
   }, [detail, taxonomyForm]);
@@ -150,18 +156,19 @@ export function DocumentReviewsPage() {
       const values = await taxonomyForm.validateFields();
       return api.updateDocumentReviewTaxonomy(selectedId, {
         categoryName: values.categoryName.trim(),
+        columnName: values.columnName?.trim() || null,
         tags: values.tags ?? [],
       });
     },
     onSuccess: () => {
-      message.success('分类与标签已更新');
+      message.success('分类、专栏与标签已更新');
       void queryClient.invalidateQueries({ queryKey: ['documentReviews'] });
       void queryClient.invalidateQueries({ queryKey: ['documentReviewDetail', selectedId] });
     },
     onError: (error) => {
       modal.error({
         title: '保存失败',
-        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查分类与标签后重试')}</pre>,
+        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查分类、专栏与标签后重试')}</pre>,
       });
     },
   });
@@ -389,7 +396,7 @@ export function DocumentReviewsPage() {
                   </Typography.Paragraph>
                 </Card>
 
-                <Card size="small" title="审核可编辑项（分类/标签）">
+                <Card size="small" title="审核可编辑项（分类/专栏/标签）">
                   <Form form={taxonomyForm} layout="vertical">
                     <Form.Item name="categoryName" label="分类" rules={[{ required: true, message: '请输入分类' }]}>
                       <Input list="category-options" placeholder="输入或选择分类" disabled={!reviewPending} />
@@ -397,6 +404,14 @@ export function DocumentReviewsPage() {
                     <datalist id="category-options">
                       {categories.map((category) => (
                         <option key={category.id} value={category.name} />
+                      ))}
+                    </datalist>
+                    <Form.Item name="columnName" label="专栏">
+                      <Input list="column-options" placeholder="输入或选择专栏，不填则留空" disabled={!reviewPending} />
+                    </Form.Item>
+                    <datalist id="column-options">
+                      {columns.map((column) => (
+                        <option key={column.id} value={column.name} />
                       ))}
                     </datalist>
                     <Form.Item name="tags" label="标签">
@@ -410,7 +425,7 @@ export function DocumentReviewsPage() {
                     </Form.Item>
                   </Form>
                   <Button type="primary" onClick={() => saveTaxonomyMutation.mutate()} loading={saveTaxonomyMutation.isPending} disabled={!reviewPending}>
-                    保存分类与标签
+                    保存分类、专栏与标签
                   </Button>
                 </Card>
 

@@ -492,8 +492,15 @@ python3 scripts/prepare_bootstrap_seed.py \
   --title "Spring面试题" \
   --source-filename "spring-interview.md" \
   --visibility-type PUBLIC \
+  --category-name "Spring专题" \
+  --column-name "Spring专题" \
   --yuque-meta-json tmp/yuque-exports/spring-interview.meta.json
 ```
+
+说明：
+
+- `prepare_bootstrap_seed.py` 生成的 seed item 现支持顶层 `categoryName` / `columnName`，可在启动导入时直接强制指定分类与专栏。
+- 未指定 `columnName` 时，公开文档详情页不会展示“同专栏文章”侧栏。
 
 ### 4. 启动后端并自动写入审核流（仅创建审核单）
 
@@ -554,6 +561,8 @@ python3 scripts/yuque_kb_migrate.py init-review \
   --input-md tmp/yuque-batch/<BOOK_ID>/<DOC_ID>/rehosted.md \
   --title "<DOC_TITLE>" \
   --source-filename "yuque-<BOOK_ID>-<DOC_ID>.md" \
+  --category-name "<CATEGORY_NAME>" \
+  --column-name "<COLUMN_NAME>" \
   --yuque-meta-json tmp/yuque-batch/<BOOK_ID>/<DOC_ID>/meta.json \
   --kb-base-url "$KB_BASE_URL" \
   --kb-admin-username "$KB_ADMIN_USERNAME" \
@@ -563,6 +572,8 @@ python3 scripts/yuque_kb_migrate.py init-review \
 ```
 
 建议：在 `init-review` 时通过 `--extension-json-file` 传入带 `importKey` 的 JSON（例如 `yuque:<bookId>:<docId>`），便于后续幂等去重。
+
+如果一批语雀文档属于同一专题，可以把 `--category-name` 和 `--column-name` 都设成同一个值，例如 `Spring AI Alibaba`；这样导入后既会归到同一分类，也会在文档详情页左侧串起同专栏文章列表。
 
 ### 2. 参数与默认值在哪里定义
 

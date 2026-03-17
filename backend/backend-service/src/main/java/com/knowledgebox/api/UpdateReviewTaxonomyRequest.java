@@ -6,6 +6,7 @@ import java.util.List;
 
 public record UpdateReviewTaxonomyRequest(
         @NotBlank @Size(max = 128) String categoryName,
+        @Size(max = 128) String columnName,
         List<@NotBlank @Size(max = 128) String> tags
 ) {
 }

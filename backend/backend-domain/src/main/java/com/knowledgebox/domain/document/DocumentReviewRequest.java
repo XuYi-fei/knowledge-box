@@ -74,6 +74,9 @@ public class DocumentReviewRequest extends BaseEntity {
     @Column(length = 128)
     private String selectedCategoryName;
 
+    @Column(length = 128)
+    private String selectedColumnName;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String selectedTagsJson = "[]";
 
@@ -234,6 +237,14 @@ public class DocumentReviewRequest extends BaseEntity {
 
     public void setSelectedCategoryName(String selectedCategoryName) {
         this.selectedCategoryName = selectedCategoryName;
+    }
+
+    public String getSelectedColumnName() {
+        return selectedColumnName;
+    }
+
+    public void setSelectedColumnName(String selectedColumnName) {
+        this.selectedColumnName = selectedColumnName;
     }
 
     public String getSelectedTagsJson() {

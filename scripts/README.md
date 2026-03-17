@@ -42,6 +42,8 @@ python3 scripts/yuque_kb_migrate.py init-review \
   --input-md tmp/yuque-batch/pilot/rehosted.md \
   --yuque-meta-json tmp/yuque-batch/pilot/meta.json \
   --source-filename yuque-70111390-243374419.md \
+  --category-name "Spring AI Alibaba" \
+  --column-name "Spring AI Alibaba" \
   --kb-base-url "$KB_BASE_URL" \
   --kb-admin-username "$KB_ADMIN_USERNAME" \
   --kb-admin-password "$KB_ADMIN_PASSWORD" \
@@ -89,6 +91,8 @@ for d in docs:
         "--input-md", str(base / "rehosted.md"),
         "--yuque-meta-json", str(base / "meta.json"),
         "--source-filename", f"yuque-{book_id}-{doc_id}.md",
+        "--category-name", "Spring AI Alibaba",
+        "--column-name", "Spring AI Alibaba",
         "--kb-base-url", os.environ["KB_BASE_URL"],
         "--kb-admin-username", os.environ["KB_ADMIN_USERNAME"],
         "--kb-admin-password", os.environ["KB_ADMIN_PASSWORD"],
@@ -100,6 +104,7 @@ PY
 ## 说明
 
 - `init-review` 是创建审核单，不会自动通过审核。
+- `init-review` 支持通过 `--category-name` / `--column-name` 直接为审核单预填强制分类与专栏；后续管理员仍可在审核页调整。
 - 若 payload 中带有 `importKey` / `yuqueSource` 等导入元数据，后端会同时按 `importKey + 正文内容指纹` 做重复导入拦截。
 - 若要快速查看参数：`python3 scripts/yuque_kb_migrate.py <subcommand> --help`
 

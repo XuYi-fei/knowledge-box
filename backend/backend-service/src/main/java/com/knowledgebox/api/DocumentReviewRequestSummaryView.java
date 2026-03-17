@@ -21,6 +21,7 @@ public record DocumentReviewRequestSummaryView(
         String suggestedCategoryName,
         String suggestedTagsJson,
         String selectedCategoryName,
+        String selectedColumnName,
         String selectedTagsJson,
         String errorMessage,
         OffsetDateTime createdAt,

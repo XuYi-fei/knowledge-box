@@ -14,6 +14,7 @@ import {
   AppToolRateLimitScope,
   ChatMessageStatus,
   DocumentCategory,
+  DocumentColumn,
   DocumentDuplicateCleanupPreview,
   DocumentDuplicateCleanupResult,
   DocumentDuplicateKeepStrategy,
@@ -492,6 +493,9 @@ export const api = {
   async documentCategories() {
     return requestJson<DocumentCategory[]>('/api/admin/document-categories', undefined, 'admin');
   },
+  async documentColumns() {
+    return requestJson<DocumentColumn[]>('/api/admin/document-columns', undefined, 'admin');
+  },
   async documentTags() {
     return requestJson<DocumentTag[]>('/api/admin/document-tags', undefined, 'admin');
   },
@@ -560,6 +564,7 @@ export const api = {
     id: number,
     payload: {
       categoryName: string;
+      columnName?: string | null;
       tags: string[];
     },
   ) {

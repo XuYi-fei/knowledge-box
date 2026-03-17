@@ -83,6 +83,8 @@ def main() -> int:
     parser.add_argument("--title")
     parser.add_argument("--source-filename")
     parser.add_argument("--visibility-type", choices=["PUBLIC", "AGENT_ONLY"], default="PUBLIC")
+    parser.add_argument("--category-name")
+    parser.add_argument("--column-name")
     parser.add_argument("--import-key")
     parser.add_argument("--yuque-meta-json")
     parser.add_argument("--extra-extension-json")
@@ -107,6 +109,8 @@ def main() -> int:
         "title": title,
         "sourceFilename": source_filename,
         "visibilityType": args.visibility_type,
+        "categoryName": args.category_name,
+        "columnName": args.column_name,
         "sourceMarkdownPath": str(input_md_path),
         "extensionJson": extension_json,
     }

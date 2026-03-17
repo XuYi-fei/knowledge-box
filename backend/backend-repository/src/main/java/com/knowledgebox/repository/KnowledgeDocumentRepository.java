@@ -18,16 +18,29 @@ import org.springframework.lang.Nullable;
 
 public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocument, Long>, JpaSpecificationExecutor<KnowledgeDocument> {
 
-    @Query("select document from KnowledgeDocument document left join fetch document.category order by document.updatedAt desc, document.id desc")
+    @Query("""
+            select document
+            from KnowledgeDocument document
+            left join fetch document.category
+            left join fetch document.documentColumn
+            order by document.updatedAt desc, document.id desc
+            """)
     List<KnowledgeDocument> findAllForAdmin();
 
-    @Query("select document from KnowledgeDocument document left join fetch document.category where document.id = :id")
+    @Query("""
+            select document
+            from KnowledgeDocument document
+            left join fetch document.category
+            left join fetch document.documentColumn
+            where document.id = :id
+            """)
     Optional<KnowledgeDocument> findByIdWithCategory(@Param("id") Long id);
 
     @Query("""
             select document
             from KnowledgeDocument document
             left join fetch document.category
+            left join fetch document.documentColumn
             where document.id = :id
               and document.visibilityType = :visibilityType
               and document.status = :status
@@ -38,16 +51,17 @@ public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocu
             @Param("status") DocumentStatus status
     );
 
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "documentColumn"})
     Page<KnowledgeDocument> findAll(@Nullable Specification<KnowledgeDocument> spec, Pageable pageable);
 
-    @EntityGraph(attributePaths = "category")
+    @EntityGraph(attributePaths = {"category", "documentColumn"})
     List<KnowledgeDocument> findAll(@Nullable Specification<KnowledgeDocument> spec, Sort sort);
 
     @Query("""
             select document
             from KnowledgeDocument document
             left join fetch document.category
+            left join fetch document.documentColumn
             where document.visibilityType = :visibilityType
               and document.status = :status
             order by document.updatedAt desc, document.id desc
@@ -80,4 +94,20 @@ public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocu
             nativeQuery = true
     )
     boolean existsByContentFingerprint(@Param("contentFingerprint") String contentFingerprint);
+
+    @Query("""
+            select document
+            from KnowledgeDocument document
+            left join fetch document.category
+            left join fetch document.documentColumn
+            where document.documentColumn.id = :columnId
+              and document.visibilityType = :visibilityType
+              and document.status = :status
+            order by document.createdAt asc, lower(document.title) asc, document.id asc
+            """)
+    List<KnowledgeDocument> findAllByColumnIdAndVisibilityTypeAndStatusOrderByTimeline(
+            @Param("columnId") Long columnId,
+            @Param("visibilityType") DocumentVisibilityType visibilityType,
+            @Param("status") DocumentStatus status
+    );
 }

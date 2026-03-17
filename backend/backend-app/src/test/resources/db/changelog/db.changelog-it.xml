@@ -943,4 +943,64 @@
             );
         ]]></sql>
     </changeSet>
+    <changeSet id="it-043-document-column" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS document_column (
+                id BIGSERIAL PRIMARY KEY,
+                name VARCHAR(128) NOT NULL UNIQUE,
+                source VARCHAR(32) NOT NULL DEFAULT 'SYSTEM',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            ALTER TABLE knowledge_document
+                ADD COLUMN IF NOT EXISTS column_id BIGINT;
+
+            ALTER TABLE document_review_request
+                ADD COLUMN IF NOT EXISTS selected_column_name VARCHAR(128);
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_document_column_id
+                ON knowledge_document(column_id);
+
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                      FROM pg_constraint
+                     WHERE conname = 'fk_knowledge_document_column'
+                ) THEN
+                    ALTER TABLE knowledge_document
+                        ADD CONSTRAINT fk_knowledge_document_column
+                        FOREIGN KEY (column_id) REFERENCES document_column(id);
+                END IF;
+            END $$;
+        ]]></sql>
+    </changeSet>
+    <changeSet id="it-044-document-column-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.18',
+                '文档初始化新增强制分类与专栏展示',
+                '语雀初始化文档现在可直接指定分类与专栏，公开文档详情页也会展示同专栏文章导航。',
+                E'## 本次更新\n\n- bootstrap / 语雀初始化导入支持逐条指定 `分类`，避免相近文档被自动拆成多套分类\n- 新增文档 `专栏` 概念，审核时可补充或修正专栏归属\n- 公开文档详情页与引用详情页会在左侧展示同专栏文章列表，便于按专题连续阅读',
+                TIMESTAMPTZ '2026-03-18 18:00:00+08',
+                -12,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.18'
+                   AND title = '文档初始化新增强制分类与专栏展示'
+            );
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

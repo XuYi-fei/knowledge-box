@@ -154,9 +154,17 @@ export type KnowledgeDocument = {
   extensionJson: string;
   vectorConfigJson: string;
   categoryName: string | null;
+  columnName: string | null;
   tags: string;
+  columnDocuments: DocumentColumnDocument[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type DocumentColumnDocument = {
+  id: number;
+  title: string;
+  createdAt: string;
 };
 
 export type DocumentDuplicateKeepStrategy = 'OLDEST' | 'NEWEST';
@@ -524,6 +532,12 @@ export type DocumentCategory = {
   source: 'SYSTEM' | 'AGENT' | 'MANUAL';
 };
 
+export type DocumentColumn = {
+  id: number;
+  name: string;
+  source: 'SYSTEM' | 'AGENT' | 'MANUAL';
+};
+
 export type DocumentTag = {
   id: number;
   name: string;
@@ -548,6 +562,7 @@ export type DocumentReviewRequestSummary = {
   suggestedCategoryName: string | null;
   suggestedTagsJson: string;
   selectedCategoryName: string | null;
+  selectedColumnName: string | null;
   selectedTagsJson: string;
   errorMessage: string | null;
   createdAt: string;
@@ -605,6 +620,7 @@ export type DocumentReviewRequestDetail = {
   suggestedCategoryName: string | null;
   suggestedTagsJson: string;
   selectedCategoryName: string | null;
+  selectedColumnName: string | null;
   selectedTagsJson: string;
   taxonomyReasoning: string | null;
   reviewReason: string | null;

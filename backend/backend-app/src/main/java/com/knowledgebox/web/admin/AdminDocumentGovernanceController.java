@@ -3,6 +3,7 @@ package com.knowledgebox.web.admin;
 import com.knowledgebox.api.BatchDocumentReviewActionResultView;
 import com.knowledgebox.api.BatchReviewActionRequest;
 import com.knowledgebox.api.DocumentCategoryView;
+import com.knowledgebox.api.DocumentColumnView;
 import com.knowledgebox.api.DocumentDuplicateCleanupPreviewView;
 import com.knowledgebox.api.DocumentDuplicateCleanupRequest;
 import com.knowledgebox.api.DocumentDuplicateCleanupResultView;
@@ -69,6 +70,11 @@ public class AdminDocumentGovernanceController {
     @GetMapping("/document-categories")
     public List<DocumentCategoryView> categories() {
         return documentGovernanceService.categories();
+    }
+
+    @GetMapping("/document-columns")
+    public List<DocumentColumnView> columns() {
+        return documentGovernanceService.columns();
     }
 
     @GetMapping("/document-tags")

@@ -101,3 +101,16 @@ PY
 
 - `init-review` 是创建审核单，不会自动通过审核。
 - 若要快速查看参数：`python3 scripts/yuque_kb_migrate.py <subcommand> --help`
+
+## 清理卡住的 bootstrap 审核单
+
+如果启动导入过程中后端被中断，`document_review_request` 可能停留在 `status=PROCESSING` 且 `stage=CHUNKING`，并因为 `importKey` 已存在而阻止后续重启继续导入。
+
+可先 dry-run 预览，再确认删除：
+
+```bash
+python3 scripts/cleanup_stuck_bootstrap_reviews.py
+python3 scripts/cleanup_stuck_bootstrap_reviews.py --apply
+```
+
+默认仅清理带 `importKey` 且前缀为 `yuque:` 的 `PROCESSING/CHUNKING` 审核单；删除 `document_review_request` 时，关联的 `document_review_chunk` / `document_review_asset` 会通过数据库级联一并删除。

@@ -100,6 +100,7 @@ PY
 ## 说明
 
 - `init-review` 是创建审核单，不会自动通过审核。
+- 若 payload 中带有 `importKey` / `yuqueSource` 等导入元数据，后端会同时按 `importKey + 正文内容指纹` 做重复导入拦截。
 - 若要快速查看参数：`python3 scripts/yuque_kb_migrate.py <subcommand> --help`
 
 ## 清理卡住的 bootstrap 审核单

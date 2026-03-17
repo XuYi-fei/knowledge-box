@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import mimetypes
 import os
@@ -452,6 +453,10 @@ def merge_extension_json(
         yuque_meta_payload = json.loads(Path(yuque_meta_json).read_text(encoding="utf-8"))
         if not isinstance(yuque_meta_payload, dict):
             raise SystemExit("yuque meta json must contain a JSON object")
+        book_id = yuque_meta_payload.get("bookId")
+        doc_id = yuque_meta_payload.get("docId")
+        if book_id is not None and doc_id is not None:
+            extension["importKey"] = f"yuque:{book_id}:{doc_id}"
         extension["yuqueSource"] = {
             "bookId": yuque_meta_payload.get("bookId"),
             "docId": yuque_meta_payload.get("docId"),
@@ -507,6 +512,7 @@ def cmd_init_review(args: argparse.Namespace) -> int:
         extension_json_file=args.extension_json_file,
         yuque_meta_json=args.yuque_meta_json,
     )
+    extension["contentFingerprint"] = hashlib.md5(markdown.encode("utf-8")).hexdigest()
     payload = {
         "title": title,
         "sourceFilename": source_filename,

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.knowledgebox.api.BatchDocumentReviewActionResultView;
 import com.knowledgebox.api.CreateDocumentReviewRequest;
 import com.knowledgebox.api.DocumentAssetView;
@@ -327,6 +328,8 @@ public class DocumentGovernanceService {
         String originalFilename = StringUtils.hasText(markdown.getOriginalFilename()) ? markdown.getOriginalFilename() : "document.md";
         String markdownContent = readBytes(markdown);
         String title = StringUtils.hasText(titleOverride) ? titleOverride.trim() : deriveTitle(originalFilename, markdownContent);
+        NormalizedImportExtension normalizedExtension = normalizeImportExtension(extensionJson, markdownContent);
+        ensureImportReviewAllowed(normalizedExtension);
         DocumentReviewRequest review = new DocumentReviewRequest();
         review.setRequestCode(UUID.randomUUID().toString());
         review.setTitle(title);
@@ -338,7 +341,7 @@ public class DocumentGovernanceService {
         review.setStage("CREATED");
         review.setProgressPercent(0);
         review.setSourceMarkdown(markdownContent);
-        review.setExtensionJson(normalizeJsonObject(extensionJson));
+        review.setExtensionJson(normalizedExtension.json());
         review.setSelectedTagsJson("[]");
         review.setSuggestedTagsJson("[]");
         review = documentReviewRequestRepository.save(review);
@@ -360,6 +363,8 @@ public class DocumentGovernanceService {
         String title = request.title().trim();
         String sourceFilename = request.sourceFilename().trim();
         String sourceMarkdown = request.sourceMarkdown();
+        NormalizedImportExtension normalizedExtension = normalizeImportExtension(request.extensionJson(), sourceMarkdown);
+        ensureImportReviewAllowed(normalizedExtension);
         DocumentReviewRequest review = new DocumentReviewRequest();
         review.setRequestCode(UUID.randomUUID().toString());
         review.setTitle(title);
@@ -371,7 +376,7 @@ public class DocumentGovernanceService {
         review.setStage("CREATED");
         review.setProgressPercent(0);
         review.setSourceMarkdown(sourceMarkdown);
-        review.setExtensionJson(normalizeJsonObject(request.extensionJson()));
+        review.setExtensionJson(normalizedExtension.json());
         review.setSelectedTagsJson("[]");
         review.setSuggestedTagsJson("[]");
         review = documentReviewRequestRepository.save(review);
@@ -1269,12 +1274,70 @@ public class DocumentGovernanceService {
         }
     }
 
+    private NormalizedImportExtension normalizeImportExtension(@Nullable String json, String sourceMarkdown) {
+        String fallbackFingerprint = DigestUtils.md5DigestAsHex((sourceMarkdown == null ? "" : sourceMarkdown).getBytes(StandardCharsets.UTF_8));
+        if (!StringUtils.hasText(json)) {
+            return new NormalizedImportExtension("{}", null, fallbackFingerprint, false);
+        }
+        try {
+            JsonNode node = objectMapper.readTree(json);
+            if (node == null || !node.isObject()) {
+                return new NormalizedImportExtension("{}", null, fallbackFingerprint, false);
+            }
+            ObjectNode objectNode = (ObjectNode) node;
+            String importKey = textValue(objectNode.get("importKey"));
+            boolean importLike = StringUtils.hasText(importKey)
+                    || objectNode.has("yuqueSource")
+                    || StringUtils.hasText(textValue(objectNode.path("migration").path("tool")));
+            String contentFingerprint = textValue(objectNode.get("contentFingerprint"));
+            if (importLike && !StringUtils.hasText(contentFingerprint)) {
+                contentFingerprint = fallbackFingerprint;
+                objectNode.put("contentFingerprint", contentFingerprint);
+            }
+            return new NormalizedImportExtension(
+                    objectMapper.writeValueAsString(objectNode),
+                    importKey,
+                    StringUtils.hasText(contentFingerprint) ? contentFingerprint : fallbackFingerprint,
+                    importLike
+            );
+        } catch (Exception exception) {
+            return new NormalizedImportExtension("{}", null, fallbackFingerprint, false);
+        }
+    }
+
+    private void ensureImportReviewAllowed(NormalizedImportExtension extension) {
+        if (!extension.importLike()) {
+            return;
+        }
+        if (StringUtils.hasText(extension.importKey())
+                && (documentReviewRequestRepository.existsByImportKey(extension.importKey())
+                || knowledgeDocumentRepository.existsByImportKey(extension.importKey()))) {
+            throw new ApiException(HttpStatus.CONFLICT, "DOCUMENT_IMPORT_DUPLICATE", "相同来源的导入文档已存在，无需重复导入");
+        }
+        if (documentReviewRequestRepository.existsActiveOrApprovedByContentFingerprint(extension.contentFingerprint())
+                || knowledgeDocumentRepository.existsByContentFingerprint(extension.contentFingerprint())) {
+            throw new ApiException(HttpStatus.CONFLICT, "DOCUMENT_IMPORT_DUPLICATE", "正文相同的导入文档已存在，无需重复导入");
+        }
+    }
+
+    private String textValue(@Nullable JsonNode node) {
+        return node != null && !node.isMissingNode() && !node.isNull() ? node.asText() : null;
+    }
+
     private String writeJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
             return "[]";
         }
+    }
+
+    private record NormalizedImportExtension(
+            String json,
+            @Nullable String importKey,
+            String contentFingerprint,
+            boolean importLike
+    ) {
     }
 
     private static final class TagFacetAccumulator {

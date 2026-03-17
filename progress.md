@@ -13,6 +13,7 @@
 - 已修复公开文档详情页大纲与滚动容器脱节的问题；当前 `/documents/:id` 的大纲高亮、点击跳转与初始锚点定位都改为基于页面内部滚动容器工作。
 - 用户侧已升级为路由级顶部工作区 header：标题与副标题固定在左侧，右侧 tabs 基于 URL 在 `主页 / 关于` 间切换；“关于”已从聊天页左下角迁出，改为独立 `about` 页面渲染。
 - 用户侧已新增匿名可访问的公开文库页 `/articles`：支持左侧分类栏与多标签筛选、右侧公开文章卡片列表，以及在同一工作区内查看完整 Markdown 正文；登录后顶部 header 也已补上 `文库` tab 入口。
+- 已修复公开文库页单条文章列表场景下卡片被整行拉满的问题；当前卡片列表改为左对齐并限制单卡最大宽度，单篇结果不会再出现异常超宽展示。
 - 用户侧 header 已新增 `工具` tab 与独立 `/tools` 页面：首批内置 `Base64 编码`、`Base64 解码`、`MD5 摘要`，支持前端本地执行与后端统一执行两类模式。
 - 主页对话区已补齐稳定高度链：`chat-shell -> chat-content -> chat-main -> chat-card -> chat-messages` 统一使用 `flex + min-height: 0` 约束，消息增多时仅主会话区内部滚动，不再把整页不断撑高。
 - 主页工作区外层已显式禁用窗口级滚动：`app-shell / app-shell-main / user-workspace-shell / user-workspace-content / chat-shell / chat-content` 统一补上 `overflow: hidden`，避免浏览器窗口继续接管滚动条，保证滚动只发生在主消息区和左侧历史列表内部。
@@ -44,6 +45,7 @@
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页、文档详情页、文档审核页、Trace 管理页、顶部 header/独立 About、主页固定高度与内部滚动、聊天引用样式，以及本次新增的用户工具页、header `工具` tab、管理端工具目录与工具执行日志页面。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖本次新增的公开文库路由 `/articles`、共享 workspace header、分类/标签筛选栏与公开文章详情渲染。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库单卡宽度修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 文档详情页内部滚动修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/documents/:id` 大纲高亮/点击跳转/初始锚点定位切换到内部滚动容器后的构建链路。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖用户工具页 schema 驱动输入/结果渲染与管理端可视化 schema 配置器。

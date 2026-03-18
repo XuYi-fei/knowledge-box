@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "knowledge-box.agent-config.v1",
+  "agents": [
+    {
+      "profileCode": "default-main",
+      "profileName": "Default Main Agent",
+      "description": "Public chat entry for the knowledge box.",
+      "agentType": "MAIN",
+      "status": "PUBLISHED",
+      "published": true,
+      "chatModel": "qwen-max",
+      "routingModel": "qwen-plus",
+      "embeddingModel": "text-embedding-v3",
+      "rerankModel": "gte-rerank",
+      "temperature": 0.2,
+      "retrievalTopK": 6,
+      "reasoningBudget": 1,
+      "systemPrompt": "You are the main public supervisor agent for the knowledge base.",
+      "toolCodes": [],
+      "skillCodes": [],
+      "mcpBindings": [],
+      "childAgentProfileCodes": [
+        "kb-researcher"
+      ]
+    },
+    {
+      "profileCode": "kb-researcher",
+      "profileName": "KB Researcher",
+      "description": "Atomic researcher agent that can be delegated by the main agent.",
+      "agentType": "ATOMIC",
+      "status": "DRAFT",
+      "published": false,
+      "chatModel": "qwen-plus",
+      "routingModel": "qwen-plus",
+      "embeddingModel": "text-embedding-v3",
+      "rerankModel": "gte-rerank",
+      "temperature": 0.2,
+      "retrievalTopK": 6,
+      "reasoningBudget": 1,
+      "systemPrompt": "You are the KB researcher agent in the knowledge box system.",
+      "toolCodes": [],
+      "skillCodes": [],
+      "mcpBindings": [],
+      "childAgentProfileCodes": []
+    }
+  ]
+}

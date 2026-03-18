@@ -394,6 +394,74 @@ export type AgentProfileVersionBindings = {
   childAgentBindings: AgentProfileVersionAgentBinding[];
 };
 
+export type AgentProfileImportDecisionAction = 'CREATE' | 'SKIP' | 'OVERWRITE_EXISTING';
+
+export type AgentConfigMcpBinding = {
+  mcpCode: string;
+  enableTools: string[];
+  disableTools: string[];
+};
+
+export type AgentConfigSnapshot = {
+  profileCode: string;
+  profileName: string;
+  description: string | null;
+  agentType: AgentProfileVersion['agentType'];
+  status: AgentProfileVersion['status'];
+  published: boolean;
+  chatModel: string;
+  routingModel: string;
+  embeddingModel: string;
+  rerankModel: string | null;
+  temperature: number;
+  retrievalTopK: number;
+  reasoningBudget: number;
+  systemPrompt: string;
+  toolCodes: string[];
+  skillCodes: string[];
+  mcpBindings: AgentConfigMcpBinding[];
+  childAgentProfileCodes: string[];
+};
+
+export type AgentProfileImportPreviewItem = {
+  profileCode: string;
+  status: 'READY_CREATE' | 'CODE_CONFLICT' | 'NAME_CONFLICT' | 'VALIDATION_ERROR' | (string & {});
+  availableActions: AgentProfileImportDecisionAction[];
+  defaultAction: AgentProfileImportDecisionAction | null;
+  messages: string[];
+  incoming: AgentConfigSnapshot;
+  existing: AgentConfigSnapshot | null;
+};
+
+export type AgentProfileImportPreview = {
+  previewToken: string;
+  schemaVersion: string;
+  totalCount: number;
+  creatableCount: number;
+  codeConflictCount: number;
+  nameConflictCount: number;
+  validationErrorCount: number;
+  globalMessages: string[];
+  items: AgentProfileImportPreviewItem[];
+};
+
+export type AgentProfileImportCommitDecision = {
+  profileCode: string;
+  action: AgentProfileImportDecisionAction;
+};
+
+export type AgentProfileImportCommitRequest = {
+  previewToken: string;
+  decisions: AgentProfileImportCommitDecision[];
+};
+
+export type AgentProfileImportCommitResult = {
+  createdCount: number;
+  overwrittenCount: number;
+  skippedCount: number;
+  messages: string[];
+};
+
 export type WebhookSubscription = {
   id: number;
   eventType: string;

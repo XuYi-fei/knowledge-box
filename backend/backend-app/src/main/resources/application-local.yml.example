@@ -112,6 +112,14 @@ knowledge-box:
       seed-directory-recursive: ${KB_DOCUMENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE:true}
       fail-fast: ${KB_DOCUMENT_BOOTSTRAP_FAIL_FAST:false}
       operator-username: ${KB_DOCUMENT_BOOTSTRAP_OPERATOR_USERNAME:admin}
+  agent:
+    bootstrap:
+      enabled: ${KB_AGENT_BOOTSTRAP_ENABLED:false}
+      seed-file: ${KB_AGENT_BOOTSTRAP_SEED_FILE:}
+      seed-directory: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY:}
+      seed-directory-pattern: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY_PATTERN:*.json}
+      seed-directory-recursive: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE:true}
+      fail-fast: ${KB_AGENT_BOOTSTRAP_FAIL_FAST:false}
   integration:
     crypto:
       # 强烈建议使用长度足够的随机值；也可使用 base64: 前缀传入 Base64 编码值

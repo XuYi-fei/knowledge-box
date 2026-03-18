@@ -53,4 +53,5 @@
     <include file="db/changelog/db.changelog-046-agent-subagent-binding-release-note.xml"/>
     <include file="db/changelog/db.changelog-047-agent-main-profile.xml"/>
     <include file="db/changelog/db.changelog-048-agent-main-profile-release-note.xml"/>
+    <include file="db/changelog/db.changelog-049-agent-config-import-export-release-note.xml"/>
 </databaseChangeLog>

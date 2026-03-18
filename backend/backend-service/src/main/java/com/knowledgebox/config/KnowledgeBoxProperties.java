@@ -16,6 +16,7 @@ public class KnowledgeBoxProperties {
     private final Chat chat = new Chat();
     private final Retrieval retrieval = new Retrieval();
     private final Document document = new Document();
+    private final Agent agent = new Agent();
     private final Integration integration = new Integration();
     private final Observability observability = new Observability();
     private final Web web = new Web();
@@ -50,6 +51,10 @@ public class KnowledgeBoxProperties {
 
     public Document getDocument() {
         return document;
+    }
+
+    public Agent getAgent() {
+        return agent;
     }
 
     public Integration getIntegration() {
@@ -563,6 +568,14 @@ public class KnowledgeBoxProperties {
         public Taxonomy getTaxonomy() {
             return taxonomy;
         }
+
+        public Bootstrap getBootstrap() {
+            return bootstrap;
+        }
+    }
+
+    public static class Agent {
+        private final Bootstrap bootstrap = new Bootstrap();
 
         public Bootstrap getBootstrap() {
             return bootstrap;

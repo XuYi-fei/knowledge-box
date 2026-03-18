@@ -77,3 +77,4 @@
 - JPA 原生查询在 `JOIN` 多表并返回实体时，`SELECT` 需显式限定到目标表别名（如 `SELECT dc.*`）；直接 `SELECT *` 很容易触发 `NonUniqueDiscoveredSqlAliasException`。
 - 带 `timeout` 的工具/任务执行不要把“查询配置 + 实际执行 + 审计落库”整段包进单个长事务；超时分支还需显式 `cancel`/中断后台任务，避免前台已超时但后台继续跑。
 - 公开文库目录若底层存在不同 `importKey` 但标题和正文完全相同的公开文档，展示层需按“分类 + 标题 + 正文指纹”去重，否则分类计数和列表会把同一篇文章重复展示。
+- Agent 配置导入/导出与启动 bootstrap 统一使用 `profileCode` 作为稳定业务标识；跨环境迁移不要依赖数据库自增 `id`，重复 `profileCode` / `profileName` 启动期默认保留数据库现状。

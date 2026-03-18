@@ -1,6 +1,10 @@
 package com.knowledgebox.web.admin;
 
 import com.knowledgebox.api.AdminDashboardView;
+import com.knowledgebox.api.AgentConfigExportView;
+import com.knowledgebox.api.AgentImportCommitRequest;
+import com.knowledgebox.api.AgentImportCommitResultView;
+import com.knowledgebox.api.AgentImportPreviewView;
 import com.knowledgebox.api.CreateAgentProfileRequest;
 import com.knowledgebox.api.AppToolDefinitionView;
 import com.knowledgebox.api.AppToolExecutionLogPageView;
@@ -28,6 +32,7 @@ import com.knowledgebox.api.UpdateSkillBindingRequest;
 import com.knowledgebox.api.UpdateToolDefinitionRequest;
 import com.knowledgebox.api.WebhookSubscriptionView;
 import com.knowledgebox.service.admin.AdminCommandService;
+import com.knowledgebox.service.admin.AgentConfigAdminService;
 import com.knowledgebox.service.admin.AgentExecutionTraceAdminService;
 import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
 import com.knowledgebox.service.admin.AdminQueryService;
@@ -58,6 +63,7 @@ public class AdminController {
     private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
     private final AgentExecutionTraceAdminService agentExecutionTraceAdminService;
     private final AdminCommandService adminCommandService;
+    private final AgentConfigAdminService agentConfigAdminService;
     private final IntegrationAdminService integrationAdminService;
     private final AgentProfileBindingService agentProfileBindingService;
     private final AppToolAdminService appToolAdminService;
@@ -67,6 +73,7 @@ public class AdminController {
             AgentExecutionTraceQueryService agentExecutionTraceQueryService,
             AgentExecutionTraceAdminService agentExecutionTraceAdminService,
             AdminCommandService adminCommandService,
+            AgentConfigAdminService agentConfigAdminService,
             IntegrationAdminService integrationAdminService,
             AgentProfileBindingService agentProfileBindingService,
             AppToolAdminService appToolAdminService
@@ -75,6 +82,7 @@ public class AdminController {
         this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
         this.agentExecutionTraceAdminService = agentExecutionTraceAdminService;
         this.adminCommandService = adminCommandService;
+        this.agentConfigAdminService = agentConfigAdminService;
         this.integrationAdminService = integrationAdminService;
         this.agentProfileBindingService = agentProfileBindingService;
         this.appToolAdminService = appToolAdminService;
@@ -111,6 +119,21 @@ public class AdminController {
     @PostMapping("/profile-versions")
     public AgentProfileVersionView createProfileVersion(@Valid @RequestBody CreateAgentProfileRequest request) {
         return adminCommandService.createProfile(request);
+    }
+
+    @GetMapping("/profile-versions/export")
+    public AgentConfigExportView exportProfiles() {
+        return agentConfigAdminService.exportCurrentProfiles();
+    }
+
+    @PostMapping(path = "/profile-versions/import/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public AgentImportPreviewView previewProfileImport(@RequestParam("file") MultipartFile file) {
+        return agentConfigAdminService.previewImport(file);
+    }
+
+    @PostMapping("/profile-versions/import/commit")
+    public AgentImportCommitResultView commitProfileImport(@Valid @RequestBody AgentImportCommitRequest request) {
+        return agentConfigAdminService.commitImport(request);
     }
 
     @PutMapping("/profile-versions/{id}")

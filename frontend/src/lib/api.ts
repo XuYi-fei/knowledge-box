@@ -1,6 +1,9 @@
 import {
   AboutReleaseNote,
   BatchDocumentReviewActionResult,
+  AgentProfileImportCommitRequest,
+  AgentProfileImportCommitResult,
+  AgentProfileImportPreview,
   AgentExecutionTraceDetail,
   AgentExecutionTracePage,
   AgentExecutionTraceSummary,
@@ -157,6 +160,11 @@ type UpdateSkillPayload = {
 
 type AuthMode = 'admin' | 'user' | 'none';
 
+type BlobResponse = {
+  blob: Blob;
+  fileName: string | null;
+};
+
 export function buildApiUrl(path: string) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   if (!API_BASE_URL) {
@@ -268,6 +276,110 @@ async function requestJson<T>(path: string, init?: RequestInit, authMode: AuthMo
     throw new ApiRequestError(`Request failed: ${response.status}`, { status: response.status, path });
   }
   return responseBody as T;
+}
+
+function buildRequestHeaders(init: RequestInit | undefined, authMode: AuthMode, path: string) {
+  const headers = new Headers(init?.headers);
+  if (authMode === 'admin') {
+    const token = getAdminAuthToken();
+    if (!token) {
+      throw new ApiRequestError('请先登录管理后台', {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        path,
+      });
+    }
+    headers.set('Authorization', `Basic ${token}`);
+  }
+  if (authMode === 'user') {
+    const accessToken = getUserAccessToken();
+    if (!accessToken) {
+      throw new ApiRequestError('请先登录后再继续操作', {
+        status: 401,
+        code: 'UNAUTHORIZED',
+        path,
+      });
+    }
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+  return headers;
+}
+
+function extractFileNameFromDisposition(disposition: string | null) {
+  if (!disposition) {
+    return null;
+  }
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+  const quotedMatch = disposition.match(/filename="([^"]+)"/i);
+  if (quotedMatch?.[1]) {
+    return quotedMatch[1];
+  }
+  const plainMatch = disposition.match(/filename=([^;]+)/i);
+  return plainMatch?.[1]?.trim() ?? null;
+}
+
+async function requestBlob(path: string, init?: RequestInit, authMode: AuthMode = 'none'): Promise<BlobResponse> {
+  const headers = buildRequestHeaders(init, authMode, path);
+  const response = await fetch(buildApiUrl(path), {
+    ...init,
+    headers,
+  });
+
+  if (authMode === 'admin' && response.status === 401) {
+    clearAdminAuthToken();
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+      window.location.replace('/admin/login');
+    }
+    throw new ApiRequestError('管理员认证失败，请重新登录，并确认账号密码与后端配置一致', {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      path,
+    });
+  }
+
+  if (authMode === 'user' && response.status === 401) {
+    clearUserAuthSession();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      window.location.replace('/login');
+    }
+    throw new ApiRequestError('登录状态已失效，请重新登录', {
+      status: 401,
+      code: 'UNAUTHORIZED',
+      path,
+    });
+  }
+
+  if (!response.ok) {
+    const responseText = await response.text();
+    let responseBody: unknown = undefined;
+    if (responseText) {
+      try {
+        responseBody = JSON.parse(responseText) as unknown;
+      } catch {
+        responseBody = responseText;
+      }
+    }
+    if (isApiErrorPayload(responseBody)) {
+      throw new ApiRequestError(responseBody.message ?? `Request failed: ${response.status}`, {
+        status: responseBody.status ?? response.status,
+        code: responseBody.code,
+        path: responseBody.path ?? path,
+        fieldErrors: responseBody.fieldErrors,
+      });
+    }
+    if (typeof responseBody === 'string' && responseBody.trim()) {
+      throw new ApiRequestError(responseBody, { status: response.status, path });
+    }
+    throw new ApiRequestError(`Request failed: ${response.status}`, { status: response.status, path });
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName: extractFileNameFromDisposition(response.headers.get('content-disposition')),
+  };
 }
 
 export const api = {
@@ -415,6 +527,31 @@ export const api = {
   },
   async profileVersions() {
     return requestJson<AgentProfileVersion[]>('/api/admin/profile-versions', undefined, 'admin');
+  },
+  async exportProfileVersions() {
+    return requestBlob('/api/admin/profile-versions/export', undefined, 'admin');
+  },
+  async previewProfileVersionImport(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestJson<AgentProfileImportPreview>(
+      '/api/admin/profile-versions/import/preview',
+      {
+        method: 'POST',
+        body: formData,
+      },
+      'admin',
+    );
+  },
+  async commitProfileVersionImport(payload: AgentProfileImportCommitRequest) {
+    return requestJson<AgentProfileImportCommitResult>(
+      '/api/admin/profile-versions/import/commit',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
   },
   async createProfile(payload: CreateProfilePayload) {
     return requestJson<AgentProfileVersion>(

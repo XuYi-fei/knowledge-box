@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="049-001-agent-config-import-export-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.21',
+                'Agent 支持 JSON 导入导出与启动预置',
+                'Agent 现在可以导出为 JSON 快照，也能通过后台或启动配置按规则导入并处理冲突。',
+                E'## 本次更新\n\n- 管理端新增 Agent 全量导出与 JSON 导入预览，可查看冲突并决定跳过或覆盖\n- 新增启动期 Agent bootstrap 配置，支持通过外置 seed file / seed directory 在系统启动时自动创建缺失 Agent\n- 导入链路会校验 MAIN 唯一性、子 Agent 依赖关系以及 Tool / MCP / Skill / 模型依赖是否可用，避免把非法配置写入系统',
+                TIMESTAMPTZ '2026-03-21 12:00:00+08',
+                -15,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.21'
+                   AND title = 'Agent 支持 JSON 导入导出与启动预置'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

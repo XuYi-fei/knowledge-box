@@ -462,6 +462,94 @@ export type AgentProfileImportCommitResult = {
   messages: string[];
 };
 
+export type ConfigBundleResourceType = 'AGENT' | 'TOOL' | 'MCP' | 'SKILL';
+
+export type ConfigBundleImportDecisionAction = AgentProfileImportDecisionAction;
+
+export type ConfigBundleImportItemStatus = AgentProfileImportPreviewItem['status'];
+
+export type ConfigBundleToolConfig = {
+  code: string;
+  name: string;
+  className: string;
+  beanName: string | null;
+  configJson: string;
+  enabled: boolean;
+};
+
+export type ConfigBundleMcpServerConfig = {
+  code: string;
+  transportType: string;
+  target: string;
+  headers: Record<string, string>;
+  queryParams: Record<string, string>;
+  timeoutMs: number | null;
+  initializationTimeoutMs: number | null;
+  enabled: boolean;
+};
+
+export type ConfigBundleSkillConfig = {
+  code: string;
+  name: string;
+  description: string | null;
+  sourceType: string | null;
+  checksumMd5: string | null;
+  ossObjectKey: string | null;
+  packageLocation: string | null;
+  enabled: boolean;
+};
+
+export type ConfigBundleExport = {
+  schemaVersion: string;
+  exportedAt: string;
+  tools: ConfigBundleToolConfig[];
+  mcpServers: ConfigBundleMcpServerConfig[];
+  skills: ConfigBundleSkillConfig[];
+  agents: AgentConfigSnapshot[];
+};
+
+export type ConfigBundleImportPreviewItem = {
+  resourceType: ConfigBundleResourceType;
+  resourceCode: string;
+  displayName: string;
+  status: ConfigBundleImportItemStatus;
+  availableActions: ConfigBundleImportDecisionAction[];
+  defaultAction: ConfigBundleImportDecisionAction | null;
+  messages: string[];
+  incoming: Record<string, unknown> | null;
+  existing: Record<string, unknown> | null;
+};
+
+export type ConfigBundleImportPreview = {
+  previewToken: string;
+  schemaVersion: string;
+  totalCount: number;
+  creatableCount: number;
+  codeConflictCount: number;
+  nameConflictCount: number;
+  validationErrorCount: number;
+  globalMessages: string[];
+  items: ConfigBundleImportPreviewItem[];
+};
+
+export type ConfigBundleImportCommitDecision = {
+  resourceType: ConfigBundleResourceType;
+  resourceCode: string;
+  action: ConfigBundleImportDecisionAction;
+};
+
+export type ConfigBundleImportCommitRequest = {
+  previewToken: string;
+  decisions: ConfigBundleImportCommitDecision[];
+};
+
+export type ConfigBundleImportCommitResult = {
+  createdCount: number;
+  overwrittenCount: number;
+  skippedCount: number;
+  messages: string[];
+};
+
 export type WebhookSubscription = {
   id: number;
   eventType: string;

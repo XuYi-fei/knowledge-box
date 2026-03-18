@@ -30,16 +30,16 @@ public class AgentBootstrapImportRunner implements ApplicationRunner {
 
     private final KnowledgeBoxProperties properties;
     private final ResourceLoader resourceLoader;
-    private final AgentConfigAdminService agentConfigAdminService;
+    private final ConfigBundleAdminService configBundleAdminService;
 
     public AgentBootstrapImportRunner(
             KnowledgeBoxProperties properties,
             ResourceLoader resourceLoader,
-            AgentConfigAdminService agentConfigAdminService
+            ConfigBundleAdminService configBundleAdminService
     ) {
         this.properties = properties;
         this.resourceLoader = resourceLoader;
-        this.agentConfigAdminService = agentConfigAdminService;
+        this.configBundleAdminService = configBundleAdminService;
     }
 
     @Override
@@ -147,7 +147,7 @@ public class AgentBootstrapImportRunner implements ApplicationRunner {
             return new BootstrapSummary(0, 1, 0, List.of(message));
         }
         try (InputStream inputStream = resource.getInputStream()) {
-            AgentConfigAdminService.BootstrapImportResult result = agentConfigAdminService.importForBootstrap(
+            AgentConfigAdminService.BootstrapImportResult result = configBundleAdminService.importForBootstrap(
                     inputStream,
                     location,
                     failFast

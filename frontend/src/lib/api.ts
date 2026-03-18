@@ -29,6 +29,9 @@ import {
   DocumentTag,
   ChatStreamEvent,
   ChatResponse,
+  ConfigBundleImportCommitRequest,
+  ConfigBundleImportCommitResult,
+  ConfigBundleImportPreview,
   DashboardStats,
   IngestionJob,
   InlineImageUploadResult,
@@ -546,6 +549,31 @@ export const api = {
   async commitProfileVersionImport(payload: AgentProfileImportCommitRequest) {
     return requestJson<AgentProfileImportCommitResult>(
       '/api/admin/profile-versions/import/commit',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async exportConfigBundle() {
+    return requestBlob('/api/admin/config-bundles/export', undefined, 'admin');
+  },
+  async previewConfigBundleImport(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestJson<ConfigBundleImportPreview>(
+      '/api/admin/config-bundles/import/preview',
+      {
+        method: 'POST',
+        body: formData,
+      },
+      'admin',
+    );
+  },
+  async commitConfigBundleImport(payload: ConfigBundleImportCommitRequest) {
+    return requestJson<ConfigBundleImportCommitResult>(
+      '/api/admin/config-bundles/import/commit',
       {
         method: 'POST',
         body: JSON.stringify(payload),

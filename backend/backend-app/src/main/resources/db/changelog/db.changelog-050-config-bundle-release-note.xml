@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="050-001-about-release-note-config-bundle" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.22',
+                '统一配置 Bundle 支持 Agent/Tool/MCP/Skill 一体化导入导出',
+                '后台现在可以用一份 JSON Bundle 同时维护 Agent、Tool、MCP 和 Skill，并支持启动期导入。',
+                E'## 本次更新\n\n- 新增统一配置 Bundle 导入导出，可在一份 JSON 中同时描述 Agent、Tool、MCP 和 Skill\n- 管理端新增 Bundle 预览与冲突处理，导入前可查看每类资源的现有配置与即将写入的快照\n- 启动期 bootstrap 现在也支持 Bundle schema；Skill 可按约定从 `classpath:bootstrap/skills/<code>` 目录自动打包并上传到 OSS',
+                TIMESTAMPTZ '2026-03-22 12:00:00+08',
+                -16,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.22'
+                   AND title = '统一配置 Bundle 支持 Agent/Tool/MCP/Skill 一体化导入导出'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

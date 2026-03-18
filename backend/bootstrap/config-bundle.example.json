@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "knowledge-box.config-bundle.v1",
+  "tools": [
+    {
+      "code": "sample-tool",
+      "name": "Sample Tool",
+      "className": "com.example.tools.SampleTool",
+      "beanName": null,
+      "configJson": "{}",
+      "enabled": true
+    }
+  ],
+  "mcpServers": [
+    {
+      "code": "sample-mcp",
+      "transportType": "sse",
+      "target": "https://example.com/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer <token>"
+      },
+      "queryParams": {
+        "tenant": "knowledge-box"
+      },
+      "timeoutMs": 10000,
+      "initializationTimeoutMs": 10000,
+      "enabled": true
+    }
+  ],
+  "skills": [
+    {
+      "code": "sample-skill",
+      "name": "Sample Skill",
+      "description": "Package is resolved from the classpath folder of the same code by default.",
+      "sourceType": "UPLOAD",
+      "checksumMd5": null,
+      "ossObjectKey": null,
+      "packageLocation": "classpath:bootstrap/skills/sample-skill",
+      "enabled": true
+    }
+  ],
+  "agents": [
+    {
+      "profileCode": "default-main",
+      "profileName": "Default Main Agent",
+      "description": "Public chat entry for the knowledge box.",
+      "agentType": "MAIN",
+      "status": "PUBLISHED",
+      "published": true,
+      "chatModel": "qwen-max",
+      "routingModel": "qwen-plus",
+      "embeddingModel": "text-embedding-v3",
+      "rerankModel": "gte-rerank",
+      "temperature": 0.2,
+      "retrievalTopK": 6,
+      "reasoningBudget": 1,
+      "systemPrompt": "You are the main public supervisor agent for the knowledge base.",
+      "toolCodes": [
+        "sample-tool"
+      ],
+      "skillCodes": [
+        "sample-skill"
+      ],
+      "mcpBindings": [
+        {
+          "mcpCode": "sample-mcp",
+          "enableTools": [],
+          "disableTools": []
+        }
+      ],
+      "childAgentProfileCodes": []
+    }
+  ]
+}

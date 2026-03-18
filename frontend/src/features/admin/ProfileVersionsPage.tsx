@@ -6,12 +6,13 @@ import type { ColumnsType } from 'antd/es/table';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
 import {
-  AgentProfileImportCommitDecision,
-  AgentProfileImportDecisionAction,
-  AgentProfileImportPreview,
-  AgentProfileImportPreviewItem,
   AgentProfileVersion,
   AgentProfileVersionBindings,
+  ConfigBundleImportCommitDecision,
+  ConfigBundleImportDecisionAction,
+  ConfigBundleImportPreview,
+  ConfigBundleImportPreviewItem,
+  ConfigBundleResourceType,
   ModelCatalog,
   ModelType,
 } from '../../lib/types';
@@ -75,7 +76,7 @@ function normalizeMcpBindingsForForm(bindings: AgentProfileVersionBindings['mcpB
   return Array.from(normalized.values());
 }
 
-function importStatusColor(status: AgentProfileImportPreviewItem['status']) {
+function importStatusColor(status: ConfigBundleImportPreviewItem['status']) {
   if (status === 'READY_CREATE') {
     return 'green';
   }
@@ -91,7 +92,7 @@ function importStatusColor(status: AgentProfileImportPreviewItem['status']) {
   return 'blue';
 }
 
-function importStatusLabel(status: AgentProfileImportPreviewItem['status']) {
+function importStatusLabel(status: ConfigBundleImportPreviewItem['status']) {
   if (status === 'READY_CREATE') {
     return '可新建';
   }
@@ -107,7 +108,7 @@ function importStatusLabel(status: AgentProfileImportPreviewItem['status']) {
   return status;
 }
 
-function importActionLabel(action: AgentProfileImportDecisionAction) {
+function importActionLabel(action: ConfigBundleImportDecisionAction) {
   if (action === 'CREATE') {
     return '导入新建';
   }
@@ -117,15 +118,15 @@ function importActionLabel(action: AgentProfileImportDecisionAction) {
   return '跳过';
 }
 
-function hasValidationError(item: AgentProfileImportPreviewItem) {
+function hasValidationError(item: ConfigBundleImportPreviewItem) {
   return item.status === 'VALIDATION_ERROR';
 }
 
-function resolveAllowedImportActions(item: AgentProfileImportPreviewItem) {
+function resolveAllowedImportActions(item: ConfigBundleImportPreviewItem) {
   return item.availableActions ?? [];
 }
 
-function resolveDefaultImportAction(item: AgentProfileImportPreviewItem) {
+function resolveDefaultImportAction(item: ConfigBundleImportPreviewItem) {
   const allowedActions = resolveAllowedImportActions(item);
   if (item.defaultAction && allowedActions.includes(item.defaultAction)) {
     return item.defaultAction;
@@ -133,14 +134,38 @@ function resolveDefaultImportAction(item: AgentProfileImportPreviewItem) {
   return allowedActions[0];
 }
 
-function buildImportDecisions(preview: AgentProfileImportPreview) {
-  return preview.items.reduce<Record<string, AgentProfileImportDecisionAction>>((acc, item) => {
+function buildImportItemKey(item: Pick<ConfigBundleImportPreviewItem, 'resourceType' | 'resourceCode'>) {
+  return `${item.resourceType}:${item.resourceCode}`;
+}
+
+function buildImportDecisions(preview: ConfigBundleImportPreview) {
+  return preview.items.reduce<Record<string, ConfigBundleImportDecisionAction>>((acc, item) => {
     const action = resolveDefaultImportAction(item);
     if (action) {
-      acc[item.profileCode] = action;
+      acc[buildImportItemKey(item)] = action;
     }
     return acc;
   }, {});
+}
+
+function resourceTypeColor(resourceType: ConfigBundleResourceType) {
+  if (resourceType === 'AGENT') {
+    return 'volcano';
+  }
+  if (resourceType === 'TOOL') {
+    return 'blue';
+  }
+  if (resourceType === 'MCP') {
+    return 'cyan';
+  }
+  return 'purple';
+}
+
+function stringifyPreviewJson(value: Record<string, unknown> | null) {
+  if (!value) {
+    return null;
+  }
+  return JSON.stringify(value, null, 2);
 }
 
 export function ProfileVersionsPage() {
@@ -167,9 +192,9 @@ export function ProfileVersionsPage() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [bindingsModalOpen, setBindingsModalOpen] = useState(false);
-  const [importPreview, setImportPreview] = useState<AgentProfileImportPreview | null>(null);
+  const [importPreview, setImportPreview] = useState<ConfigBundleImportPreview | null>(null);
   const [importFileName, setImportFileName] = useState<string | null>(null);
-  const [importDecisions, setImportDecisions] = useState<Record<string, AgentProfileImportDecisionAction>>({});
+  const [importDecisions, setImportDecisions] = useState<Record<string, ConfigBundleImportDecisionAction>>({});
   const selectedModelType = Form.useWatch('modelType', modelForm);
 
   const { data = [] } = useQuery({
@@ -365,21 +390,21 @@ export function ProfileVersionsPage() {
   });
 
   const exportProfilesMutation = useMutation({
-    mutationFn: api.exportProfileVersions,
+    mutationFn: api.exportConfigBundle,
     onSuccess: ({ blob, fileName }) => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = downloadUrl;
-      anchor.download = fileName || 'agent-profile-versions-export.json';
+      anchor.download = fileName || 'knowledge-box-config-bundle.json';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       window.URL.revokeObjectURL(downloadUrl);
-      message.success('Agent JSON 已开始下载');
+      message.success('配置 Bundle 已开始下载');
     },
     onError: (error) => {
       modal.error({
-        title: '导出 Agent JSON 失败',
+        title: '导出配置 Bundle 失败',
         content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请稍后重试，或检查管理端登录状态')}</pre>,
         okText: '知道了',
       });
@@ -387,7 +412,7 @@ export function ProfileVersionsPage() {
   });
 
   const previewImportMutation = useMutation({
-    mutationFn: (file: File) => api.previewProfileVersionImport(file),
+    mutationFn: (file: File) => api.previewConfigBundleImport(file),
     onSuccess: (preview, file) => {
       setImportPreview(preview);
       setImportFileName(file.name);
@@ -399,7 +424,7 @@ export function ProfileVersionsPage() {
       setImportDecisions({});
       modal.error({
         title: '导入预览失败',
-        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查 JSON 文件格式和内容后重试')}</pre>,
+        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查 Bundle JSON、Skill 路径和资源依赖后重试')}</pre>,
         okText: '知道了',
       });
     },
@@ -410,17 +435,18 @@ export function ProfileVersionsPage() {
       if (!importPreview) {
         throw new Error('当前没有可提交的导入预览');
       }
-      const decisions: AgentProfileImportCommitDecision[] = importPreview.items.map((item) => ({
-        profileCode: item.profileCode,
-        action: importDecisions[item.profileCode] ?? resolveDefaultImportAction(item) ?? 'SKIP',
+      const decisions: ConfigBundleImportCommitDecision[] = importPreview.items.map((item) => ({
+        resourceType: item.resourceType,
+        resourceCode: item.resourceCode,
+        action: importDecisions[buildImportItemKey(item)] ?? resolveDefaultImportAction(item) ?? 'SKIP',
       }));
-      return api.commitProfileVersionImport({
+      return api.commitConfigBundleImport({
         previewToken: importPreview.previewToken,
         decisions,
       });
     },
     onSuccess: (result) => {
-      message.success(result.messages[0] || 'Agent 导入已提交');
+      message.success(result.messages[0] || '配置 Bundle 导入已提交');
       setImportPreview(null);
       setImportFileName(null);
       setImportDecisions({});
@@ -428,7 +454,7 @@ export function ProfileVersionsPage() {
     },
     onError: (error) => {
       modal.error({
-        title: '提交 Agent 导入失败',
+        title: '提交配置 Bundle 导入失败',
         content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查预览结果与处理动作后重试')}</pre>,
         okText: '知道了',
       });
@@ -487,23 +513,23 @@ export function ProfileVersionsPage() {
     { label: 'ATOMIC', value: 'ATOMIC' },
   ];
 
-  const importPreviewColumns: ColumnsType<AgentProfileImportPreviewItem> = [
+  const importPreviewColumns: ColumnsType<ConfigBundleImportPreviewItem> = [
     {
-      title: 'Agent',
-      key: 'agent',
+      title: '资源',
+      key: 'resource',
       render: (_, record) => (
         <Space direction="vertical" size={2}>
-          <Typography.Text strong>{record.incoming.profileName || record.profileCode}</Typography.Text>
-          <Typography.Text type="secondary">{record.profileCode}</Typography.Text>
+          <Typography.Text strong>{record.displayName || record.resourceCode}</Typography.Text>
+          <Typography.Text type="secondary">{record.resourceType}:{record.resourceCode}</Typography.Text>
         </Space>
       ),
     },
     {
-      title: '类型 / 版本',
-      key: 'agentType',
+      title: '资源类型',
+      key: 'resourceType',
       render: (_, record) => (
         <Space direction="vertical" size={4}>
-          <Tag color={agentTypeColor(record.incoming.agentType)}>{record.incoming.agentType}</Tag>
+          <Tag color={resourceTypeColor(record.resourceType)}>{record.resourceType}</Tag>
           <Typography.Text type="secondary">{record.existing ? '已存在配置' : '新增配置'}</Typography.Text>
         </Space>
       ),
@@ -511,7 +537,7 @@ export function ProfileVersionsPage() {
     {
       title: '状态',
       dataIndex: 'status',
-      render: (value: AgentProfileImportPreviewItem['status']) => <Tag color={importStatusColor(value)}>{importStatusLabel(value)}</Tag>,
+      render: (value: ConfigBundleImportPreviewItem['status']) => <Tag color={importStatusColor(value)}>{importStatusLabel(value)}</Tag>,
     },
     {
       title: '预览信息',
@@ -519,19 +545,33 @@ export function ProfileVersionsPage() {
       render: (_, record) => (
         <Space direction="vertical" size={6} style={{ width: '100%' }}>
           <Typography.Text>
-            {record.existing
-              ? `现有: ${record.existing.profileName} / ${record.existing.agentType} / ${record.existing.chatModel}`
-              : '数据库中不存在同 code Agent，将按快照新建'}
+            {record.existing ? '数据库中已存在同编码或相关配置' : '数据库中不存在同编码资源，将按快照新建'}
           </Typography.Text>
           {record.messages.length ? (
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {record.messages.map((messageText) => (
-                <li key={`${record.profileCode}-${messageText}`}>{messageText}</li>
+                <li key={`${record.resourceType}-${record.resourceCode}-${messageText}`}>{messageText}</li>
               ))}
             </ul>
           ) : (
             <Typography.Text type="secondary">无冲突或校验错误</Typography.Text>
           )}
+          {record.incoming ? (
+            <div>
+              <Typography.Text strong>导入快照</Typography.Text>
+              <pre style={{ margin: '6px 0 0', maxHeight: 220, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {stringifyPreviewJson(record.incoming)}
+              </pre>
+            </div>
+          ) : null}
+          {record.existing ? (
+            <div>
+              <Typography.Text strong>现有配置</Typography.Text>
+              <pre style={{ margin: '6px 0 0', maxHeight: 220, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {stringifyPreviewJson(record.existing)}
+              </pre>
+            </div>
+          ) : null}
         </Space>
       ),
     },
@@ -545,7 +585,7 @@ export function ProfileVersionsPage() {
         }
         return (
           <Select
-            value={importDecisions[record.profileCode] ?? resolveDefaultImportAction(record)}
+            value={importDecisions[buildImportItemKey(record)] ?? resolveDefaultImportAction(record)}
             style={{ width: 160 }}
             options={allowedActions.map((action) => ({
               label: importActionLabel(action),
@@ -554,7 +594,7 @@ export function ProfileVersionsPage() {
             onChange={(value) => {
               setImportDecisions((current) => ({
                 ...current,
-                [record.profileCode]: value,
+                [buildImportItemKey(record)]: value,
               }));
             }}
           />
@@ -589,7 +629,7 @@ export function ProfileVersionsPage() {
       if (allowedActions.length === 0) {
         return false;
       }
-      const action = importDecisions[item.profileCode] ?? resolveDefaultImportAction(item);
+      const action = importDecisions[buildImportItemKey(item)] ?? resolveDefaultImportAction(item);
       return Boolean(action && allowedActions.includes(action));
     });
   }, [importDecisions, importPreview]);
@@ -763,17 +803,17 @@ export function ProfileVersionsPage() {
         extra={
           <Space size={12} wrap>
             <Typography.Text type="secondary">
-              公开对话只会命中唯一的 `MAIN` 已发布版本；新增 Agent 默认用于内部编排或子 Agent 能力。
+              公开对话只会命中唯一的 `MAIN` 已发布版本；导入导出现在使用统一配置 Bundle，包含 Agent、Tool、MCP 和 Skill。
             </Typography.Text>
             <Button onClick={() => exportProfilesMutation.mutate()} loading={exportProfilesMutation.isPending}>
-              导出 Agent JSON
+              导出配置 Bundle
             </Button>
             <Button
               onClick={() => importInputRef.current?.click()}
               loading={previewImportMutation.isPending}
               disabled={commitImportMutation.isPending}
             >
-              导入 Agent JSON
+              导入配置 Bundle
             </Button>
             <Button type="primary" onClick={openCreateModal} disabled={!defaultChatModel || !defaultEmbeddingModel}>
               新增 Agent
@@ -810,7 +850,7 @@ export function ProfileVersionsPage() {
 
       <Modal
         open={Boolean(importPreview)}
-        title="导入 Agent JSON 预览"
+        title="导入配置 Bundle 预览"
         onCancel={closeImportPreview}
         onOk={() => commitImportMutation.mutate()}
         okText="确认导入"
@@ -826,7 +866,7 @@ export function ProfileVersionsPage() {
               <Descriptions.Item label="预览文件">{importFileName || '-'}</Descriptions.Item>
               <Descriptions.Item label="Preview Token">{importPreview.previewToken}</Descriptions.Item>
               <Descriptions.Item label="Schema">{importPreview.schemaVersion}</Descriptions.Item>
-              <Descriptions.Item label="总 Agent 数">{importSummary?.totalCount ?? importPreview.totalCount}</Descriptions.Item>
+              <Descriptions.Item label="总资源数">{importSummary?.totalCount ?? importPreview.totalCount}</Descriptions.Item>
               <Descriptions.Item label="可新建">{importSummary?.creatableCount ?? importPreview.creatableCount}</Descriptions.Item>
               <Descriptions.Item label="Code 冲突">{importSummary?.codeConflictCount ?? importPreview.codeConflictCount}</Descriptions.Item>
               <Descriptions.Item label="Name 冲突">{importSummary?.nameConflictCount ?? importPreview.nameConflictCount}</Descriptions.Item>
@@ -840,7 +880,7 @@ export function ProfileVersionsPage() {
                 type="warning"
                 showIcon
                 message="当前预览仍存在阻塞项，暂时不能提交"
-                description="如果某些 Agent 处于 VALIDATION_ERROR，或当前条目没有合法处理动作，就需要先修正导入文件后再提交。"
+                description="如果某些资源处于 VALIDATION_ERROR，或当前条目没有合法处理动作，就需要先修正导入文件后再提交。"
               />
             ) : null}
 
@@ -858,15 +898,15 @@ export function ProfileVersionsPage() {
                 )}
               />
             ) : (
-              <Alert type="info" showIcon message="预览加载完成" description="请逐项确认冲突 Agent 的处理动作，再提交导入。" />
+              <Alert type="info" showIcon message="预览加载完成" description="请逐项确认冲突资源的处理动作，再提交导入。" />
             )}
 
             <Table
-              rowKey="profileCode"
+              rowKey={(record) => buildImportItemKey(record)}
               columns={importPreviewColumns}
               dataSource={importPreview.items}
               pagination={false}
-              locale={{ emptyText: <Empty description="当前预览没有 Agent 条目" /> }}
+              locale={{ emptyText: <Empty description="当前预览没有可导入资源" /> }}
               scroll={{ x: 980 }}
             />
           </Space>

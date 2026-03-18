@@ -27,6 +27,7 @@
 - `mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 已通过，覆盖聊天编排、文档治理、工具平台、Trace 与公开文档接口。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 已通过，覆盖 Agent 运行时环境变量、配置 Bundle v2 与 web-search 子 Agent 装配回归。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 已通过，覆盖 Agent 运行时环境变量启动自检、必填 requirement 校验与 fail-fast 启动保护。
+- Agent 运行时 `PROCESS_ENV` 现已支持在缺少宿主环境变量时回退读取 Spring `Environment`，因此可直接从 `application-local.yml` 读取 `KB_TAVILY_API_KEY` 这类配置做本地启动联调。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 已通过，覆盖 Agent 创建删除、`MAIN` 唯一性与公开入口校验。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。

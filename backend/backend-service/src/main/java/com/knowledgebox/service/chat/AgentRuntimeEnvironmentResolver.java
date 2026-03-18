@@ -7,6 +7,7 @@ import com.knowledgebox.service.integration.IntegrationSecretCipherService;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -15,13 +16,16 @@ public class AgentRuntimeEnvironmentResolver {
 
     private final AgentProfileVersionEnvVarRepository envVarRepository;
     private final IntegrationSecretCipherService secretCipherService;
+    private final Environment environment;
 
     public AgentRuntimeEnvironmentResolver(
             AgentProfileVersionEnvVarRepository envVarRepository,
-            IntegrationSecretCipherService secretCipherService
+            IntegrationSecretCipherService secretCipherService,
+            Environment environment
     ) {
         this.envVarRepository = envVarRepository;
         this.secretCipherService = secretCipherService;
+        this.environment = environment;
     }
 
     public List<AgentProfileVersionEnvVar> listByProfileVersionId(Long profileVersionId) {
@@ -62,7 +66,12 @@ public class AgentRuntimeEnvironmentResolver {
             if (!StringUtils.hasText(envVar.getSourceRef())) {
                 return null;
             }
-            return System.getenv(envVar.getSourceRef().trim());
+            String sourceRef = envVar.getSourceRef().trim();
+            String processEnvValue = System.getenv(sourceRef);
+            if (StringUtils.hasText(processEnvValue)) {
+                return processEnvValue;
+            }
+            return environment.getProperty(sourceRef);
         }
         if (!StringUtils.hasText(envVar.getValueEncrypted())) {
             return null;

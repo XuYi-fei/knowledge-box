@@ -27,6 +27,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.springframework.core.env.Environment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -56,6 +57,7 @@ public class AgentRuntimeEnvStartupCheckRunner implements ApplicationRunner {
     private final McpServerConfigRepository mcpServerConfigRepository;
     private final AgentRuntimeEnvironmentResolver environmentResolver;
     private final ObjectMapper objectMapper;
+    private final Environment environment;
 
     public AgentRuntimeEnvStartupCheckRunner(
             KnowledgeBoxProperties properties,
@@ -68,7 +70,8 @@ public class AgentRuntimeEnvStartupCheckRunner implements ApplicationRunner {
             SkillBindingRepository skillBindingRepositoryRef,
             McpServerConfigRepository mcpServerConfigRepository,
             AgentRuntimeEnvironmentResolver environmentResolver,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            Environment environment
     ) {
         this.properties = properties;
         this.agentProfileVersionRepository = agentProfileVersionRepository;
@@ -81,6 +84,7 @@ public class AgentRuntimeEnvStartupCheckRunner implements ApplicationRunner {
         this.mcpServerConfigRepository = mcpServerConfigRepository;
         this.environmentResolver = environmentResolver;
         this.objectMapper = objectMapper;
+        this.environment = environment;
     }
 
     @Override
@@ -143,7 +147,7 @@ public class AgentRuntimeEnvStartupCheckRunner implements ApplicationRunner {
             keys.add(key.trim());
         }
         for (String key : keys) {
-            if (!StringUtils.hasText(System.getenv(key))) {
+            if (!StringUtils.hasText(resolveExternalValue(key))) {
                 issues.add("宿主环境变量缺失: " + key);
             }
         }
@@ -211,7 +215,7 @@ public class AgentRuntimeEnvStartupCheckRunner implements ApplicationRunner {
                 return;
             }
             String sourceRef = envVar.getSourceRef().trim();
-            if (!StringUtils.hasText(System.getenv(sourceRef))) {
+            if (!StringUtils.hasText(resolveExternalValue(sourceRef))) {
                 issues.add(agentLabel + " envVar " + envKey + " 缺少宿主环境变量 " + sourceRef);
             }
             return;
@@ -264,6 +268,18 @@ public class AgentRuntimeEnvStartupCheckRunner implements ApplicationRunner {
             return null;
         }
         return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String resolveExternalValue(String key) {
+        if (!StringUtils.hasText(key)) {
+            return null;
+        }
+        String trimmed = key.trim();
+        String processEnvValue = System.getenv(trimmed);
+        if (StringUtils.hasText(processEnvValue)) {
+            return processEnvValue;
+        }
+        return environment.getProperty(trimmed);
     }
 
     record StartupCheckReport(int checkedAgents, List<String> issues) {

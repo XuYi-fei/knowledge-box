@@ -14,6 +14,7 @@
 - 统一配置 Bundle 已升级到 `knowledge-box.config-bundle.v2`，可同时维护 Tool/MCP/Skill 的 `runtimeEnvRequirements` 与 Agent 的 `envVars`。
 - Agent Profile Version 绑定页现已支持编辑运行时环境变量，区分 `INLINE / PROCESS_ENV` 两种来源；非 secret inline 值会正常回显，secret inline 值以掩码保留。
 - 系统启动期现已支持通过 `knowledge-box.agent.runtime-env-check.*` 做 Agent 运行时环境变量自检，并可按 `fail-fast` 决定是否阻止启动。
+- 运行时环境变量解析现已支持从 Spring `Environment` 回退取值，本地可直接在 `application-local.yml` 配置与 `sourceRef` 同名的 key 做联调，无需额外导出 shell 环境变量。
 - 系统启动期 bootstrap 现已支持统一配置 Bundle schema；Skill 可按约定从 `classpath:bootstrap/skills/<code>` 或显式 `packageLocation` 目录自动打包并上传到 OSS。
 - 系统启动期已支持通过 `knowledge-box.agent.bootstrap.*` 从外置 JSON seed file / seed directory 自动创建缺失 Agent，并在重复 `profileCode` / `profileName` 时保留数据库现状并记录告警。
 - Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。

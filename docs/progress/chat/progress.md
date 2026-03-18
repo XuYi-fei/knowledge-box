@@ -12,6 +12,7 @@
 - 聊天链路现已支持 Agent 版本级运行时环境变量；Tool 执行、MCP 占位符解析和子 Agent 装配都可按当前 Agent 版本注入 `INLINE / PROCESS_ENV` 配置。
 - 新增 `web-search` Tool、`tavily-search` Skill 与 `web-search-agent` bootstrap 配置；当 Agent 需要公网信息时可优先走 Tavily，缺少密钥时自动回退直接网页搜索。
 - 现已支持通过 `knowledge-box.agent.runtime-env-check.*` 在启动期扫描 Agent envVars 与绑定依赖的必填 requirement，提前发现缺 key 配置。
+- `PROCESS_ENV` 现在会优先读宿主环境变量，缺失时再回退读取 Spring `Environment`；因此本地开发可直接在 `application-local.yml` 中配置 `KB_TAVILY_API_KEY` 这类值。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。

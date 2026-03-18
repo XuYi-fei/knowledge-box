@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.env.Environment;
 
 @ExtendWith(MockitoExtension.class)
 class AgentRuntimeEnvStartupCheckRunnerTests {
@@ -53,6 +54,8 @@ class AgentRuntimeEnvStartupCheckRunnerTests {
     private McpServerConfigRepository mcpServerConfigRepository;
     @Mock
     private AgentRuntimeEnvironmentResolver environmentResolver;
+    @Mock
+    private Environment environment;
 
     private KnowledgeBoxProperties properties;
     private AgentRuntimeEnvStartupCheckRunner runner;
@@ -71,7 +74,8 @@ class AgentRuntimeEnvStartupCheckRunnerTests {
                 skillBindingRepositoryRef,
                 mcpServerConfigRepository,
                 environmentResolver,
-                new ObjectMapper()
+                new ObjectMapper(),
+                environment
         );
     }
 

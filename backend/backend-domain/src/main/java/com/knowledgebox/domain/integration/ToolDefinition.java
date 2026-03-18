@@ -30,6 +30,9 @@ public class ToolDefinition extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String configJson = "{}";
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String runtimeEnvRequirementsJson = "[]";
+
     @Column(nullable = false)
     private Boolean enabled = Boolean.TRUE;
 
@@ -87,6 +90,14 @@ public class ToolDefinition extends BaseEntity {
 
     public void setConfigJson(String configJson) {
         this.configJson = configJson;
+    }
+
+    public String getRuntimeEnvRequirementsJson() {
+        return runtimeEnvRequirementsJson;
+    }
+
+    public void setRuntimeEnvRequirementsJson(String runtimeEnvRequirementsJson) {
+        this.runtimeEnvRequirementsJson = runtimeEnvRequirementsJson;
     }
 
     public Boolean getEnabled() {

@@ -27,6 +27,9 @@ public class McpServerConfig extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String queryParamsJson = "{}";
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String runtimeEnvRequirementsJson = "[]";
+
     @Column
     private Long timeoutMs;
 
@@ -82,6 +85,14 @@ public class McpServerConfig extends BaseEntity {
 
     public void setQueryParamsJson(String queryParamsJson) {
         this.queryParamsJson = queryParamsJson;
+    }
+
+    public String getRuntimeEnvRequirementsJson() {
+        return runtimeEnvRequirementsJson;
+    }
+
+    public void setRuntimeEnvRequirementsJson(String runtimeEnvRequirementsJson) {
+        this.runtimeEnvRequirementsJson = runtimeEnvRequirementsJson;
     }
 
     public Long getTimeoutMs() {

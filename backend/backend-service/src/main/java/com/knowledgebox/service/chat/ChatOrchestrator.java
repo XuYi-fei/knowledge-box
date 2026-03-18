@@ -1060,6 +1060,7 @@ public class ChatOrchestrator {
                 ToolExecutionContext.builder()
                         .register(AgentExecutionTraceContext.class, traceContext)
                         .register(ChatExchangeRuntime.class, exchangeRuntime)
+                        .register(AgentRuntimeEnvironment.class, capabilities.runtimeEnvironment())
                         .build()
         );
     }

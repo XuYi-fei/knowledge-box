@@ -10,6 +10,7 @@ public record CreateMcpServerRequest(
         @NotBlank @Size(max = 256) String target,
         Map<String, String> headers,
         Map<String, String> queryParams,
+        java.util.List<RuntimeEnvRequirementView> runtimeEnvRequirements,
         Long timeoutMs,
         Long initializationTimeoutMs,
         boolean enabled

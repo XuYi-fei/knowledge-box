@@ -8,6 +8,7 @@ import com.knowledgebox.api.AgentConfigMcpBindingView;
 import com.knowledgebox.api.AgentConfigSnapshotView;
 import com.knowledgebox.api.AgentImportItemStatus;
 import com.knowledgebox.api.AgentImportResolutionAction;
+import com.knowledgebox.api.AgentRuntimeEnvVarView;
 import com.knowledgebox.api.AgentProfileVersionMcpBindingView;
 import com.knowledgebox.api.ConfigBundleExportView;
 import com.knowledgebox.api.ConfigBundleImportCommitRequest;
@@ -19,6 +20,7 @@ import com.knowledgebox.api.ConfigBundleMcpServerView;
 import com.knowledgebox.api.ConfigBundleResourceType;
 import com.knowledgebox.api.ConfigBundleSkillView;
 import com.knowledgebox.api.ConfigBundleToolView;
+import com.knowledgebox.api.RuntimeEnvRequirementView;
 import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
 import com.knowledgebox.domain.agent.AgentProfile;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
@@ -80,7 +82,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class ConfigBundleAdminService {
 
-    private static final String DEFAULT_SCHEMA_VERSION = "knowledge-box.config-bundle.v1";
+    private static final String DEFAULT_SCHEMA_VERSION = "knowledge-box.config-bundle.v2";
     private static final String LEGACY_AGENT_SCHEMA_VERSION = "knowledge-box.agent-config.v1";
     private static final Pattern PROFILE_CODE_PATTERN = Pattern.compile("^[a-z0-9]+(?:[-_][a-z0-9]+)*$");
     private static final Pattern RESOURCE_CODE_PATTERN = Pattern.compile("^[a-z0-9._-]+$");
@@ -386,8 +388,9 @@ public class ConfigBundleAdminService {
             String className = readRequiredText(item.get("className"), "tools[%s].className".formatted(index)).trim();
             String beanName = normalizeOptionalText(readOptionalText(item.get("beanName"), null));
             String configJson = normalizeJsonObject(readOptionalText(item.get("configJson"), "{}"), "tools[%s].configJson".formatted(index));
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements = normalizeRuntimeEnvRequirements(item.get("runtimeEnvRequirements"));
             boolean enabled = readBoolean(item.get("enabled"), true);
-            snapshots.add(new IncomingToolSnapshot(code, name, className, beanName, configJson, enabled));
+            snapshots.add(new IncomingToolSnapshot(code, name, className, beanName, configJson, runtimeEnvRequirements, enabled));
         }
         return List.copyOf(snapshots);
     }
@@ -410,10 +413,11 @@ public class ConfigBundleAdminService {
             String target = readRequiredText(item.get("target"), "mcpServers[%s].target".formatted(index)).trim();
             Map<String, String> headers = normalizeStringMap(item.get("headers"), "mcpServers[%s].headers".formatted(index));
             Map<String, String> queryParams = normalizeStringMap(item.get("queryParams"), "mcpServers[%s].queryParams".formatted(index));
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements = normalizeRuntimeEnvRequirements(item.get("runtimeEnvRequirements"));
             Long timeoutMs = readLong(item.get("timeoutMs"));
             Long initializationTimeoutMs = readLong(item.get("initializationTimeoutMs"));
             boolean enabled = readBoolean(item.get("enabled"), true);
-            snapshots.add(new IncomingMcpSnapshot(code, transportType, target, headers, queryParams, timeoutMs, initializationTimeoutMs, enabled));
+            snapshots.add(new IncomingMcpSnapshot(code, transportType, target, headers, queryParams, runtimeEnvRequirements, timeoutMs, initializationTimeoutMs, enabled));
         }
         return List.copyOf(snapshots);
     }
@@ -438,8 +442,9 @@ public class ConfigBundleAdminService {
             String checksumMd5 = normalizeOptionalText(readOptionalText(item.get("checksumMd5"), null));
             String ossObjectKey = normalizeOptionalText(readOptionalText(item.get("ossObjectKey"), null));
             String packageLocation = normalizeOptionalText(readOptionalText(item.get("packageLocation"), defaultSkillPackageLocation(code)));
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements = normalizeRuntimeEnvRequirements(item.get("runtimeEnvRequirements"));
             boolean enabled = readBoolean(item.get("enabled"), true);
-            snapshots.add(new IncomingSkillSnapshot(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, enabled));
+            snapshots.add(new IncomingSkillSnapshot(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, runtimeEnvRequirements, enabled));
         }
         return List.copyOf(snapshots);
     }
@@ -475,6 +480,7 @@ public class ConfigBundleAdminService {
             List<String> skillCodes = normalizeCodeList(item.get("skillCodes"));
             List<AgentConfigMcpBindingView> mcpBindings = normalizeMcpBindings(item.get("mcpBindings"));
             List<String> childAgentProfileCodes = normalizeCodeList(item.get("childAgentProfileCodes"));
+            List<AgentRuntimeEnvVarView> envVars = normalizeAgentEnvVars(item.get("envVars"));
             snapshots.add(new IncomingAgentSnapshot(
                     profileCode,
                     profileName,
@@ -493,7 +499,8 @@ public class ConfigBundleAdminService {
                     toolCodes,
                     skillCodes,
                     mcpBindings,
-                    childAgentProfileCodes
+                    childAgentProfileCodes,
+                    envVars
             ));
         }
         return List.copyOf(snapshots);
@@ -955,6 +962,22 @@ public class ConfigBundleAdminService {
             Map<ResourceKey, List<String>> errorsByKey,
             ResourceKey key
     ) {
+        Set<String> configuredEnvKeys = snapshot.envVars().stream()
+                .map(AgentRuntimeEnvVarView::key)
+                .filter(StringUtils::hasText)
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        for (AgentRuntimeEnvVarView envVar : snapshot.envVars()) {
+            if (envVar.valueSource() == com.knowledgebox.domain.agent.AgentRuntimeEnvValueSource.PROCESS_ENV
+                    && !StringUtils.hasText(envVar.sourceRef())) {
+                addError(errorsByKey, key, "PROCESS_ENV env var 缺少 sourceRef: " + envVar.key());
+            }
+            if (envVar.valueSource() == com.knowledgebox.domain.agent.AgentRuntimeEnvValueSource.INLINE
+                    && !StringUtils.hasText(envVar.value())
+                    && !envVar.hasValue()) {
+                addError(errorsByKey, key, "INLINE env var 缺少 value: " + envVar.key());
+            }
+        }
         validateEnabledModel(snapshot.chatModel(), ModelType.CHAT, key, errorsByKey, "chatModel");
         validateEnabledModel(snapshot.routingModel(), ModelType.CHAT, key, errorsByKey, "routingModel");
         validateEnabledModel(snapshot.embeddingModel(), ModelType.EMBEDDING, key, errorsByKey, "embeddingModel");
@@ -968,18 +991,36 @@ public class ConfigBundleAdminService {
             ResolvedToolSnapshot tool = finalTools.get(toolCode);
             if (tool == null || !tool.enabled()) {
                 addError(errorsByKey, key, "Tool 不存在或未启用: " + toolCode);
+                continue;
+            }
+            for (RuntimeEnvRequirementView requirement : tool.runtimeEnvRequirements()) {
+                if (requirement.required() && !configuredEnvKeys.contains(requirement.key())) {
+                    addError(errorsByKey, key, "缺少 Tool 运行时环境变量: " + requirement.key() + " (tool=" + toolCode + ")");
+                }
             }
         }
         for (String skillCode : snapshot.skillCodes()) {
             ResolvedSkillSnapshot skill = finalSkills.get(skillCode);
             if (skill == null || !skill.enabled()) {
                 addError(errorsByKey, key, "Skill 不存在或未启用: " + skillCode);
+                continue;
+            }
+            for (RuntimeEnvRequirementView requirement : skill.runtimeEnvRequirements()) {
+                if (requirement.required() && !configuredEnvKeys.contains(requirement.key())) {
+                    addError(errorsByKey, key, "缺少 Skill 运行时环境变量: " + requirement.key() + " (skill=" + skillCode + ")");
+                }
             }
         }
         for (AgentConfigMcpBindingView mcpBinding : snapshot.mcpBindings()) {
             ResolvedMcpSnapshot config = finalMcp.get(mcpBinding.mcpCode());
             if (config == null || !config.enabled()) {
                 addError(errorsByKey, key, "MCP 服务不存在或未启用: " + mcpBinding.mcpCode());
+                continue;
+            }
+            for (RuntimeEnvRequirementView requirement : config.runtimeEnvRequirements()) {
+                if (requirement.required() && !configuredEnvKeys.contains(requirement.key())) {
+                    addError(errorsByKey, key, "缺少 MCP 运行时环境变量: " + requirement.key() + " (mcp=" + mcpBinding.mcpCode() + ")");
+                }
             }
             for (String toolCode : mcpBinding.enableTools()) {
                 ResolvedToolSnapshot tool = finalTools.get(toolCode);
@@ -1149,7 +1190,8 @@ public class ConfigBundleAdminService {
                             snapshot.toolCodes(),
                             snapshot.skillCodes(),
                             toProfileVersionMcpBindings(snapshot.mcpBindings()),
-                            childVersionIds
+                            childVersionIds,
+                            snapshot.envVars()
                     )
             );
         }
@@ -1166,11 +1208,21 @@ public class ConfigBundleAdminService {
         definition.setClassName(snapshot.className());
         definition.setBeanName(snapshot.beanName());
         definition.setConfigJson(snapshot.configJson());
+        definition.setRuntimeEnvRequirementsJson(writeJson(snapshot.runtimeEnvRequirements()));
         definition.setEnabled(snapshot.enabled());
         definition.setInputSchema("{}");
         definition.setEndpoint("classpath://" + snapshot.className());
         definition = toolDefinitionRepository.save(definition);
-        return new StoredToolSnapshot(definition.getId(), snapshot.code(), snapshot.name(), snapshot.className(), snapshot.beanName(), snapshot.configJson(), snapshot.enabled());
+        return new StoredToolSnapshot(
+                definition.getId(),
+                snapshot.code(),
+                snapshot.name(),
+                snapshot.className(),
+                snapshot.beanName(),
+                snapshot.configJson(),
+                snapshot.runtimeEnvRequirements(),
+                snapshot.enabled()
+        );
     }
 
     private StoredMcpSnapshot persistMcp(IncomingMcpSnapshot snapshot, StoredMcpSnapshot existing) {
@@ -1183,6 +1235,7 @@ public class ConfigBundleAdminService {
         config.setCapabilitiesJson("[]");
         config.setHeadersEncryptedJson(writeJson(encryptSecretMap(snapshot.headers())));
         config.setQueryParamsJson(writeJson(snapshot.queryParams()));
+        config.setRuntimeEnvRequirementsJson(writeJson(snapshot.runtimeEnvRequirements()));
         config.setTimeoutMs(snapshot.timeoutMs());
         config.setInitializationTimeoutMs(snapshot.initializationTimeoutMs());
         config.setEnabled(snapshot.enabled());
@@ -1194,6 +1247,7 @@ public class ConfigBundleAdminService {
                 snapshot.target(),
                 snapshot.headers(),
                 snapshot.queryParams(),
+                snapshot.runtimeEnvRequirements(),
                 snapshot.timeoutMs(),
                 snapshot.initializationTimeoutMs(),
                 snapshot.enabled()
@@ -1232,6 +1286,7 @@ public class ConfigBundleAdminService {
         binding.setOssObjectKey(objectKey);
         binding.setChecksumMd5(checksumMd5);
         binding.setPromptTemplate(promptTemplate);
+        binding.setRuntimeEnvRequirementsJson(writeJson(snapshot.runtimeEnvRequirements()));
         binding = skillBindingRepository.save(binding);
         return new StoredSkillSnapshot(
                 binding.getId(),
@@ -1242,6 +1297,7 @@ public class ConfigBundleAdminService {
                 binding.getChecksumMd5(),
                 binding.getOssObjectKey(),
                 defaultSkillPackageLocation(snapshot.code()),
+                snapshot.runtimeEnvRequirements(),
                 snapshot.enabled()
         );
     }
@@ -1298,7 +1354,8 @@ public class ConfigBundleAdminService {
                 snapshot.toolCodes(),
                 snapshot.skillCodes(),
                 snapshot.mcpBindings(),
-                snapshot.childAgentProfileCodes()
+                snapshot.childAgentProfileCodes(),
+                snapshot.envVars()
         );
     }
 
@@ -1490,6 +1547,7 @@ public class ConfigBundleAdminService {
                     definition.getClassName(),
                     definition.getBeanName(),
                     normalizeJsonObject(definition.getConfigJson(), "tool.configJson"),
+                    readRuntimeEnvRequirements(definition.getRuntimeEnvRequirementsJson()),
                     Boolean.TRUE.equals(definition.getEnabled())
             ));
         }
@@ -1506,6 +1564,7 @@ public class ConfigBundleAdminService {
                     config.getTarget(),
                     decryptHeaderMap(config.getHeadersEncryptedJson()),
                     readStringMap(config.getQueryParamsJson()),
+                    readRuntimeEnvRequirements(config.getRuntimeEnvRequirementsJson()),
                     config.getTimeoutMs(),
                     config.getInitializationTimeoutMs(),
                     Boolean.TRUE.equals(config.getEnabled())
@@ -1526,6 +1585,7 @@ public class ConfigBundleAdminService {
                     binding.getChecksumMd5(),
                     binding.getOssObjectKey(),
                     defaultSkillPackageLocation(binding.getCode()),
+                    readRuntimeEnvRequirements(binding.getRuntimeEnvRequirementsJson()),
                     Boolean.TRUE.equals(binding.getEnabled())
             ));
         }
@@ -1564,7 +1624,8 @@ public class ConfigBundleAdminService {
                     bindings.mcpBindings().stream()
                             .map(binding -> new AgentConfigMcpBindingView(binding.mcpCode(), binding.enableTools(), binding.disableTools()))
                             .toList(),
-                    bindings.childAgentBindings().stream().map(child -> child.profileCode()).toList()
+                    bindings.childAgentBindings().stream().map(child -> child.profileCode()).toList(),
+                    bindings.envVars()
             ));
         }
         return snapshots;
@@ -1577,6 +1638,7 @@ public class ConfigBundleAdminService {
                 definition.getClassName(),
                 definition.getBeanName(),
                 normalizeJsonObject(definition.getConfigJson(), "tool.configJson"),
+                readRuntimeEnvRequirements(definition.getRuntimeEnvRequirementsJson()),
                 Boolean.TRUE.equals(definition.getEnabled())
         );
     }
@@ -1588,6 +1650,7 @@ public class ConfigBundleAdminService {
                 config.getTarget(),
                 decryptHeaderMap(config.getHeadersEncryptedJson()),
                 readStringMap(config.getQueryParamsJson()),
+                readRuntimeEnvRequirements(config.getRuntimeEnvRequirementsJson()),
                 config.getTimeoutMs(),
                 config.getInitializationTimeoutMs(),
                 Boolean.TRUE.equals(config.getEnabled())
@@ -1603,6 +1666,7 @@ public class ConfigBundleAdminService {
                 binding.getChecksumMd5(),
                 binding.getOssObjectKey(),
                 defaultSkillPackageLocation(binding.getCode()),
+                readRuntimeEnvRequirements(binding.getRuntimeEnvRequirementsJson()),
                 Boolean.TRUE.equals(binding.getEnabled())
         );
     }
@@ -1638,6 +1702,17 @@ public class ConfigBundleAdminService {
             return objectMapper.readValue(json, STRING_MAP_TYPE);
         } catch (Exception exception) {
             return Map.of();
+        }
+    }
+
+    private List<RuntimeEnvRequirementView> readRuntimeEnvRequirements(String json) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+        try {
+            return normalizeRuntimeEnvRequirements(objectMapper.readTree(json));
+        } catch (Exception exception) {
+            return List.of();
         }
     }
 
@@ -1815,6 +1890,67 @@ public class ConfigBundleAdminService {
         return List.copyOf(bindings.values());
     }
 
+    private List<RuntimeEnvRequirementView> normalizeRuntimeEnvRequirements(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (!node.isArray()) {
+            throw new IllegalArgumentException("`runtimeEnvRequirements` must be an array");
+        }
+        LinkedHashMap<String, RuntimeEnvRequirementView> requirements = new LinkedHashMap<>();
+        for (JsonNode item : node) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            String key = normalizeOptionalText(readOptionalText(item.get("key"), ""));
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            String normalizedKey = key.trim().toUpperCase(Locale.ROOT);
+            requirements.putIfAbsent(normalizedKey, new RuntimeEnvRequirementView(
+                    normalizedKey,
+                    readBoolean(item.get("required"), false),
+                    readBoolean(item.get("secret"), true),
+                    normalizeOptionalText(readOptionalText(item.get("description"), null))
+            ));
+        }
+        return List.copyOf(requirements.values());
+    }
+
+    private List<AgentRuntimeEnvVarView> normalizeAgentEnvVars(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return List.of();
+        }
+        if (!node.isArray()) {
+            throw new IllegalArgumentException("`envVars` must be an array");
+        }
+        LinkedHashMap<String, AgentRuntimeEnvVarView> envVars = new LinkedHashMap<>();
+        for (JsonNode item : node) {
+            if (item == null || !item.isObject()) {
+                continue;
+            }
+            String key = normalizeOptionalText(readOptionalText(item.get("key"), ""));
+            if (!StringUtils.hasText(key)) {
+                continue;
+            }
+            String normalizedKey = key.trim().toUpperCase(Locale.ROOT);
+            envVars.putIfAbsent(normalizedKey, new AgentRuntimeEnvVarView(
+                    normalizedKey,
+                    normalizeOptionalText(readOptionalText(item.get("description"), null)),
+                    readBoolean(item.get("secret"), true),
+                    readEnumOrDefault(
+                            item.get("valueSource"),
+                            com.knowledgebox.domain.agent.AgentRuntimeEnvValueSource.class,
+                            com.knowledgebox.domain.agent.AgentRuntimeEnvValueSource.INLINE
+                    ),
+                    normalizeOptionalText(readOptionalText(item.get("sourceRef"), null)),
+                    normalizeOptionalText(readOptionalText(item.get("value"), null)),
+                    readBoolean(item.get("hasValue"), false)
+            ));
+        }
+        return List.copyOf(envVars.values());
+    }
+
     private String defaultSkillPackageLocation(String code) {
         return "classpath:bootstrap/skills/" + normalizeResourceCode(code);
     }
@@ -1925,6 +2061,7 @@ public class ConfigBundleAdminService {
             String className,
             String beanName,
             String configJson,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             boolean enabled
     ) implements ImportableSnapshot<IncomingToolSnapshot, StoredToolSnapshot> {
         @Override
@@ -1939,11 +2076,11 @@ public class ConfigBundleAdminService {
 
         @Override
         public JsonNode previewNode(ObjectMapper objectMapper) {
-            return objectMapper.valueToTree(new ConfigBundleToolView(code, name, className, beanName, configJson, enabled));
+            return objectMapper.valueToTree(new ConfigBundleToolView(code, name, className, beanName, configJson, runtimeEnvRequirements, enabled));
         }
 
         ResolvedToolSnapshot toResolved(StoredToolSnapshot existing) {
-            return new ResolvedToolSnapshot(code, name, className, beanName, configJson, enabled, existing == null ? null : existing.id());
+            return new ResolvedToolSnapshot(code, name, className, beanName, configJson, runtimeEnvRequirements, enabled, existing == null ? null : existing.id());
         }
 
         @Override
@@ -1959,6 +2096,7 @@ public class ConfigBundleAdminService {
             String className,
             String beanName,
             String configJson,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             boolean enabled
     ) implements ExistingSnapshot<IncomingToolSnapshot>, NamedResolvedSnapshot {
         @Override
@@ -1973,11 +2111,11 @@ public class ConfigBundleAdminService {
 
         @Override
         public JsonNode previewNode(ObjectMapper objectMapper) {
-            return objectMapper.valueToTree(new ConfigBundleToolView(code, name, className, beanName, configJson, enabled));
+            return objectMapper.valueToTree(new ConfigBundleToolView(code, name, className, beanName, configJson, runtimeEnvRequirements, enabled));
         }
 
         ResolvedToolSnapshot toResolved() {
-            return new ResolvedToolSnapshot(code, name, className, beanName, configJson, enabled, id);
+            return new ResolvedToolSnapshot(code, name, className, beanName, configJson, runtimeEnvRequirements, enabled, id);
         }
     }
 
@@ -1987,6 +2125,7 @@ public class ConfigBundleAdminService {
             String className,
             String beanName,
             String configJson,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             boolean enabled,
             Long id
     ) implements NamedResolvedSnapshot {
@@ -2007,6 +2146,7 @@ public class ConfigBundleAdminService {
             String target,
             Map<String, String> headers,
             Map<String, String> queryParams,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             Long timeoutMs,
             Long initializationTimeoutMs,
             boolean enabled
@@ -2031,11 +2171,11 @@ public class ConfigBundleAdminService {
 
         @Override
         public JsonNode previewNode(ObjectMapper objectMapper) {
-            return objectMapper.valueToTree(new ConfigBundleMcpServerView(code, transportType, target, headers, queryParams, timeoutMs, initializationTimeoutMs, enabled));
+            return objectMapper.valueToTree(new ConfigBundleMcpServerView(code, transportType, target, headers, queryParams, runtimeEnvRequirements, timeoutMs, initializationTimeoutMs, enabled));
         }
 
         ResolvedMcpSnapshot toResolved(StoredMcpSnapshot existing) {
-            return new ResolvedMcpSnapshot(code, transportType, target, headers, queryParams, timeoutMs, initializationTimeoutMs, enabled, existing == null ? null : existing.id());
+            return new ResolvedMcpSnapshot(code, transportType, target, headers, queryParams, runtimeEnvRequirements, timeoutMs, initializationTimeoutMs, enabled, existing == null ? null : existing.id());
         }
 
         @Override
@@ -2051,6 +2191,7 @@ public class ConfigBundleAdminService {
             String target,
             Map<String, String> headers,
             Map<String, String> queryParams,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             Long timeoutMs,
             Long initializationTimeoutMs,
             boolean enabled
@@ -2067,11 +2208,11 @@ public class ConfigBundleAdminService {
 
         @Override
         public JsonNode previewNode(ObjectMapper objectMapper) {
-            return objectMapper.valueToTree(new ConfigBundleMcpServerView(code, transportType, target, headers, queryParams, timeoutMs, initializationTimeoutMs, enabled));
+            return objectMapper.valueToTree(new ConfigBundleMcpServerView(code, transportType, target, headers, queryParams, runtimeEnvRequirements, timeoutMs, initializationTimeoutMs, enabled));
         }
 
         ResolvedMcpSnapshot toResolved() {
-            return new ResolvedMcpSnapshot(code, transportType, target, headers, queryParams, timeoutMs, initializationTimeoutMs, enabled, id);
+            return new ResolvedMcpSnapshot(code, transportType, target, headers, queryParams, runtimeEnvRequirements, timeoutMs, initializationTimeoutMs, enabled, id);
         }
     }
 
@@ -2081,6 +2222,7 @@ public class ConfigBundleAdminService {
             String target,
             Map<String, String> headers,
             Map<String, String> queryParams,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             Long timeoutMs,
             Long initializationTimeoutMs,
             boolean enabled,
@@ -2105,6 +2247,7 @@ public class ConfigBundleAdminService {
             String checksumMd5,
             String ossObjectKey,
             String packageLocation,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             boolean enabled
     ) implements ImportableSnapshot<IncomingSkillSnapshot, StoredSkillSnapshot> {
         @Override
@@ -2119,11 +2262,11 @@ public class ConfigBundleAdminService {
 
         @Override
         public JsonNode previewNode(ObjectMapper objectMapper) {
-            return objectMapper.valueToTree(new ConfigBundleSkillView(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, enabled));
+            return objectMapper.valueToTree(new ConfigBundleSkillView(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, runtimeEnvRequirements, enabled));
         }
 
         ResolvedSkillSnapshot toResolved(StoredSkillSnapshot existing) {
-            return new ResolvedSkillSnapshot(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, enabled, existing == null ? null : existing.id());
+            return new ResolvedSkillSnapshot(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, runtimeEnvRequirements, enabled, existing == null ? null : existing.id());
         }
 
         @Override
@@ -2141,6 +2284,7 @@ public class ConfigBundleAdminService {
             String checksumMd5,
             String ossObjectKey,
             String packageLocation,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             boolean enabled
     ) implements ExistingSnapshot<IncomingSkillSnapshot>, NamedResolvedSnapshot {
         @Override
@@ -2155,11 +2299,11 @@ public class ConfigBundleAdminService {
 
         @Override
         public JsonNode previewNode(ObjectMapper objectMapper) {
-            return objectMapper.valueToTree(new ConfigBundleSkillView(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, enabled));
+            return objectMapper.valueToTree(new ConfigBundleSkillView(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, runtimeEnvRequirements, enabled));
         }
 
         ResolvedSkillSnapshot toResolved() {
-            return new ResolvedSkillSnapshot(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, enabled, id);
+            return new ResolvedSkillSnapshot(code, name, description, sourceType, checksumMd5, ossObjectKey, packageLocation, runtimeEnvRequirements, enabled, id);
         }
     }
 
@@ -2171,6 +2315,7 @@ public class ConfigBundleAdminService {
             String checksumMd5,
             String ossObjectKey,
             String packageLocation,
+            List<RuntimeEnvRequirementView> runtimeEnvRequirements,
             boolean enabled,
             Long id
     ) implements NamedResolvedSnapshot {
@@ -2203,7 +2348,8 @@ public class ConfigBundleAdminService {
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
-            List<String> childAgentProfileCodes
+            List<String> childAgentProfileCodes,
+            List<AgentRuntimeEnvVarView> envVars
     ) implements ImportableSnapshot<IncomingAgentSnapshot, StoredAgentSnapshot> {
         @Override
         public String resourceCode() {
@@ -2239,7 +2385,8 @@ public class ConfigBundleAdminService {
                     toolCodes,
                     skillCodes,
                     mcpBindings,
-                    childAgentProfileCodes
+                    childAgentProfileCodes,
+                    envVars
             );
         }
 
@@ -2263,6 +2410,7 @@ public class ConfigBundleAdminService {
                     skillCodes,
                     mcpBindings,
                     childAgentProfileCodes,
+                    envVars,
                     existing == null ? null : existing.versionId()
             );
         }
@@ -2294,7 +2442,8 @@ public class ConfigBundleAdminService {
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
-            List<String> childAgentProfileCodes
+            List<String> childAgentProfileCodes,
+            List<AgentRuntimeEnvVarView> envVars
     ) implements ExistingSnapshot<IncomingAgentSnapshot>, NamedResolvedSnapshot {
         @Override
         public String resourceCode() {
@@ -2330,7 +2479,8 @@ public class ConfigBundleAdminService {
                     toolCodes,
                     skillCodes,
                     mcpBindings,
-                    childAgentProfileCodes
+                    childAgentProfileCodes,
+                    envVars
             );
         }
 
@@ -2354,6 +2504,7 @@ public class ConfigBundleAdminService {
                     skillCodes,
                     mcpBindings,
                     childAgentProfileCodes,
+                    envVars,
                     versionId
             );
         }
@@ -2378,6 +2529,7 @@ public class ConfigBundleAdminService {
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
             List<String> childAgentProfileCodes,
+            List<AgentRuntimeEnvVarView> envVars,
             Long versionId
     ) implements NamedResolvedSnapshot {
         @Override

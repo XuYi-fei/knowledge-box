@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.api.CreateMcpServerRequest;
 import com.knowledgebox.api.CreateToolDefinitionRequest;
 import com.knowledgebox.api.McpServerView;
+import com.knowledgebox.api.RuntimeEnvRequirementView;
 import com.knowledgebox.api.SkillBindingView;
 import com.knowledgebox.api.ToolDefinitionView;
 import com.knowledgebox.api.UpdateMcpServerRequest;
@@ -99,6 +100,7 @@ public class IntegrationAdminService {
         definition.setClassName(request.className().trim());
         definition.setBeanName(normalizeNullable(request.beanName()));
         definition.setConfigJson(normalizeJsonObject(request.configJson(), "{}"));
+        definition.setRuntimeEnvRequirementsJson(writeJson(normalizeRuntimeEnvRequirements(request.runtimeEnvRequirements())));
         definition.setEnabled(request.enabled());
         definition.setInputSchema("{}");
         definition.setEndpoint("classpath://" + definition.getClassName());
@@ -114,6 +116,7 @@ public class IntegrationAdminService {
         definition.setClassName(request.className().trim());
         definition.setBeanName(normalizeNullable(request.beanName()));
         definition.setConfigJson(normalizeJsonObject(request.configJson(), "{}"));
+        definition.setRuntimeEnvRequirementsJson(writeJson(normalizeRuntimeEnvRequirements(request.runtimeEnvRequirements())));
         definition.setEnabled(request.enabled());
         definition.setEndpoint("classpath://" + definition.getClassName());
         return toToolView(toolDefinitionRepository.save(definition));
@@ -157,6 +160,7 @@ public class IntegrationAdminService {
         config.setCapabilitiesJson("[]");
         config.setHeadersEncryptedJson(writeJson(encryptSecretMap(request.headers())));
         config.setQueryParamsJson(writeJson(normalizeMap(request.queryParams())));
+        config.setRuntimeEnvRequirementsJson(writeJson(normalizeRuntimeEnvRequirements(request.runtimeEnvRequirements())));
         config.setTimeoutMs(request.timeoutMs());
         config.setInitializationTimeoutMs(request.initializationTimeoutMs());
         return toMcpView(mcpServerConfigRepository.save(config));
@@ -175,6 +179,7 @@ public class IntegrationAdminService {
         if (request.queryParams() != null) {
             config.setQueryParamsJson(writeJson(normalizeMap(request.queryParams())));
         }
+        config.setRuntimeEnvRequirementsJson(writeJson(normalizeRuntimeEnvRequirements(request.runtimeEnvRequirements())));
         config.setTimeoutMs(request.timeoutMs());
         config.setInitializationTimeoutMs(request.initializationTimeoutMs());
         return toMcpView(mcpServerConfigRepository.save(config));
@@ -230,6 +235,7 @@ public class IntegrationAdminService {
         binding.setSourceType("UPLOAD");
         binding.setOssObjectKey(stored.objectKey());
         binding.setChecksumMd5(stored.checksumMd5());
+        binding.setRuntimeEnvRequirementsJson("[]");
         binding.setEnabled(enabled != null ? enabled : existing == null || Boolean.TRUE.equals(existing.getEnabled()));
         return toSkillView(skillBindingRepository.save(binding));
     }
@@ -239,6 +245,7 @@ public class IntegrationAdminService {
         SkillBinding binding = requireSkill(code);
         binding.setName(request.name().trim());
         binding.setDescription(normalizeNullable(request.description()));
+        binding.setRuntimeEnvRequirementsJson(writeJson(normalizeRuntimeEnvRequirements(request.runtimeEnvRequirements())));
         binding.setEnabled(request.enabled());
         return toSkillView(skillBindingRepository.save(binding));
     }
@@ -336,6 +343,7 @@ public class IntegrationAdminService {
                 definition.getClassName(),
                 definition.getBeanName(),
                 normalizeJsonObject(definition.getConfigJson(), "{}"),
+                readRuntimeEnvRequirements(definition.getRuntimeEnvRequirementsJson()),
                 Boolean.TRUE.equals(definition.getEnabled())
         );
     }
@@ -353,6 +361,7 @@ public class IntegrationAdminService {
                 config.getTarget(),
                 writeJson(masked),
                 normalizeJsonObject(config.getQueryParamsJson(), "{}"),
+                readRuntimeEnvRequirements(config.getRuntimeEnvRequirementsJson()),
                 config.getTimeoutMs(),
                 config.getInitializationTimeoutMs(),
                 Boolean.TRUE.equals(config.getEnabled())
@@ -368,8 +377,43 @@ public class IntegrationAdminService {
                 binding.getSourceType(),
                 binding.getOssObjectKey(),
                 binding.getChecksumMd5(),
+                readRuntimeEnvRequirements(binding.getRuntimeEnvRequirementsJson()),
                 Boolean.TRUE.equals(binding.getEnabled())
         );
+    }
+
+    private List<RuntimeEnvRequirementView> normalizeRuntimeEnvRequirements(List<RuntimeEnvRequirementView> requirements) {
+        if (requirements == null || requirements.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashMap<String, RuntimeEnvRequirementView> normalized = new LinkedHashMap<>();
+        for (RuntimeEnvRequirementView requirement : requirements) {
+            if (requirement == null || !StringUtils.hasText(requirement.key())) {
+                continue;
+            }
+            String key = requirement.key().trim().toUpperCase(Locale.ROOT);
+            normalized.putIfAbsent(key, new RuntimeEnvRequirementView(
+                    key,
+                    requirement.required(),
+                    requirement.secret(),
+                    normalizeNullable(requirement.description())
+            ));
+        }
+        return List.copyOf(normalized.values());
+    }
+
+    private List<RuntimeEnvRequirementView> readRuntimeEnvRequirements(String json) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+        try {
+            return normalizeRuntimeEnvRequirements(objectMapper.readValue(
+                    json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, RuntimeEnvRequirementView.class)
+            ));
+        } catch (Exception exception) {
+            return List.of();
+        }
     }
 
     private Map<String, String> encryptSecretMap(Map<String, String> plainSecrets) {

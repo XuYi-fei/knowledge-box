@@ -38,6 +38,8 @@ import {
   KnowledgeDocument,
   McpServer,
   ModelCatalog,
+  RuntimeEnvRequirement,
+  AgentRuntimeEnvVar,
   PublicDocumentFacet,
   PublicDocumentPage,
   PublicChatOptions,
@@ -91,6 +93,7 @@ type UpdateProfileVersionBindingsPayload = {
   skillCodes: string[];
   mcpBindings: AgentProfileVersionMcpBinding[];
   childAgentVersionIds: number[];
+  envVars: AgentRuntimeEnvVar[];
 };
 
 type CreateToolPayload = {
@@ -99,6 +102,7 @@ type CreateToolPayload = {
   className: string;
   beanName?: string | null;
   configJson?: string;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   enabled: boolean;
 };
 
@@ -137,6 +141,7 @@ type CreateMcpServerPayload = {
   target: string;
   headers?: Record<string, string>;
   queryParams?: Record<string, string>;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   timeoutMs?: number | null;
   initializationTimeoutMs?: number | null;
   enabled: boolean;
@@ -158,6 +163,7 @@ type UploadSkillPayload = {
 type UpdateSkillPayload = {
   name: string;
   description?: string;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   enabled: boolean;
 };
 

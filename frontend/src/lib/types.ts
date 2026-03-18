@@ -264,6 +264,7 @@ export type ToolDefinition = {
   className: string;
   beanName: string | null;
   configJson: string;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   enabled: boolean;
 };
 
@@ -355,9 +356,27 @@ export type McpServer = {
   headersJson?: string;
   headersMaskedJson: string;
   queryParamsJson: string;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   timeoutMs: number | null;
   initializationTimeoutMs: number | null;
   enabled: boolean;
+};
+
+export type RuntimeEnvRequirement = {
+  key: string;
+  required: boolean;
+  secret: boolean;
+  description: string | null;
+};
+
+export type AgentRuntimeEnvVar = {
+  key: string;
+  description: string | null;
+  secret: boolean;
+  valueSource: 'INLINE' | 'PROCESS_ENV';
+  sourceRef: string | null;
+  value: string | null;
+  hasValue: boolean;
 };
 
 export type SkillBinding = {
@@ -368,6 +387,7 @@ export type SkillBinding = {
   sourceType: string | null;
   ossObjectKey: string | null;
   checksumMd5: string | null;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   enabled: boolean;
 };
 
@@ -392,6 +412,7 @@ export type AgentProfileVersionBindings = {
   skillCodes: string[];
   mcpBindings: AgentProfileVersionMcpBinding[];
   childAgentBindings: AgentProfileVersionAgentBinding[];
+  envVars: AgentRuntimeEnvVar[];
 };
 
 export type AgentProfileImportDecisionAction = 'CREATE' | 'SKIP' | 'OVERWRITE_EXISTING';
@@ -421,6 +442,7 @@ export type AgentConfigSnapshot = {
   skillCodes: string[];
   mcpBindings: AgentConfigMcpBinding[];
   childAgentProfileCodes: string[];
+  envVars: AgentRuntimeEnvVar[];
 };
 
 export type AgentProfileImportPreviewItem = {
@@ -474,6 +496,7 @@ export type ConfigBundleToolConfig = {
   className: string;
   beanName: string | null;
   configJson: string;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   enabled: boolean;
 };
 
@@ -483,6 +506,7 @@ export type ConfigBundleMcpServerConfig = {
   target: string;
   headers: Record<string, string>;
   queryParams: Record<string, string>;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   timeoutMs: number | null;
   initializationTimeoutMs: number | null;
   enabled: boolean;
@@ -496,6 +520,7 @@ export type ConfigBundleSkillConfig = {
   checksumMd5: string | null;
   ossObjectKey: string | null;
   packageLocation: string | null;
+  runtimeEnvRequirements: RuntimeEnvRequirement[];
   enabled: boolean;
 };
 

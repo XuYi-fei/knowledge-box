@@ -2,10 +2,13 @@ package com.knowledgebox.service.integration;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knowledgebox.api.AgentRuntimeEnvVarView;
 import com.knowledgebox.api.AgentProfileVersionAgentBindingView;
 import com.knowledgebox.api.AgentProfileVersionBindingsView;
 import com.knowledgebox.api.AgentProfileVersionMcpBindingView;
 import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
+import com.knowledgebox.domain.agent.AgentProfileVersionEnvVar;
+import com.knowledgebox.domain.agent.AgentRuntimeEnvValueSource;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
 import com.knowledgebox.domain.integration.AgentProfileVersionAgentBinding;
 import com.knowledgebox.domain.integration.McpServerConfig;
@@ -15,6 +18,7 @@ import com.knowledgebox.domain.integration.AgentProfileVersionMcpBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionSkillBinding;
 import com.knowledgebox.domain.integration.AgentProfileVersionToolBinding;
 import com.knowledgebox.repository.AgentProfileVersionAgentBindingRepository;
+import com.knowledgebox.repository.AgentProfileVersionEnvVarRepository;
 import com.knowledgebox.repository.AgentProfileVersionMcpBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.AgentProfileVersionSkillBindingRepository;
@@ -22,10 +26,13 @@ import com.knowledgebox.repository.AgentProfileVersionToolBindingRepository;
 import com.knowledgebox.repository.McpServerConfigRepository;
 import com.knowledgebox.repository.SkillBindingRepository;
 import com.knowledgebox.repository.ToolDefinitionRepository;
+import com.knowledgebox.service.chat.AgentRuntimeEnvironmentResolver;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,11 +46,15 @@ public class AgentProfileBindingService {
     private final AgentProfileVersionToolBindingRepository toolBindingRepository;
     private final AgentProfileVersionMcpBindingRepository mcpBindingRepository;
     private final AgentProfileVersionSkillBindingRepository skillBindingRepository;
+    private final AgentProfileVersionEnvVarRepository envVarRepository;
     private final ToolDefinitionRepository toolDefinitionRepository;
     private final McpServerConfigRepository mcpServerConfigRepository;
     private final SkillBindingRepository skillCatalogRepository;
     private final ObjectMapper objectMapper;
     private final AgentProfileVersionPolicyService policyService;
+    private final AgentRuntimeEnvironmentResolver environmentResolver;
+    private final IntegrationSecretCipherService secretCipherService;
+    private static final String MASKED_SECRET = "********";
 
     public AgentProfileBindingService(
             AgentProfileVersionRepository agentProfileVersionRepository,
@@ -51,22 +62,28 @@ public class AgentProfileBindingService {
             AgentProfileVersionToolBindingRepository toolBindingRepository,
             AgentProfileVersionMcpBindingRepository mcpBindingRepository,
             AgentProfileVersionSkillBindingRepository skillBindingRepository,
+            AgentProfileVersionEnvVarRepository envVarRepository,
             ToolDefinitionRepository toolDefinitionRepository,
             McpServerConfigRepository mcpServerConfigRepository,
             SkillBindingRepository skillCatalogRepository,
             ObjectMapper objectMapper,
-            AgentProfileVersionPolicyService policyService
+            AgentProfileVersionPolicyService policyService,
+            AgentRuntimeEnvironmentResolver environmentResolver,
+            IntegrationSecretCipherService secretCipherService
     ) {
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.agentBindingRepository = agentBindingRepository;
         this.toolBindingRepository = toolBindingRepository;
         this.mcpBindingRepository = mcpBindingRepository;
         this.skillBindingRepository = skillBindingRepository;
+        this.envVarRepository = envVarRepository;
         this.toolDefinitionRepository = toolDefinitionRepository;
         this.mcpServerConfigRepository = mcpServerConfigRepository;
         this.skillCatalogRepository = skillCatalogRepository;
         this.objectMapper = objectMapper;
         this.policyService = policyService;
+        this.environmentResolver = environmentResolver;
+        this.secretCipherService = secretCipherService;
     }
 
     @Transactional(readOnly = true)
@@ -108,12 +125,16 @@ public class AgentProfileBindingService {
                 : agentProfileVersionRepository.findAllByIdIn(childAgentVersionIds).stream()
                         .map(this::toChildBindingView)
                         .toList();
+        List<AgentRuntimeEnvVarView> envVars = envVarRepository.findByProfileVersionIdOrderByEnvKeyAsc(profileVersionId).stream()
+                .map(this::toEnvVarView)
+                .toList();
         return new AgentProfileVersionBindingsView(
                 parentVersion.getId(),
                 toolCodes,
                 skillCodes,
                 mcpBindings,
-                childAgentBindings
+                childAgentBindings,
+                envVars
         );
     }
 
@@ -126,6 +147,15 @@ public class AgentProfileBindingService {
         List<AgentProfileVersionMcpBindingView> mcpBindings = request.mcpBindings() == null
                 ? List.of()
                 : request.mcpBindings();
+        List<AgentRuntimeEnvVarView> envVars = normalizeEnvVars(request.envVars());
+        Map<String, AgentProfileVersionEnvVar> existingEnvVarsByKey = envVarRepository.findByProfileVersionIdOrderByEnvKeyAsc(profileVersionId)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        envVar -> envVar.getEnvKey().trim().toUpperCase(Locale.ROOT),
+                        envVar -> envVar,
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
         List<AgentProfileVersion> childVersions = policyService.normalizeAndValidateChildBindings(
                 parentVersion,
                 request.childAgentVersionIds()
@@ -154,6 +184,7 @@ public class AgentProfileBindingService {
         mcpBindingRepository.deleteByProfileVersionId(profileVersionId);
         skillBindingRepository.deleteByProfileVersionId(profileVersionId);
         agentBindingRepository.deleteByParentProfileVersionId(profileVersionId);
+        envVarRepository.deleteByProfileVersionId(profileVersionId);
 
         if (!toolCodes.isEmpty()) {
             toolBindingRepository.saveAll(toolIds.stream()
@@ -201,7 +232,101 @@ public class AgentProfileBindingService {
                     .toList());
         }
 
+        if (!envVars.isEmpty()) {
+            List<AgentProfileVersionEnvVar> entities = envVars.stream()
+                    .map(envVar -> toEnvVarEntity(
+                            profileVersionId,
+                            envVar,
+                            existingEnvVarsByKey.get(envVar.key().trim().toUpperCase(Locale.ROOT))
+                    ))
+                    .toList();
+            envVarRepository.saveAll(entities);
+        }
+
         return bindings(profileVersionId);
+    }
+
+    private List<AgentRuntimeEnvVarView> normalizeEnvVars(List<AgentRuntimeEnvVarView> rawEnvVars) {
+        if (rawEnvVars == null || rawEnvVars.isEmpty()) {
+            return List.of();
+        }
+        ArrayList<AgentRuntimeEnvVarView> normalized = new ArrayList<>();
+        LinkedHashSet<String> seenKeys = new LinkedHashSet<>();
+        for (AgentRuntimeEnvVarView envVar : rawEnvVars) {
+            if (envVar == null || !StringUtils.hasText(envVar.key())) {
+                continue;
+            }
+            String key = envVar.key().trim().toUpperCase(Locale.ROOT);
+            if (!seenKeys.add(key)) {
+                continue;
+            }
+            AgentRuntimeEnvValueSource valueSource = envVar.valueSource() == null
+                    ? AgentRuntimeEnvValueSource.INLINE
+                    : envVar.valueSource();
+            String sourceRef = normalizeNullable(envVar.sourceRef());
+            String value = envVar.value() == null ? null : envVar.value().trim();
+            if (valueSource == AgentRuntimeEnvValueSource.PROCESS_ENV) {
+                value = null;
+            }
+            normalized.add(new AgentRuntimeEnvVarView(
+                    key,
+                    normalizeNullable(envVar.description()),
+                    envVar.secret(),
+                    valueSource,
+                    sourceRef,
+                    value,
+                    envVar.hasValue()
+            ));
+        }
+        return List.copyOf(normalized);
+    }
+
+    private AgentProfileVersionEnvVar toEnvVarEntity(
+            Long profileVersionId,
+            AgentRuntimeEnvVarView view,
+            AgentProfileVersionEnvVar existing
+    ) {
+        AgentProfileVersionEnvVar entity = new AgentProfileVersionEnvVar();
+        entity.setProfileVersionId(profileVersionId);
+        entity.setEnvKey(view.key());
+        entity.setDescription(normalizeNullable(view.description()));
+        entity.setSecret(view.secret());
+        entity.setValueSource(view.valueSource() == null ? AgentRuntimeEnvValueSource.INLINE : view.valueSource());
+        entity.setSourceRef(normalizeNullable(view.sourceRef()));
+        if (entity.getValueSource() == AgentRuntimeEnvValueSource.INLINE) {
+            if (!StringUtils.hasText(view.value()) || MASKED_SECRET.equals(view.value().trim())) {
+                if (existing != null && StringUtils.hasText(existing.getValueEncrypted())) {
+                    entity.setValueEncrypted(existing.getValueEncrypted());
+                    return entity;
+                }
+                throw new IllegalArgumentException("Inline env var value is required for key: " + view.key());
+            }
+            entity.setValueEncrypted(secretCipherService.encrypt(view.value().trim()));
+        } else {
+            if (!StringUtils.hasText(entity.getSourceRef())) {
+                throw new IllegalArgumentException("PROCESS_ENV env var requires sourceRef: " + view.key());
+            }
+            entity.setValueEncrypted(null);
+        }
+        return entity;
+    }
+
+    private AgentRuntimeEnvVarView toEnvVarView(AgentProfileVersionEnvVar envVar) {
+        String resolvedValue = environmentResolver.resolveValue(envVar);
+        boolean hasValue = StringUtils.hasText(resolvedValue);
+        String displayValue = null;
+        if (envVar.getValueSource() == AgentRuntimeEnvValueSource.INLINE && hasValue) {
+            displayValue = Boolean.TRUE.equals(envVar.getSecret()) ? MASKED_SECRET : resolvedValue;
+        }
+        return new AgentRuntimeEnvVarView(
+                envVar.getEnvKey(),
+                envVar.getDescription(),
+                Boolean.TRUE.equals(envVar.getSecret()),
+                envVar.getValueSource(),
+                envVar.getSourceRef(),
+                displayValue,
+                hasValue
+        );
     }
 
     private Long requireToolId(String code) {
@@ -292,5 +417,12 @@ public class AgentProfileBindingService {
                 policyService.normalizeType(version.getAgentType()),
                 Boolean.TRUE.equals(version.getPublished())
         );
+    }
+
+    private String normalizeNullable(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 }

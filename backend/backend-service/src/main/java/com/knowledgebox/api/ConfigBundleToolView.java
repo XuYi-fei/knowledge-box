@@ -6,6 +6,7 @@ public record ConfigBundleToolView(
         String className,
         String beanName,
         String configJson,
+        java.util.List<RuntimeEnvRequirementView> runtimeEnvRequirements,
         boolean enabled
 ) {
 }

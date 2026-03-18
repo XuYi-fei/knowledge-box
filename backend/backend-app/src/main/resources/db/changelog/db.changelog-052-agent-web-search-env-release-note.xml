@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="052-001-about-release-note-agent-web-search-env" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                highlighted,
+                published_at,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                'v0.1.52',
+                'Agent Web Search 与运行时环境变量',
+                'Agent 版本可配置运行时环境变量，统一配置 Bundle 支持导入导出这些变量，并新增 web search 子 Agent 与 Tavily 搜索能力。',
+                E'## 本次更新\n\n- Agent 版本新增运行时环境变量配置，可按 `INLINE / PROCESS_ENV` 两种来源管理密钥和普通变量\n- Tool / MCP / Skill 现可声明 `runtimeEnvRequirements`，用于配置说明、Bundle 导入导出和缺失校验\n- 新增 `web-search` Tool 与 `tavily-search` Skill，可通过原子子 Agent 方式在 ReAct 思考过程中执行公网搜索\n- 统一配置 Bundle 升级到 v2，支持 `envVars` 与 `runtimeEnvRequirements` 字段',
+                FALSE,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

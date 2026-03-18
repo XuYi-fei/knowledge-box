@@ -188,7 +188,7 @@ class AgentConfigAdminServiceTests {
     }
 
     private AgentProfileVersionBindingsView emptyBindings(Long versionId) {
-        return new AgentProfileVersionBindingsView(versionId, List.of(), List.of(), List.of(), List.of());
+        return new AgentProfileVersionBindingsView(versionId, List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
     private String previewPayload() {

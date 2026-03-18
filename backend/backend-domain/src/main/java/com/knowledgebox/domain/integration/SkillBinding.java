@@ -30,6 +30,9 @@ public class SkillBinding extends BaseEntity {
     @Column(length = 64)
     private String checksumMd5;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String runtimeEnvRequirementsJson = "[]";
+
     @Column(nullable = false)
     private Boolean enabled = Boolean.TRUE;
 
@@ -87,6 +90,14 @@ public class SkillBinding extends BaseEntity {
 
     public void setChecksumMd5(String checksumMd5) {
         this.checksumMd5 = checksumMd5;
+    }
+
+    public String getRuntimeEnvRequirementsJson() {
+        return runtimeEnvRequirementsJson;
+    }
+
+    public void setRuntimeEnvRequirementsJson(String runtimeEnvRequirementsJson) {
+        this.runtimeEnvRequirementsJson = runtimeEnvRequirementsJson;
     }
 
     public Boolean getEnabled() {

@@ -11,10 +11,13 @@ import com.knowledgebox.api.AgentProfileVersionMcpBindingView;
 import com.knowledgebox.api.UpdateAgentProfileVersionBindingsRequest;
 import com.knowledgebox.domain.agent.AgentProfile;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.AgentProfileVersionEnvVar;
+import com.knowledgebox.domain.agent.AgentRuntimeEnvValueSource;
 import com.knowledgebox.domain.integration.McpServerConfig;
 import com.knowledgebox.domain.integration.SkillBinding;
 import com.knowledgebox.domain.integration.ToolDefinition;
 import com.knowledgebox.repository.AgentProfileVersionAgentBindingRepository;
+import com.knowledgebox.repository.AgentProfileVersionEnvVarRepository;
 import com.knowledgebox.repository.AgentProfileVersionMcpBindingRepository;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.AgentProfileVersionSkillBindingRepository;
@@ -22,6 +25,7 @@ import com.knowledgebox.repository.AgentProfileVersionToolBindingRepository;
 import com.knowledgebox.repository.McpServerConfigRepository;
 import com.knowledgebox.repository.SkillBindingRepository;
 import com.knowledgebox.repository.ToolDefinitionRepository;
+import com.knowledgebox.service.chat.AgentRuntimeEnvironmentResolver;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +48,8 @@ class AgentProfileBindingServiceTests {
     @Mock
     private AgentProfileVersionSkillBindingRepository skillBindingRepository;
     @Mock
+    private AgentProfileVersionEnvVarRepository envVarRepository;
+    @Mock
     private ToolDefinitionRepository toolDefinitionRepository;
     @Mock
     private McpServerConfigRepository mcpServerConfigRepository;
@@ -51,6 +57,10 @@ class AgentProfileBindingServiceTests {
     private SkillBindingRepository skillCatalogRepository;
     @Mock
     private AgentProfileVersionPolicyService policyService;
+    @Mock
+    private AgentRuntimeEnvironmentResolver environmentResolver;
+    @Mock
+    private IntegrationSecretCipherService secretCipherService;
 
     private AgentProfileBindingService service;
 
@@ -62,11 +72,14 @@ class AgentProfileBindingServiceTests {
                 toolBindingRepository,
                 mcpBindingRepository,
                 skillBindingRepository,
+                envVarRepository,
                 toolDefinitionRepository,
                 mcpServerConfigRepository,
                 skillCatalogRepository,
                 new ObjectMapper(),
-                policyService
+                policyService,
+                environmentResolver,
+                secretCipherService
         );
     }
 
@@ -162,6 +175,7 @@ class AgentProfileBindingServiceTests {
                         new AgentProfileVersionMcpBindingView("LOCAL-MCP", List.of("http-search"), List.of("http-search")),
                         new AgentProfileVersionMcpBindingView(" ", List.of(), List.of())
                 ),
+                List.of(),
                 List.of()
         );
 
@@ -175,5 +189,58 @@ class AgentProfileBindingServiceTests {
         verify(skillBindingRepository).deleteByProfileVersionId(1L);
         verify(mcpBindingRepository).deleteByProfileVersionId(1L);
         verify(agentBindingRepository).deleteByParentProfileVersionId(1L);
+        verify(envVarRepository).deleteByProfileVersionId(1L);
+    }
+
+    @Test
+    void shouldExposePlainInlineEnvValueAndMaskSecretInlineValue() {
+        AgentProfile profile = new AgentProfile();
+        profile.setCode("entry-agent");
+        profile.setName("Entry Agent");
+        AgentProfileVersion version = new AgentProfileVersion();
+        version.setProfile(profile);
+        version.setVersionNumber(1);
+        try {
+            java.lang.reflect.Field versionIdField = com.knowledgebox.common.BaseEntity.class.getDeclaredField("id");
+            versionIdField.setAccessible(true);
+            versionIdField.set(version, 1L);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+        when(policyService.requireVersion(1L)).thenReturn(version);
+        when(toolBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(skillBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(mcpBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(agentBindingRepository.findByParentProfileVersionId(1L)).thenReturn(List.of());
+
+        AgentProfileVersionEnvVar nonSecret = new AgentProfileVersionEnvVar();
+        nonSecret.setProfileVersionId(1L);
+        nonSecret.setEnvKey("KB_SEARCH_REGION");
+        nonSecret.setDescription("Search region");
+        nonSecret.setSecret(Boolean.FALSE);
+        nonSecret.setValueSource(AgentRuntimeEnvValueSource.INLINE);
+        nonSecret.setValueEncrypted("enc-region");
+
+        AgentProfileVersionEnvVar secret = new AgentProfileVersionEnvVar();
+        secret.setProfileVersionId(1L);
+        secret.setEnvKey("TAVILY_API_KEY");
+        secret.setDescription("Tavily");
+        secret.setSecret(Boolean.TRUE);
+        secret.setValueSource(AgentRuntimeEnvValueSource.INLINE);
+        secret.setValueEncrypted("enc-secret");
+
+        when(envVarRepository.findByProfileVersionIdOrderByEnvKeyAsc(1L)).thenReturn(List.of(nonSecret, secret));
+        when(environmentResolver.resolveValue(nonSecret)).thenReturn("cn");
+        when(environmentResolver.resolveValue(secret)).thenReturn("real-secret");
+
+        var bindings = service.bindings(1L);
+
+        assertThat(bindings.envVars()).hasSize(2);
+        assertThat(bindings.envVars().get(0).key()).isEqualTo("KB_SEARCH_REGION");
+        assertThat(bindings.envVars().get(0).value()).isEqualTo("cn");
+        assertThat(bindings.envVars().get(0).hasValue()).isTrue();
+        assertThat(bindings.envVars().get(1).key()).isEqualTo("TAVILY_API_KEY");
+        assertThat(bindings.envVars().get(1).value()).isEqualTo("********");
+        assertThat(bindings.envVars().get(1).hasValue()).isTrue();
     }
 }

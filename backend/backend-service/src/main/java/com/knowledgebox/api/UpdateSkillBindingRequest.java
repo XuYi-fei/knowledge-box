@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 public record UpdateSkillBindingRequest(
         @NotBlank @Size(max = 128) String name,
         @Size(max = 1000) String description,
+        java.util.List<RuntimeEnvRequirementView> runtimeEnvRequirements,
         boolean enabled
 ) {
 }

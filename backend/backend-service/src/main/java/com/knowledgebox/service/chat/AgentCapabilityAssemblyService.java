@@ -68,8 +68,10 @@ public class AgentCapabilityAssemblyService {
     private final AgentProfileVersionPolicyService policyService;
     private final AgentExecutionTraceService agentExecutionTraceService;
     private final KnowledgeBaseSearchTool knowledgeBaseSearchTool;
+    private final WebSearchTool webSearchTool;
     private final ObjectMapper objectMapper;
     private final ChatModelFactory chatModelFactory;
+    private final AgentRuntimeEnvironmentResolver environmentResolver;
     private final Map<String, AgentSkill> skillCache = new ConcurrentHashMap<>();
 
     public AgentCapabilityAssemblyService(
@@ -88,6 +90,8 @@ public class AgentCapabilityAssemblyService {
             AgentProfileVersionPolicyService policyService,
             AgentExecutionTraceService agentExecutionTraceService,
             KnowledgeBaseSearchTool knowledgeBaseSearchTool,
+            WebSearchTool webSearchTool,
+            AgentRuntimeEnvironmentResolver environmentResolver,
             ObjectMapper objectMapper,
             @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
             @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
@@ -106,6 +110,8 @@ public class AgentCapabilityAssemblyService {
         this.policyService = policyService;
         this.agentExecutionTraceService = agentExecutionTraceService;
         this.knowledgeBaseSearchTool = knowledgeBaseSearchTool;
+        this.webSearchTool = webSearchTool;
+        this.environmentResolver = environmentResolver;
         this.objectMapper = objectMapper;
         this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
     }
@@ -140,20 +146,21 @@ public class AgentCapabilityAssemblyService {
                     .apply();
         }
         if (profileVersionId == null) {
-            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata);
+            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata, AgentRuntimeEnvironment.empty());
         }
 
         AgentProfileVersion profileVersion = policyService.requireVersion(profileVersionId);
+        AgentRuntimeEnvironment runtimeEnvironment = environmentResolver.resolve(profileVersionId);
         registerDynamicTools(profileVersionId, toolkit);
-        registerDynamicMcpClients(profileVersionId, toolkit);
+        registerDynamicMcpClients(profileVersionId, toolkit, runtimeEnvironment);
         if (includeChildAgents && canBindChildAgents(profileVersion)) {
             registerChildAgents(profileVersion, toolkit, subAgentToolMetadata, traceContext, exchangeRuntime);
         }
         SkillBox skillBox = registerDynamicSkills(profileVersionId, toolkit);
         if (skillBox == null) {
-            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata);
+            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata, runtimeEnvironment);
         }
-        return new AgentRuntimeCapabilities(toolkit, skillBox, List.of(new SkillHook(skillBox)), subAgentToolMetadata);
+        return new AgentRuntimeCapabilities(toolkit, skillBox, List.of(new SkillHook(skillBox)), subAgentToolMetadata, runtimeEnvironment);
     }
 
     private boolean canBindChildAgents(AgentProfileVersion profileVersion) {
@@ -192,7 +199,7 @@ public class AgentCapabilityAssemblyService {
         }
     }
 
-    private void registerDynamicMcpClients(Long profileVersionId, Toolkit toolkit) {
+    private void registerDynamicMcpClients(Long profileVersionId, Toolkit toolkit, AgentRuntimeEnvironment runtimeEnvironment) {
         List<AgentProfileVersionMcpBinding> bindings = mcpBindingRepository.findByProfileVersionId(profileVersionId);
         for (AgentProfileVersionMcpBinding binding : bindings) {
             McpServerConfig config = mcpServerConfigRepository.findById(binding.getMcpId()).orElse(null);
@@ -206,11 +213,11 @@ public class AgentCapabilityAssemblyService {
             try {
                 McpClientBuilder builder = McpClientBuilder.create(config.getCode())
                         .sseTransport(config.getTarget());
-                Map<String, String> queryParams = readStringMap(config.getQueryParamsJson());
+                Map<String, String> queryParams = resolveTemplateMap(readStringMap(config.getQueryParamsJson()), runtimeEnvironment);
                 if (!queryParams.isEmpty()) {
                     builder.queryParams(queryParams);
                 }
-                Map<String, String> decryptedHeaders = decryptHeaderMap(config.getHeadersEncryptedJson());
+                Map<String, String> decryptedHeaders = resolveTemplateMap(decryptHeaderMap(config.getHeadersEncryptedJson()), runtimeEnvironment);
                 if (!decryptedHeaders.isEmpty()) {
                     builder.headers(decryptedHeaders);
                 }
@@ -329,13 +336,16 @@ public class AgentCapabilityAssemblyService {
             ));
         }
         ToolExecutionContext toolExecutionContext = null;
-        if (traceContext != null || exchangeRuntime != null) {
+        if (traceContext != null || exchangeRuntime != null || childCapabilities.runtimeEnvironment() != null) {
             ToolExecutionContext.Builder builder = ToolExecutionContext.builder();
             if (traceContext != null) {
                 builder.register(AgentExecutionTraceContext.class, traceContext);
             }
             if (exchangeRuntime != null) {
                 builder.register(ChatExchangeRuntime.class, exchangeRuntime);
+            }
+            if (childCapabilities.runtimeEnvironment() != null) {
+                builder.register(AgentRuntimeEnvironment.class, childCapabilities.runtimeEnvironment());
             }
             toolExecutionContext = builder.build();
         }
@@ -446,6 +456,15 @@ public class AgentCapabilityAssemblyService {
         return decrypted;
     }
 
+    private Map<String, String> resolveTemplateMap(Map<String, String> values, AgentRuntimeEnvironment runtimeEnvironment) {
+        if (values.isEmpty() || runtimeEnvironment == null) {
+            return values;
+        }
+        Map<String, String> resolved = new LinkedHashMap<>();
+        values.forEach((key, value) -> resolved.put(key, runtimeEnvironment.resolvePlaceholders(value)));
+        return resolved;
+    }
+
     private Map<String, String> readStringMap(String json) {
         if (!StringUtils.hasText(json)) {
             return Map.of();
@@ -485,7 +504,8 @@ public class AgentCapabilityAssemblyService {
             Toolkit toolkit,
             SkillBox skillBox,
             List<Hook> hooks,
-            Map<String, Map<String, Object>> subAgentToolMetadataByName
+            Map<String, Map<String, Object>> subAgentToolMetadataByName,
+            AgentRuntimeEnvironment runtimeEnvironment
     ) {
     }
 }

@@ -9,6 +9,7 @@ public record CreateToolDefinitionRequest(
         @NotBlank @Size(max = 255) String className,
         @Size(max = 255) String beanName,
         String configJson,
+        java.util.List<RuntimeEnvRequirementView> runtimeEnvRequirements,
         boolean enabled
 ) {
 }

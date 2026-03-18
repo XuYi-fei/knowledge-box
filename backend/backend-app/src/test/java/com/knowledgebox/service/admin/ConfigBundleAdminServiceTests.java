@@ -8,10 +8,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knowledgebox.api.AgentRuntimeEnvVarView;
 import com.knowledgebox.api.AgentProfileVersionBindingsView;
 import com.knowledgebox.api.ConfigBundleImportCommitRequest;
 import com.knowledgebox.api.ConfigBundleImportDecisionRequest;
 import com.knowledgebox.api.ConfigBundleResourceType;
+import com.knowledgebox.api.RuntimeEnvRequirementView;
+import com.knowledgebox.domain.agent.AgentRuntimeEnvValueSource;
 import com.knowledgebox.domain.agent.AgentProfile;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
 import com.knowledgebox.domain.agent.AgentProfileVersionType;
@@ -179,7 +182,22 @@ class ConfigBundleAdminServiceTests {
     void shouldExportBundleWithPlainHeadersAndDefaultSkillLocation() {
         AgentProfileVersion mainVersion = version(10L, 1L, "default-main", "Default Main", AgentProfileVersionType.MAIN, true, 1);
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(mainVersion));
-        when(agentProfileBindingService.bindings(10L)).thenReturn(emptyBindings(10L));
+        when(agentProfileBindingService.bindings(10L)).thenReturn(new AgentProfileVersionBindingsView(
+                10L,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new AgentRuntimeEnvVarView(
+                        "KB_SEARCH_REGION",
+                        "Search region",
+                        false,
+                        AgentRuntimeEnvValueSource.INLINE,
+                        null,
+                        "cn",
+                        true
+                ))
+        ));
 
         ToolDefinition tool = new ToolDefinition();
         tool.setCode("sample-tool");
@@ -187,6 +205,7 @@ class ConfigBundleAdminServiceTests {
         tool.setClassName("com.example.tools.SampleTool");
         tool.setBeanName(null);
         tool.setConfigJson("{\"mode\":\"strict\"}");
+        tool.setRuntimeEnvRequirementsJson("[{\"key\":\"KB_SEARCH_REGION\",\"required\":false,\"secret\":false,\"description\":\"region\"}]");
         tool.setEnabled(Boolean.TRUE);
         setId(tool, 20L);
         when(toolDefinitionRepository.findAll()).thenReturn(List.of(tool));
@@ -197,6 +216,7 @@ class ConfigBundleAdminServiceTests {
         mcp.setTarget("http://localhost:9999/sse");
         mcp.setHeadersEncryptedJson("{\"Authorization\":\"enc-token\"}");
         mcp.setQueryParamsJson("{\"tenant\":\"kb\"}");
+        mcp.setRuntimeEnvRequirementsJson("[{\"key\":\"TAVILY_API_KEY\",\"required\":false,\"secret\":true,\"description\":\"api key\"}]");
         mcp.setTimeoutMs(1000L);
         mcp.setInitializationTimeoutMs(2000L);
         mcp.setEnabled(Boolean.TRUE);
@@ -210,6 +230,7 @@ class ConfigBundleAdminServiceTests {
         skill.setSourceType("UPLOAD");
         skill.setChecksumMd5("md5");
         skill.setOssObjectKey("skills/sample.zip");
+        skill.setRuntimeEnvRequirementsJson("[{\"key\":\"TAVILY_API_KEY\",\"required\":false,\"secret\":true,\"description\":\"api key\"}]");
         skill.setEnabled(Boolean.TRUE);
         setId(skill, 40L);
         when(skillBindingRepository.findAll()).thenReturn(List.of(skill));
@@ -217,11 +238,23 @@ class ConfigBundleAdminServiceTests {
         var exported = service.exportCurrentBundle();
 
         assertThat(exported.tools()).hasSize(1);
+        assertThat(exported.tools().get(0).runtimeEnvRequirements()).containsExactly(
+                new RuntimeEnvRequirementView("KB_SEARCH_REGION", false, false, "region")
+        );
         assertThat(exported.mcpServers()).hasSize(1);
         assertThat(exported.mcpServers().get(0).headers()).isEqualTo(Map.of("Authorization", "plain-token"));
+        assertThat(exported.mcpServers().get(0).runtimeEnvRequirements()).containsExactly(
+                new RuntimeEnvRequirementView("TAVILY_API_KEY", false, true, "api key")
+        );
         assertThat(exported.skills()).hasSize(1);
         assertThat(exported.skills().get(0).packageLocation()).isEqualTo("classpath:bootstrap/skills/sample-skill");
+        assertThat(exported.skills().get(0).runtimeEnvRequirements()).containsExactly(
+                new RuntimeEnvRequirementView("TAVILY_API_KEY", false, true, "api key")
+        );
         assertThat(exported.agents()).hasSize(1);
+        assertThat(exported.agents().get(0).envVars()).containsExactly(
+                new AgentRuntimeEnvVarView("KB_SEARCH_REGION", "Search region", false, AgentRuntimeEnvValueSource.INLINE, null, "cn", true)
+        );
     }
 
     private void mockEnabledModels() {
@@ -236,13 +269,13 @@ class ConfigBundleAdminServiceTests {
     }
 
     private AgentProfileVersionBindingsView emptyBindings(Long versionId) {
-        return new AgentProfileVersionBindingsView(versionId, List.of(), List.of(), List.of(), List.of());
+        return new AgentProfileVersionBindingsView(versionId, List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
     private String bundlePayload() {
         return """
                 {
-                  "schemaVersion": "knowledge-box.config-bundle.v1",
+                  "schemaVersion": "knowledge-box.config-bundle.v2",
                   "tools": [
                     {
                       "code": "sample-tool",
@@ -250,6 +283,14 @@ class ConfigBundleAdminServiceTests {
                       "className": "com.example.tools.SampleTool",
                       "beanName": null,
                       "configJson": "{}",
+                      "runtimeEnvRequirements": [
+                        {
+                          "key": "TAVILY_API_KEY",
+                          "required": false,
+                          "secret": true,
+                          "description": "Optional Tavily key"
+                        }
+                      ],
                       "enabled": true
                     }
                   ],
@@ -264,6 +305,7 @@ class ConfigBundleAdminServiceTests {
                       "queryParams": {
                         "tenant": "kb"
                       },
+                      "runtimeEnvRequirements": [],
                       "enabled": true
                     }
                   ],
@@ -273,6 +315,14 @@ class ConfigBundleAdminServiceTests {
                       "name": "Existing Skill",
                       "description": "existing",
                       "sourceType": "UPLOAD",
+                      "runtimeEnvRequirements": [
+                        {
+                          "key": "TAVILY_API_KEY",
+                          "required": false,
+                          "secret": true,
+                          "description": "Optional Tavily key"
+                        }
+                      ],
                       "enabled": true
                     }
                   ],
@@ -301,7 +351,16 @@ class ConfigBundleAdminServiceTests {
                           "disableTools": []
                         }
                       ],
-                      "childAgentProfileCodes": []
+                      "childAgentProfileCodes": [],
+                      "envVars": [
+                        {
+                          "key": "TAVILY_API_KEY",
+                          "description": "Optional Tavily key",
+                          "secret": true,
+                          "valueSource": "PROCESS_ENV",
+                          "sourceRef": "KB_TAVILY_API_KEY"
+                        }
+                      ]
                     }
                   ]
                 }

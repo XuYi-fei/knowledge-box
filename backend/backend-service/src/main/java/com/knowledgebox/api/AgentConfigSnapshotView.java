@@ -22,6 +22,7 @@ public record AgentConfigSnapshotView(
         List<String> toolCodes,
         List<String> skillCodes,
         List<AgentConfigMcpBindingView> mcpBindings,
-        List<String> childAgentProfileCodes
+        List<String> childAgentProfileCodes,
+        List<AgentRuntimeEnvVarView> envVars
 ) {
 }

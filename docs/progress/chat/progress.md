@@ -9,6 +9,8 @@
 - 用户侧已具备登录后的知识库问答、会话持久化、历史恢复、删除会话与 SSE 流式输出。
 - 聊天主链路已切到 AgentScope Java ReActAgent，支持前置知识检索、tool calling、reasoning/tool/citation 展示与 trace。
 - 聊天链路现已支持通过 AgentScope `SubAgentTool` 调用绑定的原子子 Agent；子 Agent 自身仍可装配 Tool / MCP / Skill，并在统一 trace 中留下独立执行过程。
+- 聊天链路现已支持 Agent 版本级运行时环境变量；Tool 执行、MCP 占位符解析和子 Agent 装配都可按当前 Agent 版本注入 `INLINE / PROCESS_ENV` 配置。
+- 新增 `web-search` Tool、`tavily-search` Skill 与 `web-search-agent` bootstrap 配置；当 Agent 需要公网信息时可优先走 Tavily，缺少密钥时自动回退直接网页搜索。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
@@ -20,6 +22,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页细滚动条、引用详情页左上返回按钮等本次 UI 修复。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 可通过，已覆盖运行时环境变量注入、web-search Tool 装配与配置 Bundle v2 相关回归。
 
 ## 待继续推进
 
@@ -33,3 +36,4 @@
 - `@ToolParam` 必须显式声明 `name`。
 - AgentScope 工具执行可能切线程，关键上下文不要只依赖 `ThreadLocal`。
 - 子 Agent 运行时按 `SubAgentTool` 作为工具注册；当前仅支持单层调用，且父 Agent 只能绑定 `ATOMIC` 版本。
+- Agent 运行时环境变量当前按 `profileVersionId` 独立解析，子 Agent 不继承父 Agent 的密钥；若子 Agent 也依赖外部服务，需要单独绑定自己的 `envVars`。

@@ -8,6 +8,7 @@ public record ConfigBundleSkillView(
         String checksumMd5,
         String ossObjectKey,
         String packageLocation,
+        java.util.List<RuntimeEnvRequirementView> runtimeEnvRequirements,
         boolean enabled
 ) {
 }

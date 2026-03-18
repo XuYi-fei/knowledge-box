@@ -7,6 +7,7 @@ public record AgentProfileVersionBindingsView(
         List<String> toolCodes,
         List<String> skillCodes,
         List<AgentProfileVersionMcpBindingView> mcpBindings,
-        List<AgentProfileVersionAgentBindingView> childAgentBindings
+        List<AgentProfileVersionAgentBindingView> childAgentBindings,
+        List<AgentRuntimeEnvVarView> envVars
 ) {
 }

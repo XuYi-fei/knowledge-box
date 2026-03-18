@@ -7,6 +7,7 @@ public record McpServerView(
         String target,
         String headersMaskedJson,
         String queryParamsJson,
+        java.util.List<RuntimeEnvRequirementView> runtimeEnvRequirements,
         Long timeoutMs,
         Long initializationTimeoutMs,
         boolean enabled

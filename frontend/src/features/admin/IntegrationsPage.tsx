@@ -5,7 +5,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import { McpServer, SkillBinding, ToolDefinition } from '../../lib/types';
+import { McpServer, RuntimeEnvRequirement, SkillBinding, ToolDefinition } from '../../lib/types';
 
 type ToolFormValues = {
   code?: string;
@@ -13,6 +13,7 @@ type ToolFormValues = {
   className: string;
   beanName?: string;
   configJson: string;
+  runtimeEnvRequirementsJson: string;
   enabled: boolean;
 };
 
@@ -22,6 +23,7 @@ type McpFormValues = {
   target: string;
   headersJson: string;
   queryParamsJson: string;
+  runtimeEnvRequirementsJson: string;
   timeoutMs?: number;
   initializationTimeoutMs?: number;
   enabled: boolean;
@@ -39,6 +41,7 @@ type SkillUploadFormValues = {
 type SkillEditFormValues = {
   name: string;
   description?: string;
+  runtimeEnvRequirementsJson: string;
   enabled: boolean;
 };
 
@@ -74,6 +77,20 @@ function parseStringMapJson(rawText: string | undefined, fieldLabel: string) {
     acc[normalizedKey] = String(value);
     return acc;
   }, {});
+}
+
+function parseJsonArray<T>(rawText: string | undefined, fieldLabel: string): T[] {
+  const resolved = rawText?.trim() ? rawText.trim() : '[]';
+  let parsed: unknown = [];
+  try {
+    parsed = JSON.parse(resolved);
+  } catch {
+    throw new Error(`${fieldLabel} 必须是有效 JSON`);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${fieldLabel} 必须是 JSON 数组`);
+  }
+  return parsed as T[];
 }
 
 function normalizeUploadFileList(event: unknown): UploadFile[] {
@@ -124,6 +141,7 @@ export function IntegrationsPage() {
         className: values.className.trim(),
         beanName: values.beanName?.trim() ? values.beanName.trim() : null,
         configJson: normalizeJsonObjectText(values.configJson, 'Tool 配置 JSON'),
+        runtimeEnvRequirements: parseJsonArray<RuntimeEnvRequirement>(values.runtimeEnvRequirementsJson, 'Tool 运行时环境变量 JSON'),
         enabled: values.enabled,
       };
       if (editingTool) {
@@ -173,6 +191,7 @@ export function IntegrationsPage() {
         target: values.target.trim(),
         headers: parseStringMapJson(values.headersJson, 'Headers JSON'),
         queryParams: parseStringMapJson(values.queryParamsJson, 'Query Params JSON'),
+        runtimeEnvRequirements: parseJsonArray<RuntimeEnvRequirement>(values.runtimeEnvRequirementsJson, 'MCP 运行时环境变量 JSON'),
         timeoutMs: values.timeoutMs ?? null,
         initializationTimeoutMs: values.initializationTimeoutMs ?? null,
         enabled: values.enabled,
@@ -254,6 +273,7 @@ export function IntegrationsPage() {
       return api.updateSkill(editingSkill.code, {
         name: values.name.trim(),
         description: values.description?.trim() || undefined,
+        runtimeEnvRequirements: parseJsonArray<RuntimeEnvRequirement>(values.runtimeEnvRequirementsJson, 'Skill 运行时环境变量 JSON'),
         enabled: values.enabled,
       });
     },
@@ -292,6 +312,7 @@ export function IntegrationsPage() {
     { title: 'Class', dataIndex: 'className', ellipsis: true },
     { title: 'Bean', dataIndex: 'beanName', render: (value: string | null) => value || '-' },
     { title: '配置(JSON)', dataIndex: 'configJson', render: (value: string) => summarizeJson(value) },
+    { title: '运行时变量', render: (_, record) => summarizeJson(JSON.stringify(record.runtimeEnvRequirements ?? [])) },
     {
       title: '启用',
       render: (_, record) => <Tag color={record.enabled ? 'green' : 'default'}>{record.enabled ? '已启用' : '已停用'}</Tag>,
@@ -310,6 +331,7 @@ export function IntegrationsPage() {
                 className: record.className,
                 beanName: record.beanName ?? undefined,
                 configJson: record.configJson || '{}',
+                runtimeEnvRequirementsJson: JSON.stringify(record.runtimeEnvRequirements ?? [], null, 2),
                 enabled: record.enabled,
               });
               setToolModalOpen(true);
@@ -344,6 +366,7 @@ export function IntegrationsPage() {
     { title: '目标', dataIndex: 'target', ellipsis: true },
     { title: 'Headers(JSON)', render: (_, record) => summarizeJson(record.headersJson || record.headersMaskedJson) },
     { title: 'Query(JSON)', dataIndex: 'queryParamsJson', render: (value: string) => summarizeJson(value) },
+    { title: '运行时变量', render: (_, record) => summarizeJson(JSON.stringify(record.runtimeEnvRequirements ?? [])) },
     { title: '超时(ms)', dataIndex: 'timeoutMs', render: (value: number | null) => value ?? '-' },
     { title: '初始化超时(ms)', dataIndex: 'initializationTimeoutMs', render: (value: number | null) => value ?? '-' },
     {
@@ -364,6 +387,7 @@ export function IntegrationsPage() {
                 target: record.target,
                 headersJson: record.headersJson || record.headersMaskedJson || '{}',
                 queryParamsJson: record.queryParamsJson || '{}',
+                runtimeEnvRequirementsJson: JSON.stringify(record.runtimeEnvRequirements ?? [], null, 2),
                 timeoutMs: record.timeoutMs ?? undefined,
                 initializationTimeoutMs: record.initializationTimeoutMs ?? undefined,
                 enabled: record.enabled,
@@ -401,6 +425,7 @@ export function IntegrationsPage() {
     { title: '来源', dataIndex: 'sourceType', render: (value: string | null) => value || '-' },
     { title: '对象Key', dataIndex: 'ossObjectKey', ellipsis: true, render: (value: string | null) => value || '-' },
     { title: 'MD5', dataIndex: 'checksumMd5', render: (value: string | null) => value || '-' },
+    { title: '运行时变量', render: (_, record) => summarizeJson(JSON.stringify(record.runtimeEnvRequirements ?? [])) },
     {
       title: '启用',
       render: (_, record) => <Tag color={record.enabled ? 'green' : 'default'}>{record.enabled ? '已启用' : '已停用'}</Tag>,
@@ -416,6 +441,7 @@ export function IntegrationsPage() {
               skillEditForm.setFieldsValue({
                 name: record.name,
                 description: record.description ?? undefined,
+                runtimeEnvRequirementsJson: JSON.stringify(record.runtimeEnvRequirements ?? [], null, 2),
                 enabled: record.enabled,
               });
               setSkillEditModalOpen(true);
@@ -457,7 +483,7 @@ export function IntegrationsPage() {
                 onClick={() => {
                   setEditingTool(null);
                   toolForm.resetFields();
-                  toolForm.setFieldsValue({ enabled: true, configJson: '{}' });
+                  toolForm.setFieldsValue({ enabled: true, configJson: '{}', runtimeEnvRequirementsJson: '[]' });
                   setToolModalOpen(true);
                 }}
               >
@@ -482,6 +508,7 @@ export function IntegrationsPage() {
                     enabled: true,
                     headersJson: '{}',
                     queryParamsJson: '{}',
+                    runtimeEnvRequirementsJson: '[]',
                   });
                   setMcpModalOpen(true);
                 }}
@@ -545,6 +572,9 @@ export function IntegrationsPage() {
           <Form.Item label="配置 JSON" name="configJson" rules={[{ required: true, message: '请输入配置 JSON' }]}>
             <Input.TextArea rows={4} />
           </Form.Item>
+          <Form.Item label="运行时环境变量 JSON" name="runtimeEnvRequirementsJson" rules={[{ required: true, message: '请输入运行时环境变量 JSON' }]}>
+            <Input.TextArea rows={4} placeholder='[{"key":"TAVILY_API_KEY","required":false,"secret":true,"description":"Optional Tavily API key"}]' />
+          </Form.Item>
           <Form.Item label="启用" name="enabled" valuePropName="checked">
             <Switch checkedChildren="启用" unCheckedChildren="停用" />
           </Form.Item>
@@ -578,6 +608,9 @@ export function IntegrationsPage() {
           <Form.Item label="Query Params JSON" name="queryParamsJson" rules={[{ required: true, message: '请输入 Query Params JSON' }]}>
             <Input.TextArea rows={3} />
           </Form.Item>
+          <Form.Item label="运行时环境变量 JSON" name="runtimeEnvRequirementsJson" rules={[{ required: true, message: '请输入运行时环境变量 JSON' }]}>
+            <Input.TextArea rows={4} placeholder='[{"key":"API_TOKEN","required":true,"secret":true,"description":"Token injected by agent runtime"}]' />
+          </Form.Item>
           <Space style={{ display: 'flex' }} size={12} align="start">
             <Form.Item label="超时(ms)" name="timeoutMs">
               <InputNumber min={1} style={{ width: 180 }} />
@@ -609,6 +642,9 @@ export function IntegrationsPage() {
           </Form.Item>
           <Form.Item label="描述" name="description">
             <Input.TextArea rows={3} />
+          </Form.Item>
+          <Form.Item label="运行时环境变量 JSON" name="runtimeEnvRequirementsJson" rules={[{ required: true, message: '请输入运行时环境变量 JSON' }]}>
+            <Input.TextArea rows={4} placeholder='[{"key":"TAVILY_API_KEY","required":false,"secret":true,"description":"Optional search API key"}]' />
           </Form.Item>
           <Form.Item label="启用" name="enabled" valuePropName="checked">
             <Switch checkedChildren="启用" unCheckedChildren="停用" />

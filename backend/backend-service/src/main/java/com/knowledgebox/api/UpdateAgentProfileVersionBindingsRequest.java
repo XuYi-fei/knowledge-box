@@ -6,6 +6,7 @@ public record UpdateAgentProfileVersionBindingsRequest(
         List<String> toolCodes,
         List<String> skillCodes,
         List<AgentProfileVersionMcpBindingView> mcpBindings,
-        List<Long> childAgentVersionIds
+        List<Long> childAgentVersionIds,
+        List<AgentRuntimeEnvVarView> envVars
 ) {
 }

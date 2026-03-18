@@ -735,7 +735,8 @@ public class AgentConfigAdminService {
                             operation.snapshot().toolCodes(),
                             operation.snapshot().skillCodes(),
                             toProfileVersionMcpBindings(operation.snapshot().mcpBindings()),
-                            childVersionIds
+                            childVersionIds,
+                            List.of()
                     )
             );
         }
@@ -1099,7 +1100,8 @@ public class AgentConfigAdminService {
                     toolCodes,
                     skillCodes,
                     mcpBindings,
-                    childAgentProfileCodes
+                    childAgentProfileCodes,
+                    List.of()
             );
         }
 
@@ -1170,7 +1172,8 @@ public class AgentConfigAdminService {
                     toolCodes,
                     skillCodes,
                     mcpBindings,
-                    childAgentProfileCodes
+                    childAgentProfileCodes,
+                    List.of()
             );
         }
 

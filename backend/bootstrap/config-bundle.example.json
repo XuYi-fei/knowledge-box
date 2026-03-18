@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "knowledge-box.config-bundle.v1",
+  "schemaVersion": "knowledge-box.config-bundle.v2",
   "tools": [
     {
       "code": "sample-tool",
@@ -7,6 +7,7 @@
       "className": "com.example.tools.SampleTool",
       "beanName": null,
       "configJson": "{}",
+      "runtimeEnvRequirements": [],
       "enabled": true
     }
   ],
@@ -21,6 +22,7 @@
       "queryParams": {
         "tenant": "knowledge-box"
       },
+      "runtimeEnvRequirements": [],
       "timeoutMs": 10000,
       "initializationTimeoutMs": 10000,
       "enabled": true
@@ -35,6 +37,7 @@
       "checksumMd5": null,
       "ossObjectKey": null,
       "packageLocation": "classpath:bootstrap/skills/sample-skill",
+      "runtimeEnvRequirements": [],
       "enabled": true
     }
   ],
@@ -67,7 +70,8 @@
           "disableTools": []
         }
       ],
-      "childAgentProfileCodes": []
+      "childAgentProfileCodes": [],
+      "envVars": []
     }
   ]
 }

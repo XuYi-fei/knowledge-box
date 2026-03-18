@@ -63,6 +63,8 @@ class AgentCapabilityAssemblyServiceTests {
     private AgentProfileVersionPolicyService policyService;
     @Mock
     private AgentExecutionTraceService agentExecutionTraceService;
+    @Mock
+    private AgentRuntimeEnvironmentResolver environmentResolver;
 
     private AgentCapabilityAssemblyService service;
 
@@ -73,6 +75,7 @@ class AgentCapabilityAssemblyServiceTests {
                 mock(AgentTraceService.class),
                 mock(AgentExecutionTraceService.class)
         );
+        WebSearchTool webSearchTool = new WebSearchTool(new ObjectMapper(), mock(AgentExecutionTraceService.class));
         KnowledgeBoxProperties properties = new KnowledgeBoxProperties();
         service = new AgentCapabilityAssemblyService(
                 properties,
@@ -90,6 +93,8 @@ class AgentCapabilityAssemblyServiceTests {
                 policyService,
                 agentExecutionTraceService,
                 knowledgeBaseSearchTool,
+                webSearchTool,
+                environmentResolver,
                 new ObjectMapper(),
                 "fake-api-key",
                 ""
@@ -106,6 +111,7 @@ class AgentCapabilityAssemblyServiceTests {
 
     @Test
     void shouldCreateDynamicToolGroupBeforeRegisteringTool() {
+        when(environmentResolver.resolve(org.mockito.ArgumentMatchers.any())).thenReturn(AgentRuntimeEnvironment.empty());
         when(mcpBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
         when(skillBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
         when(agentBindingRepository.findByParentProfileVersionId(1L)).thenReturn(List.of());

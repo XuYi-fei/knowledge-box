@@ -6,6 +6,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
 import {
+  AgentRuntimeEnvVar,
   AgentProfileVersion,
   AgentProfileVersionBindings,
   ConfigBundleImportCommitDecision,
@@ -38,6 +39,7 @@ type ProfileBindingsFormValues = {
   toolCodes: string[];
   skillCodes: string[];
   childAgentVersionIds: number[];
+  envVarsJson: string;
   mcpBindings: {
     mcpCode: string;
     enableTools: string[];
@@ -168,6 +170,20 @@ function stringifyPreviewJson(value: Record<string, unknown> | null) {
   return JSON.stringify(value, null, 2);
 }
 
+function parseJsonArray<T>(rawText: string | undefined, fieldLabel: string): T[] {
+  const resolved = rawText?.trim() ? rawText.trim() : '[]';
+  let parsed: unknown = [];
+  try {
+    parsed = JSON.parse(resolved);
+  } catch {
+    throw new Error(`${fieldLabel} 必须是有效 JSON`);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error(`${fieldLabel} 必须是 JSON 数组`);
+  }
+  return parsed as T[];
+}
+
 export function ProfileVersionsPage() {
   const { modal, message } = App.useApp();
   const queryClient = useQueryClient();
@@ -233,6 +249,7 @@ export function ProfileVersionsPage() {
         skillCodes: [],
         childAgentVersionIds: [],
         mcpBindings: [],
+        envVarsJson: '[]',
       });
       return;
     }
@@ -241,6 +258,7 @@ export function ProfileVersionsPage() {
       skillCodes: profileBindings.skillCodes ?? [],
       childAgentVersionIds: (profileBindings.childAgentBindings ?? []).map((binding) => binding.profileVersionId),
       mcpBindings: normalizeMcpBindingsForForm(profileBindings.mcpBindings),
+      envVarsJson: JSON.stringify(profileBindings.envVars ?? [], null, 2),
     });
   }, [bindingsModalOpen, profileBindings, bindingsForm]);
 
@@ -368,6 +386,7 @@ export function ProfileVersionsPage() {
             disableTools: (binding.disableTools ?? []).filter((code) => Boolean(code && code.trim())),
           })),
         childAgentVersionIds: values.childAgentVersionIds ?? [],
+        envVars: parseJsonArray<AgentRuntimeEnvVar>(values.envVarsJson, '运行时环境变量 JSON'),
       });
     },
     onSuccess: () => {
@@ -712,6 +731,7 @@ export function ProfileVersionsPage() {
                 skillCodes: [],
                 childAgentVersionIds: [],
                 mcpBindings: [],
+                envVarsJson: '[]',
               });
             }}
           >
@@ -1021,7 +1041,7 @@ export function ProfileVersionsPage() {
           layout="vertical"
           form={bindingsForm}
           onFinish={(values) => saveBindingsMutation.mutate(values)}
-          initialValues={{ toolCodes: [], skillCodes: [], childAgentVersionIds: [], mcpBindings: [] }}
+          initialValues={{ toolCodes: [], skillCodes: [], childAgentVersionIds: [], mcpBindings: [], envVarsJson: '[]' }}
         >
           <Form.Item label="工具绑定" name="toolCodes" extra="该版本默认可用的 Tool 编码集合。">
             <Select mode="multiple" allowClear showSearch options={toolCodeOptions} placeholder="选择 toolCodes" />
@@ -1076,6 +1096,14 @@ export function ProfileVersionsPage() {
               </Space>
             )}
           </Form.List>
+          <Form.Item
+            label="运行时环境变量 JSON"
+            name="envVarsJson"
+            extra="建议优先使用 PROCESS_ENV，通过 sourceRef 指向后端环境变量名；INLINE 适合临时本地调试。"
+            rules={[{ required: true, message: '请输入运行时环境变量 JSON' }]}
+          >
+            <Input.TextArea rows={8} placeholder='[{"key":"TAVILY_API_KEY","description":"Tavily API key","secret":true,"valueSource":"PROCESS_ENV","sourceRef":"KB_TAVILY_API_KEY"}]' />
+          </Form.Item>
         </Form>
       </Modal>
 

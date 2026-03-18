@@ -8,6 +8,7 @@ public record SkillBindingView(
         String sourceType,
         String ossObjectKey,
         String checksumMd5,
+        java.util.List<RuntimeEnvRequirementView> runtimeEnvRequirements,
         boolean enabled
 ) {
 }

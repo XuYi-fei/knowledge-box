@@ -10,6 +10,7 @@
 - 文档治理闭环继续收口：审核策略、失败可观测性、重复治理和导入运维仍是近期主线。
 - 用户体验继续打磨：聊天流式细节、公开文库阅读体验和用户工具扩展仍有持续迭代空间。
 - 真实环境联调继续补齐：Redis、邮件、OSS、模型配置与部署链路仍需持续验证。
+- Agent 运行时配置继续完善：当前已补齐 Agent 级环境变量、外网搜索子 Agent 与配置 Bundle v2，后续重点转向真实联网场景联调。
 
 ## 模块索引
 
@@ -24,6 +25,7 @@
 
 - `npm --prefix frontend run build` 已多轮通过，覆盖聊天、公开文库、工具平台、文档审核与 Trace 管理页等近期主线改动。
 - `mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 已通过，覆盖聊天编排、文档治理、工具平台、Trace 与公开文档接口。
+- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 已通过，覆盖 Agent 运行时环境变量、配置 Bundle v2 与 web-search 子 Agent 装配回归。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 已通过，覆盖 Agent 创建删除、`MAIN` 唯一性与公开入口校验。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。

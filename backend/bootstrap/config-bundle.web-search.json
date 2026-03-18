@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "knowledge-box.config-bundle.v2",
+  "tools": [
+    {
+      "code": "web-search",
+      "name": "Web Search",
+      "className": "com.knowledgebox.service.chat.WebSearchTool",
+      "beanName": "webSearchTool",
+      "configJson": "{\"searchWeb\":{\"maxResults\":5,\"searchDepth\":\"advanced\"}}",
+      "runtimeEnvRequirements": [
+        {
+          "key": "TAVILY_API_KEY",
+          "required": false,
+          "secret": true,
+          "description": "Optional Tavily API key. If absent, the tool falls back to direct web search."
+        }
+      ],
+      "enabled": true
+    }
+  ],
+  "mcpServers": [],
+  "skills": [
+    {
+      "code": "tavily-search",
+      "name": "Tavily Search Skill",
+      "description": "Guide the agent to search the public web, cite sources, and explain no-result cases clearly.",
+      "sourceType": "BOOTSTRAP",
+      "checksumMd5": null,
+      "ossObjectKey": null,
+      "packageLocation": "classpath:bootstrap/skills/tavily-search",
+      "runtimeEnvRequirements": [
+        {
+          "key": "TAVILY_API_KEY",
+          "required": false,
+          "secret": true,
+          "description": "Optional Tavily API key. When absent, the runtime falls back to direct web search."
+        }
+      ],
+      "enabled": true
+    }
+  ],
+  "agents": [
+    {
+      "profileCode": "web-search-agent",
+      "profileName": "Web Search Agent",
+      "description": "Atomic sub-agent for grounded public web search.",
+      "agentType": "ATOMIC",
+      "status": "DRAFT",
+      "published": false,
+      "chatModel": "qwen-max",
+      "routingModel": "qwen-plus",
+      "embeddingModel": "text-embedding-v3",
+      "rerankModel": "gte-rerank",
+      "temperature": 0.2,
+      "retrievalTopK": 1,
+      "reasoningBudget": 1,
+      "systemPrompt": "When external or up-to-date information is needed, call searchWeb first. Base the answer strictly on returned evidence, cite URLs explicitly, and explain clearly when no reliable result is found.",
+      "toolCodes": [
+        "web-search"
+      ],
+      "skillCodes": [
+        "tavily-search"
+      ],
+      "mcpBindings": [],
+      "childAgentProfileCodes": [],
+      "envVars": [
+        {
+          "key": "TAVILY_API_KEY",
+          "description": "Optional Tavily API key for web search",
+          "secret": true,
+          "valueSource": "PROCESS_ENV",
+          "sourceRef": "KB_TAVILY_API_KEY"
+        }
+      ]
+    }
+  ]
+}

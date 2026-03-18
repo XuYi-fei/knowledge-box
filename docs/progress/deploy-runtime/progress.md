@@ -11,13 +11,15 @@
 - 已支持本地维护 `config/application-prod.yml` 与 `config/knowledge-box.env` 并在部署时覆盖服务器端配置。
 - 已修复远程平铺启动时 `.env` 变量只 `source` 不导出、中文环境变量乱码，以及停止脚本不等待旧进程退出的问题。
 - 已将 `tmp/yuque-batch` 与 bootstrap seeds 一并纳入发布包，保证服务器启动时的 bootstrap 导入链路可用。
+- 已补齐 Agent bootstrap 配置链路：`application-local.yml`、`application-local.yml.example`、`config/application-prod.yml`、`config/knowledge-box.env`、模板 env/prod 配置均支持自动导入 `backend/bootstrap/config-bundle.web-search.json`。
+- 远程平铺部署脚本现已同步 `backend/bootstrap/` 目录，确保服务器重启时能读到 `web-search-agent` 相关 bundle。
 - 本地启动链路已验证可跑通，`/api/public/system/availability` 可正常返回 `UP`。
 
 ## 已验证范围
 
 - 前端：`npm --prefix frontend run build -- --profile production` 可通过，已覆盖 profile 选择脚本与动态配置加载。
 - 发布脚本：`bash -n deploy/build-release.sh && bash -n deploy/bin/start-backend.sh && bash -n deploy/bin/stop-backend.sh` 可通过。
-- 远程平铺部署脚本：`bash -n deploy/deploy-remote-flat.sh deploy/bin/start-backend-flat.sh deploy/bin/stop-backend-flat.sh` 与 `./deploy/deploy-remote-flat.sh --help` 可通过。
+- 远程平铺部署脚本：`bash -n deploy/deploy-remote-flat.sh deploy/bin/start-backend-flat.sh deploy/bin/stop-backend-flat.sh` 与 `./deploy/deploy-remote-flat.sh --help` 可通过，已覆盖 `backend/bootstrap/` 同步改动。
 - 干跑：`./deploy/deploy-remote-flat.sh --skip-build --dry-run`、`--frontend-only`、`--backend-only` 已验证动作拆分正确。
 - 本地启动：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 
@@ -26,6 +28,7 @@
 - 补齐 Redis、邮件发送、OSS 与真实模型配置参与下的完整本地联调。
 - 继续验证远程部署后的稳定性、回滚路径和运行期观测信息。
 - 收口生产配置模板与实际服务器配置之间的差异，减少手工补配置步骤。
+- 在真实远程环境验证 `web-search-agent` 首次自动导入、重复重启幂等跳过与 Tavily key 生效情况。
 
 ## 关键注意点
 

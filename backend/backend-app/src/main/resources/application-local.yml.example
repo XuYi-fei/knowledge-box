@@ -41,6 +41,14 @@ spring:
           model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
           dimensions: ${KB_RETRIEVAL_EMBEDDING_DIMENSIONS:1024}
 
+# Tavily 搜索 API Key。
+# 这里用一个与 Agent envVar sourceRef 同名的 Spring 配置键，方便本地直接调试。
+# Agent 对 PROCESS_ENV 的解析顺序是：
+# 1. 先读系统环境变量 KB_TAVILY_API_KEY
+# 2. 若系统环境变量为空，再回退读取 Spring Environment 中的同名配置
+# 本地开发可直接在此处填写，线上部署建议放到 knowledge-box.env / 宿主环境变量中。
+KB_TAVILY_API_KEY: ${KB_TAVILY_API_KEY:}
+
 management:
   health:
     mail:
@@ -114,17 +122,35 @@ knowledge-box:
       operator-username: ${KB_DOCUMENT_BOOTSTRAP_OPERATOR_USERNAME:admin}
   agent:
     bootstrap:
+      # 是否在启动时自动导入 Agent 配置 bundle。
+      # 若你希望本地直接看到 web-search-agent、web-search Tool、tavily-search Skill，
+      # 可把 enabled 改为 true，并将 seed-file 指向 backend/bootstrap/config-bundle.web-search.json。
       enabled: ${KB_AGENT_BOOTSTRAP_ENABLED:false}
+      # 单文件 seed 路径。
+      # 本地仓库下推荐：backend/bootstrap/config-bundle.web-search.json
       seed-file: ${KB_AGENT_BOOTSTRAP_SEED_FILE:}
+      # 目录扫描可选；如果同时配置了 seed-file 和 seed-directory，会先导入 seed-file。
       seed-directory: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY:}
       seed-directory-pattern: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY_PATTERN:*.json}
       seed-directory-recursive: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE:true}
+      # 是否在 seed 文件缺失、JSON 非法、依赖校验失败时直接阻止启动。
       fail-fast: ${KB_AGENT_BOOTSTRAP_FAIL_FAST:false}
+      # 启动导入时写审计/元数据所使用的后台用户名。
+      operator-username: ${KB_AGENT_BOOTSTRAP_OPERATOR_USERNAME:admin}
     runtime-env-check:
+      # 是否开启启动期 Agent 环境变量检查。
+      # 开启后会扫描 Agent 版本自身配置的 envVars，并校验它们能否被真正解析出来。
       enabled: ${KB_AGENT_RUNTIME_ENV_CHECK_ENABLED:false}
+      # 发现缺失项后是否直接终止启动。
+      # 本地调试通常先设为 false，生产若希望严格防止带病启动可设为 true。
       fail-fast: ${KB_AGENT_RUNTIME_ENV_CHECK_FAIL_FAST:false}
+      # 是否把未发布的 Agent 版本也纳入检查范围。
+      # true 适合开发环境预检，false 更偏向只关注线上会使用到的 Agent。
       check-unpublished: ${KB_AGENT_RUNTIME_ENV_CHECK_CHECK_UNPUBLISHED:true}
+      # 是否一并检查 INLINE 类型 envVar 是否已经在数据库中保存值。
       include-inline: ${KB_AGENT_RUNTIME_ENV_CHECK_INCLUDE_INLINE:true}
+      # 额外要求必须存在的宿主环境变量，多个值以英文逗号分隔。
+      # 这类 key 会在应用启动时直接检查，不依赖某个具体 Agent 是否被路由到。
       required-process-env-keys: ${KB_AGENT_RUNTIME_ENV_CHECK_REQUIRED_PROCESS_ENV_KEYS:}
   integration:
     crypto:

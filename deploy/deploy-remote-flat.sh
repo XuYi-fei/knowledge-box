@@ -151,6 +151,7 @@ fi
 
 REMOTE_DIST_DIR="${REMOTE_BASE}/dist"
 REMOTE_TMP_DIR="${REMOTE_BASE}/tmp"
+REMOTE_BOOTSTRAP_DIR="${REMOTE_BASE}/backend/bootstrap"
 REMOTE_DEPLOY_BIN_DIR="${REMOTE_BASE}/deploy/bin"
 REMOTE_CONFIG_DIR="${REMOTE_BASE}/config"
 REMOTE_LOG_DIR="${REMOTE_BASE}/logs"
@@ -175,7 +176,7 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
     REMOTE_MKDIRS+=("'${REMOTE_DIST_DIR}'")
   fi
   if [[ ${DEPLOY_BACKEND} -eq 1 ]]; then
-    REMOTE_MKDIRS+=("'${REMOTE_TMP_DIR}'" "'${REMOTE_DEPLOY_BIN_DIR}'" "'${REMOTE_CONFIG_DIR}'" "'${REMOTE_LOG_DIR}'" "'${REMOTE_UPLOADS_DIR}'")
+    REMOTE_MKDIRS+=("'${REMOTE_TMP_DIR}'" "'${REMOTE_BOOTSTRAP_DIR}'" "'${REMOTE_DEPLOY_BIN_DIR}'" "'${REMOTE_CONFIG_DIR}'" "'${REMOTE_LOG_DIR}'" "'${REMOTE_UPLOADS_DIR}'")
   fi
   print_cmd ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p ${REMOTE_MKDIRS[*]}"
   if [[ ${DEPLOY_FRONTEND} -eq 1 ]]; then
@@ -195,6 +196,8 @@ if [[ ${DRY_RUN} -eq 1 ]]; then
       "${SSH_TARGET}:${REMOTE_DEPLOY_BIN_DIR}/"
     print_cmd rsync "${TMP_PREVIEW_OPTS[@]}" -e "${RSYNC_RSH}" \
       "${ROOT_DIR}/tmp/yuque-batch/" "${SSH_TARGET}:${REMOTE_TMP_DIR}/yuque-batch/"
+    print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+      "${ROOT_DIR}/backend/bootstrap/" "${SSH_TARGET}:${REMOTE_BOOTSTRAP_DIR}/"
     if [[ -f "${LOCAL_APP_PROD_CONFIG}" ]]; then
       print_cmd rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
         "${LOCAL_APP_PROD_CONFIG}" \
@@ -226,7 +229,7 @@ if [[ ${DEPLOY_FRONTEND} -eq 1 ]]; then
   REMOTE_MKDIRS+=("'${REMOTE_DIST_DIR}'")
 fi
 if [[ ${DEPLOY_BACKEND} -eq 1 ]]; then
-  REMOTE_MKDIRS+=("'${REMOTE_TMP_DIR}'" "'${REMOTE_DEPLOY_BIN_DIR}'" "'${REMOTE_CONFIG_DIR}'" "'${REMOTE_LOG_DIR}'" "'${REMOTE_UPLOADS_DIR}'")
+  REMOTE_MKDIRS+=("'${REMOTE_TMP_DIR}'" "'${REMOTE_BOOTSTRAP_DIR}'" "'${REMOTE_DEPLOY_BIN_DIR}'" "'${REMOTE_CONFIG_DIR}'" "'${REMOTE_LOG_DIR}'" "'${REMOTE_UPLOADS_DIR}'")
 fi
 ssh "${SSH_OPTS[@]}" "${SSH_TARGET}" "mkdir -p ${REMOTE_MKDIRS[*]}"
 
@@ -248,6 +251,10 @@ if [[ ${DEPLOY_BACKEND} -eq 1 ]]; then
   fi
   rsync "${TMP_RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
     "${ROOT_DIR}/tmp/yuque-batch/" "${SSH_TARGET}:${REMOTE_TMP_DIR}/yuque-batch/"
+
+  echo "[deploy-remote-flat] Syncing backend/bootstrap -> ${SSH_TARGET}:${REMOTE_BOOTSTRAP_DIR}"
+  rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \
+    "${ROOT_DIR}/backend/bootstrap/" "${SSH_TARGET}:${REMOTE_BOOTSTRAP_DIR}/"
 
   echo "[deploy-remote-flat] Syncing flat deploy scripts..."
   rsync "${RSYNC_OPTS[@]}" -e "${RSYNC_RSH}" \

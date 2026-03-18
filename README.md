@@ -619,6 +619,33 @@ KB_DOCUMENT_BOOTSTRAP_FAIL_FAST=true
 - 共享默认配置：[application.yml](/Users/xuyifei/repos/knowledge-box/backend/backend-app/src/main/resources/application.yml)
 - 本地示例配置：[application-local.yml.example](/Users/xuyifei/repos/knowledge-box/backend/backend-app/src/main/resources/application-local.yml.example)
 
+### 4. Agent 运行时环境变量启动自检（可选）
+
+如果你已经给 Agent 配了 `envVars`，并希望应用启动时直接检查这些 key 是否可用，可以开启：
+
+- `knowledge-box.agent.runtime-env-check.enabled`
+- `knowledge-box.agent.runtime-env-check.fail-fast`
+- `knowledge-box.agent.runtime-env-check.check-unpublished`
+- `knowledge-box.agent.runtime-env-check.include-inline`
+- `knowledge-box.agent.runtime-env-check.required-process-env-keys`
+
+推荐用法：
+
+```bash
+KB_AGENT_RUNTIME_ENV_CHECK_ENABLED=true
+KB_AGENT_RUNTIME_ENV_CHECK_FAIL_FAST=true
+KB_AGENT_RUNTIME_ENV_CHECK_CHECK_UNPUBLISHED=true
+KB_AGENT_RUNTIME_ENV_CHECK_REQUIRED_PROCESS_ENV_KEYS=KB_TAVILY_API_KEY,DASHSCOPE_API_KEY
+```
+
+说明：
+
+- 启动时会扫描 Agent 版本已绑定的 `envVars`。
+- `PROCESS_ENV` 会检查 `sourceRef` 对应的宿主环境变量是否存在。
+- `INLINE` 会检查数据库里是否已经保存值。
+- 还会结合 Agent 绑定的 Tool / Skill / MCP 的 `runtimeEnvRequirements`，检查必填 key 是否缺失。
+- `fail-fast=true` 时，发现问题会直接阻止启动；否则只打告警日志。
+
 ## 已验证命令
 
 本仓库当前已验证通过：

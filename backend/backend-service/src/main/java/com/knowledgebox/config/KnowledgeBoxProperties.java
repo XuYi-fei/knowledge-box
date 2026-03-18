@@ -576,9 +576,14 @@ public class KnowledgeBoxProperties {
 
     public static class Agent {
         private final Bootstrap bootstrap = new Bootstrap();
+        private final RuntimeEnvCheck runtimeEnvCheck = new RuntimeEnvCheck();
 
         public Bootstrap getBootstrap() {
             return bootstrap;
+        }
+
+        public RuntimeEnvCheck getRuntimeEnvCheck() {
+            return runtimeEnvCheck;
         }
     }
 
@@ -675,6 +680,54 @@ public class KnowledgeBoxProperties {
 
         public void setOperatorUsername(String operatorUsername) {
             this.operatorUsername = operatorUsername;
+        }
+    }
+
+    public static class RuntimeEnvCheck {
+        private boolean enabled = false;
+        private boolean failFast = false;
+        private boolean checkUnpublished = true;
+        private boolean includeInline = true;
+        private List<String> requiredProcessEnvKeys = new ArrayList<>();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isFailFast() {
+            return failFast;
+        }
+
+        public void setFailFast(boolean failFast) {
+            this.failFast = failFast;
+        }
+
+        public boolean isCheckUnpublished() {
+            return checkUnpublished;
+        }
+
+        public void setCheckUnpublished(boolean checkUnpublished) {
+            this.checkUnpublished = checkUnpublished;
+        }
+
+        public boolean isIncludeInline() {
+            return includeInline;
+        }
+
+        public void setIncludeInline(boolean includeInline) {
+            this.includeInline = includeInline;
+        }
+
+        public List<String> getRequiredProcessEnvKeys() {
+            return requiredProcessEnvKeys;
+        }
+
+        public void setRequiredProcessEnvKeys(List<String> requiredProcessEnvKeys) {
+            this.requiredProcessEnvKeys = requiredProcessEnvKeys;
         }
     }
 

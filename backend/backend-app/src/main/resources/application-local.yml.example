@@ -120,6 +120,12 @@ knowledge-box:
       seed-directory-pattern: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY_PATTERN:*.json}
       seed-directory-recursive: ${KB_AGENT_BOOTSTRAP_SEED_DIRECTORY_RECURSIVE:true}
       fail-fast: ${KB_AGENT_BOOTSTRAP_FAIL_FAST:false}
+    runtime-env-check:
+      enabled: ${KB_AGENT_RUNTIME_ENV_CHECK_ENABLED:false}
+      fail-fast: ${KB_AGENT_RUNTIME_ENV_CHECK_FAIL_FAST:false}
+      check-unpublished: ${KB_AGENT_RUNTIME_ENV_CHECK_CHECK_UNPUBLISHED:true}
+      include-inline: ${KB_AGENT_RUNTIME_ENV_CHECK_INCLUDE_INLINE:true}
+      required-process-env-keys: ${KB_AGENT_RUNTIME_ENV_CHECK_REQUIRED_PROCESS_ENV_KEYS:}
   integration:
     crypto:
       # 强烈建议使用长度足够的随机值；也可使用 base64: 前缀传入 Base64 编码值

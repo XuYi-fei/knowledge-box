@@ -13,6 +13,7 @@
 - 管理端现已支持统一配置 Bundle 导入导出，可在一份 JSON 中同时维护 Agent、Tool、MCP 与 Skill，并在预览阶段按资源类型展示冲突、现有配置和即将写入的快照。
 - 统一配置 Bundle 已升级到 `knowledge-box.config-bundle.v2`，可同时维护 Tool/MCP/Skill 的 `runtimeEnvRequirements` 与 Agent 的 `envVars`。
 - Agent Profile Version 绑定页现已支持编辑运行时环境变量，区分 `INLINE / PROCESS_ENV` 两种来源；非 secret inline 值会正常回显，secret inline 值以掩码保留。
+- 系统启动期现已支持通过 `knowledge-box.agent.runtime-env-check.*` 做 Agent 运行时环境变量自检，并可按 `fail-fast` 决定是否阻止启动。
 - 系统启动期 bootstrap 现已支持统一配置 Bundle schema；Skill 可按约定从 `classpath:bootstrap/skills/<code>` 或显式 `packageLocation` 目录自动打包并上传到 OSS。
 - 系统启动期已支持通过 `knowledge-box.agent.bootstrap.*` 从外置 JSON seed file / seed directory 自动创建缺失 Agent，并在重复 `profileCode` / `profileName` 时保留数据库现状并记录告警。
 - Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
@@ -28,6 +29,7 @@
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖 Agent 创建删除、`MAIN` 唯一性和主入口校验。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentConfigAdminServiceTests,AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests test` 可通过，已覆盖 Agent JSON 导入预览、覆盖提交与启动期跳过策略。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ChatOrchestratorTests test` 可通过，已覆盖统一配置 Bundle v2、运行时环境变量回显/导出以及 web-search 子 Agent 装配。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺失宿主环境变量告警与 fail-fast 启动保护。
 
 ## 待继续推进
 

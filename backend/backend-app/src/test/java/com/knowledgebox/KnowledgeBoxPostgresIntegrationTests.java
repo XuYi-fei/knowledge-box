@@ -105,7 +105,7 @@ class KnowledgeBoxPostgresIntegrationTests {
         assertThat(documentCount).isEqualTo(2);
         assertThat(modelCount).isEqualTo(4);
         assertThat(agentProfileRepository.findByCode("default-qa")).isPresent();
-        assertThat(agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(com.knowledgebox.domain.agent.AgentProfileVersionType.ENTRY)).isPresent();
+        assertThat(agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(com.knowledgebox.domain.agent.AgentProfileVersionType.MAIN)).isPresent();
         assertThat(knowledgeDocumentRepository.count()).isEqualTo(2);
         assertThat(ingestionJobRepository.count()).isEqualTo(2);
     }

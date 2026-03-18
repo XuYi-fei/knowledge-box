@@ -89,7 +89,7 @@ public class DocumentTaxonomyAgentService {
     }
 
     private String invokeAgent(String modelCode, String userPrompt) {
-        Long profileVersionId = agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.ENTRY)
+        Long profileVersionId = agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.MAIN)
                 .map(version -> version.getId())
                 .orElse(null);
         AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(

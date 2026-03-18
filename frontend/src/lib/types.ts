@@ -119,7 +119,7 @@ export type AgentProfileVersion = {
   versionNumber: number;
   status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
   published: boolean;
-  agentType: 'ENTRY' | 'ORCHESTRATOR' | 'ATOMIC';
+  agentType: 'MAIN' | 'ENTRY' | 'ORCHESTRATOR' | 'ATOMIC';
   chatModel: string;
   routingModel: string | null;
   embeddingModel: string;

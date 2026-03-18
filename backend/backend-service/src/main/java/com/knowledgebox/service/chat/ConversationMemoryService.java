@@ -55,6 +55,7 @@ public class ConversationMemoryService {
                     return created;
                 });
 
+        session.setActiveProfileCode(profileCode);
         session.setSelectedChatModel(chatModel);
         if ((session.getTitle() == null || session.getTitle().isBlank()) && titleHint != null && !titleHint.isBlank()) {
             session.setTitle(buildSessionTitle(titleHint));
@@ -261,9 +262,17 @@ public class ConversationMemoryService {
     }
 
     private void touchSession(Long userId, String sessionCode, String chatModel, String titleHint) {
-        ChatSession session = ensureSession(userId, sessionCode, "default-qa", chatModel, titleHint);
+        ChatSession session = chatSessionRepository.findByUserIdAndSessionCode(userId, sessionCode)
+                .orElse(null);
+        if (session == null) {
+            return;
+        }
         session.setUpdatedAt(OffsetDateTime.now());
         session.setLastMessageAt(OffsetDateTime.now());
+        session.setSelectedChatModel(chatModel);
+        if ((session.getTitle() == null || session.getTitle().isBlank()) && titleHint != null && !titleHint.isBlank()) {
+            session.setTitle(buildSessionTitle(titleHint));
+        }
         chatSessionRepository.save(session);
     }
 

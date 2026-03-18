@@ -13,11 +13,17 @@ public interface AgentProfileVersionRepository extends JpaRepository<AgentProfil
 
     List<AgentProfileVersion> findByProfile_CodeOrderByVersionNumberDesc(String code);
 
+    List<AgentProfileVersion> findByProfile_IdOrderByVersionNumberDesc(Long profileId);
+
     @EntityGraph(attributePaths = "profile")
     Optional<AgentProfileVersion> findFirstByPublishedTrueOrderByUpdatedAtDesc();
 
     @EntityGraph(attributePaths = "profile")
     Optional<AgentProfileVersion> findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType agentType);
+
+    boolean existsByAgentTypeAndIdNot(AgentProfileVersionType agentType, Long id);
+
+    boolean existsByAgentType(AgentProfileVersionType agentType);
 
     @EntityGraph(attributePaths = "profile")
     List<AgentProfileVersion> findAllByIdIn(Collection<Long> ids);

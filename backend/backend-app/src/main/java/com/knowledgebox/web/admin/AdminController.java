@@ -1,6 +1,7 @@
 package com.knowledgebox.web.admin;
 
 import com.knowledgebox.api.AdminDashboardView;
+import com.knowledgebox.api.CreateAgentProfileRequest;
 import com.knowledgebox.api.AppToolDefinitionView;
 import com.knowledgebox.api.AppToolExecutionLogPageView;
 import com.knowledgebox.api.AgentExecutionTraceDetailView;
@@ -107,12 +108,23 @@ public class AdminController {
         return adminQueryService.profileVersions();
     }
 
+    @PostMapping("/profile-versions")
+    public AgentProfileVersionView createProfileVersion(@Valid @RequestBody CreateAgentProfileRequest request) {
+        return adminCommandService.createProfile(request);
+    }
+
     @PutMapping("/profile-versions/{id}")
     public AgentProfileVersionView updateProfileVersion(
             @PathVariable Long id,
             @Valid @RequestBody UpdateAgentProfileVersionRequest request
     ) {
         return adminCommandService.updateProfileVersion(id, request);
+    }
+
+    @DeleteMapping("/profile-versions/{id}")
+    public Map<String, String> deleteProfileVersion(@PathVariable Long id) {
+        adminCommandService.deleteProfileVersion(id);
+        return Map.of("message", "Agent deleted");
     }
 
     @GetMapping("/profile-versions/{id}/bindings")

@@ -31,6 +31,9 @@ public class PublishedProfileRoutingModelValidator implements ApplicationRunner 
         List<AgentProfileVersion> publishedVersions = agentProfileVersionRepository.findAllForAdmin().stream()
                 .filter(version -> Boolean.TRUE.equals(version.getPublished()))
                 .toList();
+        if (publishedVersions.isEmpty()) {
+            throw new IllegalStateException("A published MAIN agent profile version is required for public chat");
+        }
         for (AgentProfileVersion version : publishedVersions) {
             validatePublishedEntryType(version);
             validateRoutingModel(version);
@@ -39,9 +42,9 @@ public class PublishedProfileRoutingModelValidator implements ApplicationRunner 
 
     private void validatePublishedEntryType(AgentProfileVersion version) {
         AgentProfileVersionType agentType = version.getAgentType() == null ? AgentProfileVersionType.ENTRY : version.getAgentType();
-        if (agentType != AgentProfileVersionType.ENTRY) {
+        if (agentType != AgentProfileVersionType.MAIN) {
             throw new IllegalStateException(
-                    "Published agent profile version must be ENTRY: profile="
+                    "Published agent profile version must be MAIN: profile="
                             + version.getProfile().getCode()
                             + ", version="
                             + version.getVersionNumber()

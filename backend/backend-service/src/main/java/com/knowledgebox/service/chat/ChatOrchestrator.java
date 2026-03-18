@@ -1005,7 +1005,7 @@ public class ChatOrchestrator {
 
 
     private AgentProfileVersion publishedProfile() {
-        return agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.ENTRY)
+        return agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.MAIN)
                 .orElseThrow(() -> new IllegalStateException("No published agent profile version found"));
     }
 

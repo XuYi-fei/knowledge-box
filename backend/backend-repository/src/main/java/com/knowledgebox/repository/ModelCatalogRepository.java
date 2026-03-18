@@ -18,6 +18,8 @@ public interface ModelCatalogRepository extends JpaRepository<ModelCatalog, Long
 
     List<ModelCatalog> findAllByOrderByModelTypeAscDisplayNameAsc();
 
+    List<ModelCatalog> findAllByModelTypeAndEnabledTrueOrderByDisplayNameAsc(ModelType modelType);
+
     List<ModelCatalog> findAllByModelTypeAndEnabledTrueAndPublicSelectableTrueOrderByDisplayNameAsc(ModelType modelType);
 
     List<ModelCatalog> findAllByModelTypeAndDefaultForPublicTrue(ModelType modelType);

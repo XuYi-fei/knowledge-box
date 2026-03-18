@@ -66,6 +66,20 @@ type UpdateProfileVersionPayload = {
   reasoningBudget: number;
 };
 
+type CreateProfilePayload = {
+  profileCode: string;
+  profileName: string;
+  description?: string;
+  agentType: AgentProfileVersion['agentType'];
+  chatModel: string;
+  routingModel: string;
+  embeddingModel: string;
+  rerankModel?: string | null;
+  temperature: number;
+  retrievalTopK: number;
+  reasoningBudget: number;
+};
+
 type UpdateProfileVersionBindingsPayload = {
   toolCodes: string[];
   skillCodes: string[];
@@ -402,12 +416,31 @@ export const api = {
   async profileVersions() {
     return requestJson<AgentProfileVersion[]>('/api/admin/profile-versions', undefined, 'admin');
   },
+  async createProfile(payload: CreateProfilePayload) {
+    return requestJson<AgentProfileVersion>(
+      '/api/admin/profile-versions',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
   async updateProfileVersion(id: number, payload: UpdateProfileVersionPayload) {
     return requestJson<AgentProfileVersion>(
       `/api/admin/profile-versions/${id}`,
       {
         method: 'PUT',
         body: JSON.stringify(payload),
+      },
+      'admin',
+    );
+  },
+  async deleteProfileVersion(id: number) {
+    return requestJson<{ message: string }>(
+      `/api/admin/profile-versions/${id}`,
+      {
+        method: 'DELETE',
       },
       'admin',
     );

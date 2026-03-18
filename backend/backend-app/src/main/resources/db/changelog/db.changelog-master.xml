@@ -51,4 +51,6 @@
     <include file="db/changelog/db.changelog-044-document-column-release-note.xml"/>
     <include file="db/changelog/db.changelog-045-agent-subagent-binding.xml"/>
     <include file="db/changelog/db.changelog-046-agent-subagent-binding-release-note.xml"/>
+    <include file="db/changelog/db.changelog-047-agent-main-profile.xml"/>
+    <include file="db/changelog/db.changelog-048-agent-main-profile-release-note.xml"/>
 </databaseChangeLog>

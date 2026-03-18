@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { App, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
@@ -6,38 +6,22 @@ import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
 import { AgentProfileVersion, AgentProfileVersionBindings, ModelCatalog, ModelType } from '../../lib/types';
 
-const columns: ColumnsType<AgentProfileVersion> = [
-  { title: 'Profile', dataIndex: 'profileCode' },
-  { title: '名称', dataIndex: 'profileName' },
-  { title: '版本', dataIndex: 'versionNumber' },
-  {
-    title: '类型',
-    dataIndex: 'agentType',
-    render: (value: AgentProfileVersion['agentType']) => {
-      const color = value === 'ENTRY' ? 'blue' : value === 'ORCHESTRATOR' ? 'purple' : 'gold';
-      return <Tag color={color}>{value}</Tag>;
-    },
-  },
-  { title: '聊天模型', dataIndex: 'chatModel' },
-  {
-    title: '路由模型',
-    dataIndex: 'routingModel',
-    render: (value: AgentProfileVersion['routingModel']) => value ?? '-',
-  },
-  { title: 'Embedding', dataIndex: 'embeddingModel' },
-  { title: 'Rerank', dataIndex: 'rerankModel' },
-  { title: 'Temperature', dataIndex: 'temperature' },
-  { title: 'TopK', dataIndex: 'retrievalTopK' },
-  { title: '思考级别', dataIndex: 'reasoningBudget' },
-  {
-    title: '状态',
-    render: (_, record) => <Tag color={record.published ? 'green' : 'gold'}>{record.status}</Tag>,
-  },
-  {
-    title: '操作',
-    render: () => null,
-  },
-];
+type ProfileConfigFormValues = {
+  agentType: AgentProfileVersion['agentType'];
+  chatModel: string;
+  routingModel: string;
+  embeddingModel: string;
+  rerankModel?: string | null;
+  temperature: number;
+  retrievalTopK: number;
+  reasoningBudget: number;
+};
+
+type CreateProfileFormValues = ProfileConfigFormValues & {
+  profileCode: string;
+  profileName: string;
+  description?: string;
+};
 
 type ProfileBindingsFormValues = {
   toolCodes: string[];
@@ -49,6 +33,19 @@ type ProfileBindingsFormValues = {
     disableTools: string[];
   }[];
 };
+
+function agentTypeColor(value: AgentProfileVersion['agentType']) {
+  if (value === 'MAIN') {
+    return 'volcano';
+  }
+  if (value === 'ENTRY') {
+    return 'blue';
+  }
+  if (value === 'ORCHESTRATOR') {
+    return 'purple';
+  }
+  return 'gold';
+}
 
 function normalizeMcpBindingsForForm(bindings: AgentProfileVersionBindings['mcpBindings']): ProfileBindingsFormValues['mcpBindings'] {
   const normalized = new Map<string, ProfileBindingsFormValues['mcpBindings'][number]>();
@@ -71,16 +68,8 @@ function normalizeMcpBindingsForForm(bindings: AgentProfileVersionBindings['mcpB
 export function ProfileVersionsPage() {
   const { modal, message } = App.useApp();
   const queryClient = useQueryClient();
-  const [profileForm] = Form.useForm<{
-    agentType: AgentProfileVersion['agentType'];
-    chatModel: string;
-    routingModel: string;
-    embeddingModel: string;
-    rerankModel?: string | null;
-    temperature: number;
-    retrievalTopK: number;
-    reasoningBudget: number;
-  }>();
+  const [createForm] = Form.useForm<CreateProfileFormValues>();
+  const [profileForm] = Form.useForm<ProfileConfigFormValues>();
   const [modelForm] = Form.useForm<{
     code: string;
     displayName: string;
@@ -95,6 +84,7 @@ export function ProfileVersionsPage() {
   const [editingProfile, setEditingProfile] = useState<AgentProfileVersion | null>(null);
   const [editingModel, setEditingModel] = useState<ModelCatalog | null>(null);
   const [bindingProfile, setBindingProfile] = useState<AgentProfileVersion | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [modelModalOpen, setModelModalOpen] = useState(false);
   const [bindingsModalOpen, setBindingsModalOpen] = useState(false);
@@ -147,21 +137,37 @@ export function ProfileVersionsPage() {
     });
   }, [bindingsModalOpen, profileBindings, bindingsForm]);
 
+  const createProfileMutation = useMutation({
+    mutationFn: (values: CreateProfileFormValues) =>
+      api.createProfile({
+        ...values,
+        rerankModel: values.rerankModel ?? null,
+        description: values.description?.trim() || undefined,
+      }),
+    onSuccess: () => {
+      message.success('Agent 已创建');
+      setCreateModalOpen(false);
+      createForm.resetFields();
+      queryClient.invalidateQueries({ queryKey: ['profileVersions'] });
+    },
+    onError: (error) => {
+      modal.error({
+        title: '创建 Agent 失败',
+        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查 Agent 编码、类型和模型配置')}</pre>,
+        okText: '知道了',
+      });
+    },
+  });
+
   const updateProfileMutation = useMutation({
-    mutationFn: (values: {
-      agentType: AgentProfileVersion['agentType'];
-      chatModel: string;
-      routingModel: string;
-      embeddingModel: string;
-      rerankModel?: string | null;
-      temperature: number;
-      retrievalTopK: number;
-      reasoningBudget: number;
-    }) => {
+    mutationFn: (values: ProfileConfigFormValues) => {
       if (!editingProfile) {
         throw new Error('未选中配置版本');
       }
-      return api.updateProfileVersion(editingProfile.id, values);
+      return api.updateProfileVersion(editingProfile.id, {
+        ...values,
+        rerankModel: values.rerankModel ?? null,
+      });
     },
     onSuccess: () => {
       message.success('Agent 版本已更新');
@@ -173,6 +179,21 @@ export function ProfileVersionsPage() {
       modal.error({
         title: '更新 Agent 版本失败',
         content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '请检查模型配置是否有效')}</pre>,
+        okText: '知道了',
+      });
+    },
+  });
+
+  const deleteProfileMutation = useMutation({
+    mutationFn: (id: number) => api.deleteProfileVersion(id),
+    onSuccess: () => {
+      message.success('Agent 已删除');
+      queryClient.invalidateQueries({ queryKey: ['profileVersions'] });
+    },
+    onError: (error) => {
+      modal.error({
+        title: '删除 Agent 失败',
+        content: <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{buildErrorSummary(error, '主入口 Agent 不允许删除')}</pre>,
         okText: '知道了',
       });
     },
@@ -229,7 +250,7 @@ export function ProfileVersionsPage() {
       if (!bindingProfile) {
         throw new Error('未选中配置版本');
       }
-      const payload = {
+      return api.updateProfileVersionBindings(bindingProfile.id, {
         toolCodes: values.toolCodes ?? [],
         skillCodes: values.skillCodes ?? [],
         mcpBindings: (values.mcpBindings ?? [])
@@ -240,8 +261,7 @@ export function ProfileVersionsPage() {
             disableTools: (binding.disableTools ?? []).filter((code) => Boolean(code && code.trim())),
           })),
         childAgentVersionIds: values.childAgentVersionIds ?? [],
-      };
-      return api.updateProfileVersionBindings(bindingProfile.id, payload);
+      });
     },
     onSuccess: () => {
       message.success('版本绑定已保存');
@@ -265,6 +285,25 @@ export function ProfileVersionsPage() {
   const chatOptions = modelCatalogs.filter((item) => item.modelType === 'CHAT' && item.enabled);
   const embeddingOptions = modelCatalogs.filter((item) => item.modelType === 'EMBEDDING' && item.enabled);
   const rerankOptions = modelCatalogs.filter((item) => item.modelType === 'RERANK' && item.enabled);
+  const mainProfile = data.find((item) => item.agentType === 'MAIN') ?? null;
+  const defaultChatModel = modelCatalogs.find((item) => item.modelType === 'CHAT' && item.enabled && item.defaultForPublic)?.code ?? chatOptions[0]?.code ?? '';
+  const defaultEmbeddingModel = embeddingOptions[0]?.code ?? '';
+  const defaultRerankModel = rerankOptions[0]?.code;
+
+  const defaultCreateValues = useMemo<CreateProfileFormValues>(() => ({
+    profileCode: '',
+    profileName: '',
+    description: '',
+    agentType: 'ENTRY',
+    chatModel: defaultChatModel,
+    routingModel: defaultChatModel,
+    embeddingModel: defaultEmbeddingModel,
+    rerankModel: defaultRerankModel,
+    temperature: 0.2,
+    retrievalTopK: 6,
+    reasoningBudget: 1,
+  }), [defaultChatModel, defaultEmbeddingModel, defaultRerankModel]);
+
   const toolCodeOptions = tools.map((item) => ({
     label: `${item.name} (${item.code})`,
     value: item.code,
@@ -284,14 +323,47 @@ export function ProfileVersionsPage() {
       value: item.id,
     }));
 
-  const profileColumns: ColumnsType<AgentProfileVersion> = columns.map((column) => {
-    if (column.title !== '操作') {
-      return column;
-    }
-    return {
-      ...column,
+  const buildAgentTypeOptions = (currentType?: AgentProfileVersion['agentType']) => [
+    {
+      label: 'MAIN',
+      value: 'MAIN',
+      disabled: Boolean(mainProfile && currentType !== 'MAIN'),
+    },
+    { label: 'ENTRY', value: 'ENTRY' },
+    { label: 'ORCHESTRATOR', value: 'ORCHESTRATOR' },
+    { label: 'ATOMIC', value: 'ATOMIC' },
+  ];
+
+  const openCreateModal = () => {
+    createForm.resetFields();
+    createForm.setFieldsValue(defaultCreateValues);
+    setCreateModalOpen(true);
+  };
+
+  const profileColumns: ColumnsType<AgentProfileVersion> = [
+    { title: 'Profile', dataIndex: 'profileCode' },
+    { title: '名称', dataIndex: 'profileName' },
+    { title: '版本', dataIndex: 'versionNumber' },
+    {
+      title: '类型',
+      dataIndex: 'agentType',
+      render: (value: AgentProfileVersion['agentType']) => <Tag color={agentTypeColor(value)}>{value}</Tag>,
+    },
+    { title: '聊天模型', dataIndex: 'chatModel' },
+    {
+      title: '路由模型',
+      dataIndex: 'routingModel',
+      render: (value: AgentProfileVersion['routingModel']) => value ?? '-',
+    },
+    { title: 'Embedding', dataIndex: 'embeddingModel' },
+    {
+      title: '状态',
+      render: (_, record) => <Tag color={record.published ? 'green' : 'gold'}>{record.status}</Tag>,
+    },
+    {
+      title: '操作',
       render: (_, record) => (
-        <Space size="small">
+        <Space size="small" wrap>
           <Button
             type="link"
             onClick={() => {
@@ -327,10 +399,27 @@ export function ProfileVersionsPage() {
           >
             绑定管理
           </Button>
+          <Button
+            type="link"
+            danger
+            disabled={record.agentType === 'MAIN' || deleteProfileMutation.isPending}
+            onClick={() => {
+              modal.confirm({
+                title: `删除 Agent ${record.profileCode}`,
+                content: '会删除该 Agent 的整个 Profile、全部版本和绑定关系。MAIN 主入口 Agent 不允许删除。',
+                okText: '确认删除',
+                okButtonProps: { danger: true },
+                cancelText: '取消',
+                onOk: () => deleteProfileMutation.mutateAsync(record.id),
+              });
+            }}
+          >
+            删除 Agent
+          </Button>
         </Space>
       ),
-    };
-  });
+    },
+  ];
 
   const modelColumns: ColumnsType<ModelCatalog> = [
     { title: '编码', dataIndex: 'code' },
@@ -383,8 +472,17 @@ export function ProfileVersionsPage() {
     <div className="page-stack">
       <Typography.Title level={3}>Agent 配置与模型目录</Typography.Title>
       <Card
-        title="版本配置"
-        extra={<Typography.Text type="secondary">当前问答实际使用已发布版本中的聊天模型，例如默认是 `qwen-max`。</Typography.Text>}
+        title="Agent 配置"
+        extra={
+          <Space size={12} wrap>
+            <Typography.Text type="secondary">
+              公开对话只会命中唯一的 `MAIN` 已发布版本；新增 Agent 默认用于内部编排或子 Agent 能力。
+            </Typography.Text>
+            <Button type="primary" onClick={openCreateModal} disabled={!defaultChatModel || !defaultEmbeddingModel}>
+              新增 Agent
+            </Button>
+          </Space>
+        }
       >
         <Table rowKey="id" columns={profileColumns} dataSource={data} pagination={false} />
       </Card>
@@ -414,6 +512,56 @@ export function ProfileVersionsPage() {
       </Card>
 
       <Modal
+        open={createModalOpen}
+        title="新增 Agent"
+        onCancel={() => {
+          setCreateModalOpen(false);
+          createForm.resetFields();
+        }}
+        onOk={() => createForm.submit()}
+        confirmLoading={createProfileMutation.isPending}
+        destroyOnHidden
+      >
+        <Form layout="vertical" form={createForm} onFinish={(values) => createProfileMutation.mutate(values)}>
+          <Form.Item label="Agent 编码" name="profileCode" rules={[{ required: true, message: '请输入 Agent 编码' }]} extra="仅支持小写字母、数字、-、_。">
+            <Input placeholder="例如 spring-router" />
+          </Form.Item>
+          <Form.Item label="Agent 名称" name="profileName" rules={[{ required: true, message: '请输入 Agent 名称' }]}>
+            <Input placeholder="例如 Spring Router" />
+          </Form.Item>
+          <Form.Item label="说明" name="description">
+            <Input.TextArea rows={3} placeholder="可选，用于说明这个 Agent 的职责" />
+          </Form.Item>
+          <Form.Item label="Agent 类型" name="agentType" rules={[{ required: true, message: '请选择 Agent 类型' }]}>
+            <Select options={buildAgentTypeOptions()} />
+          </Form.Item>
+          <Form.Item label="聊天模型" name="chatModel" rules={[{ required: true, message: '请选择聊天模型' }]}>
+            <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
+          </Form.Item>
+          <Form.Item label="路由模型" name="routingModel" rules={[{ required: true, message: '请选择路由模型' }]} extra="用于规则未命中时的轻量路由判定模型。">
+            <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
+          </Form.Item>
+          <Form.Item label="Embedding 模型" name="embeddingModel" rules={[{ required: true, message: '请选择 embedding 模型' }]}>
+            <Select options={embeddingOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
+          </Form.Item>
+          <Form.Item label="Rerank 模型" name="rerankModel">
+            <Select allowClear options={rerankOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
+          </Form.Item>
+          <Space style={{ display: 'flex' }} size={12} align="start">
+            <Form.Item label="Temperature" name="temperature" rules={[{ required: true }]}>
+              <InputNumber min={0} max={2} step={0.1} style={{ width: 120 }} />
+            </Form.Item>
+            <Form.Item label="TopK" name="retrievalTopK" rules={[{ required: true }]}>
+              <InputNumber min={1} max={20} style={{ width: 120 }} />
+            </Form.Item>
+            <Form.Item label="思考级别" name="reasoningBudget" rules={[{ required: true }]}>
+              <InputNumber min={0} max={32} style={{ width: 140 }} />
+            </Form.Item>
+          </Space>
+        </Form>
+      </Modal>
+
+      <Modal
         open={profileModalOpen}
         title={editingProfile ? `编辑 ${editingProfile.profileCode} v${editingProfile.versionNumber}` : '编辑 Agent 版本'}
         onCancel={() => {
@@ -424,62 +572,21 @@ export function ProfileVersionsPage() {
         confirmLoading={updateProfileMutation.isPending}
         destroyOnHidden
       >
-        <Form
-          layout="vertical"
-          form={profileForm}
-          onFinish={(values) =>
-            updateProfileMutation.mutate({
-              ...values,
-              rerankModel: values.rerankModel ?? null,
-            })
-          }
-        >
+        <Form layout="vertical" form={profileForm} onFinish={(values) => updateProfileMutation.mutate(values)}>
           <Form.Item label="Agent 类型" name="agentType" rules={[{ required: true, message: '请选择 Agent 类型' }]}>
-            <Select
-              options={[
-                { label: 'ENTRY', value: 'ENTRY' },
-                { label: 'ORCHESTRATOR', value: 'ORCHESTRATOR' },
-                { label: 'ATOMIC', value: 'ATOMIC' },
-              ]}
-            />
+            <Select options={buildAgentTypeOptions(editingProfile?.agentType)} />
           </Form.Item>
           <Form.Item label="聊天模型" name="chatModel" rules={[{ required: true, message: '请选择聊天模型' }]}>
-            <Select
-              options={chatOptions.map((item) => ({
-                label: `${item.displayName} (${item.code})`,
-                value: item.code,
-              }))}
-            />
+            <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
-          <Form.Item
-            label="路由模型"
-            name="routingModel"
-            rules={[{ required: true, message: '请选择路由模型' }]}
-            extra="用于规则未命中时的轻量路由判定模型，建议选择低成本聊天模型。"
-          >
-            <Select
-              options={chatOptions.map((item) => ({
-                label: `${item.displayName} (${item.code})`,
-                value: item.code,
-              }))}
-            />
+          <Form.Item label="路由模型" name="routingModel" rules={[{ required: true, message: '请选择路由模型' }]} extra="用于规则未命中时的轻量路由判定模型，建议选择低成本聊天模型。">
+            <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
           <Form.Item label="Embedding 模型" name="embeddingModel" rules={[{ required: true, message: '请选择 embedding 模型' }]}>
-            <Select
-              options={embeddingOptions.map((item) => ({
-                label: `${item.displayName} (${item.code})`,
-                value: item.code,
-              }))}
-            />
+            <Select options={embeddingOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
           <Form.Item label="Rerank 模型" name="rerankModel">
-            <Select
-              allowClear
-              options={rerankOptions.map((item) => ({
-                label: `${item.displayName} (${item.code})`,
-                value: item.code,
-              }))}
-            />
+            <Select allowClear options={rerankOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
           <Space style={{ display: 'flex' }} size={12} align="start">
             <Form.Item label="Temperature" name="temperature" rules={[{ required: true }]}>
@@ -497,11 +604,7 @@ export function ProfileVersionsPage() {
 
       <Modal
         open={bindingsModalOpen}
-        title={
-          bindingProfile
-            ? `绑定管理 · ${bindingProfile.profileCode} v${bindingProfile.versionNumber}`
-            : '绑定管理'
-        }
+        title={bindingProfile ? `绑定管理 · ${bindingProfile.profileCode} v${bindingProfile.versionNumber}` : '绑定管理'}
         onCancel={() => {
           setBindingsModalOpen(false);
           setBindingProfile(null);
@@ -519,31 +622,15 @@ export function ProfileVersionsPage() {
           initialValues={{ toolCodes: [], skillCodes: [], childAgentVersionIds: [], mcpBindings: [] }}
         >
           <Form.Item label="工具绑定" name="toolCodes" extra="该版本默认可用的 Tool 编码集合。">
-            <Select
-              mode="multiple"
-              allowClear
-              showSearch
-              options={toolCodeOptions}
-              placeholder="选择 toolCodes"
-            />
+            <Select mode="multiple" allowClear showSearch options={toolCodeOptions} placeholder="选择 toolCodes" />
           </Form.Item>
           <Form.Item label="技能绑定" name="skillCodes" extra="该版本默认可用的 Skill 编码集合。">
-            <Select
-              mode="multiple"
-              allowClear
-              showSearch
-              options={skillCodeOptions}
-              placeholder="选择 skillCodes"
-            />
+            <Select mode="multiple" allowClear showSearch options={skillCodeOptions} placeholder="选择 skillCodes" />
           </Form.Item>
           <Form.Item
             label="子 Agent 绑定"
             name="childAgentVersionIds"
-            extra={
-              bindingProfile?.agentType === 'ATOMIC'
-                ? 'ATOMIC 版本不能绑定子 Agent。'
-                : '仅允许绑定 ATOMIC 版本；运行时只会注册这里选中的子 Agent。'
-            }
+            extra={bindingProfile?.agentType === 'ATOMIC' ? 'ATOMIC 版本不能绑定子 Agent。' : 'MAIN / ENTRY / ORCHESTRATOR 仅允许绑定 ATOMIC 版本。'}
           >
             <Select
               mode="multiple"
@@ -648,7 +735,6 @@ export function ProfileVersionsPage() {
           </Form.Item>
         </Form>
       </Modal>
-
     </div>
   );
 }

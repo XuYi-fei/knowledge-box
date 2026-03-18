@@ -158,7 +158,9 @@ public class AgentCapabilityAssemblyService {
 
     private boolean canBindChildAgents(AgentProfileVersion profileVersion) {
         AgentProfileVersionType agentType = policyService.normalizeType(profileVersion.getAgentType());
-        return agentType == AgentProfileVersionType.ENTRY || agentType == AgentProfileVersionType.ORCHESTRATOR;
+        return agentType == AgentProfileVersionType.MAIN
+                || agentType == AgentProfileVersionType.ENTRY
+                || agentType == AgentProfileVersionType.ORCHESTRATOR;
     }
 
     private void registerDynamicTools(Long profileVersionId, Toolkit toolkit) {

@@ -39,8 +39,12 @@ public class AgentProfileVersionPolicyService {
 
     public void validateTypeTransition(AgentProfileVersion version, AgentProfileVersionType requestedType) {
         AgentProfileVersionType targetType = normalizeType(requestedType);
-        if (Boolean.TRUE.equals(version.getPublished()) && targetType != AgentProfileVersionType.ENTRY) {
-            throw new IllegalArgumentException("Only ENTRY agent versions can stay published as the public chat entry");
+        if (targetType == AgentProfileVersionType.MAIN
+                && agentProfileVersionRepository.existsByAgentTypeAndIdNot(AgentProfileVersionType.MAIN, version.getId())) {
+            throw new IllegalArgumentException("Only one MAIN agent version is allowed");
+        }
+        if (Boolean.TRUE.equals(version.getPublished()) && targetType != AgentProfileVersionType.MAIN) {
+            throw new IllegalArgumentException("Only MAIN agent versions can stay published as the public chat entry");
         }
         if (targetType == AgentProfileVersionType.ATOMIC
                 && agentBindingRepository.existsByParentProfileVersionId(version.getId())) {
@@ -95,8 +99,10 @@ public class AgentProfileVersionPolicyService {
         }
         AgentProfileVersionType parentType = normalizeType(parentVersion.getAgentType());
         AgentProfileVersionType childType = normalizeType(childVersion.getAgentType());
-        if (parentType != AgentProfileVersionType.ENTRY && parentType != AgentProfileVersionType.ORCHESTRATOR) {
-            throw new IllegalArgumentException("Only ENTRY or ORCHESTRATOR agent versions can bind child agents");
+        if (parentType != AgentProfileVersionType.MAIN
+                && parentType != AgentProfileVersionType.ENTRY
+                && parentType != AgentProfileVersionType.ORCHESTRATOR) {
+            throw new IllegalArgumentException("Only MAIN, ENTRY or ORCHESTRATOR agent versions can bind child agents");
         }
         if (childType != AgentProfileVersionType.ATOMIC) {
             throw new IllegalArgumentException(

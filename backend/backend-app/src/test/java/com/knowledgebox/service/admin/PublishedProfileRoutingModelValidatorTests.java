@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.knowledgebox.domain.agent.AgentProfile;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.domain.agent.ModelCatalog;
 import com.knowledgebox.domain.agent.ModelType;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
@@ -32,7 +33,7 @@ class PublishedProfileRoutingModelValidatorTests {
 
     @Test
     void shouldPassWhenPublishedRoutingModelIsEnabledChatModel() {
-        AgentProfileVersion publishedVersion = version(true, "default-qa", 1, "qwen-plus");
+        AgentProfileVersion publishedVersion = version(true, AgentProfileVersionType.MAIN, "default-qa", 1, "qwen-plus");
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(publishedVersion));
         when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("qwen-plus", ModelType.CHAT))
                 .thenReturn(Optional.of(new ModelCatalog()));
@@ -42,7 +43,7 @@ class PublishedProfileRoutingModelValidatorTests {
 
     @Test
     void shouldFailWhenPublishedRoutingModelIsBlank() {
-        AgentProfileVersion publishedVersion = version(true, "default-qa", 1, " ");
+        AgentProfileVersion publishedVersion = version(true, AgentProfileVersionType.MAIN, "default-qa", 1, " ");
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(publishedVersion));
 
         assertThatThrownBy(() -> validator.run(null))
@@ -53,7 +54,7 @@ class PublishedProfileRoutingModelValidatorTests {
 
     @Test
     void shouldFailWhenPublishedRoutingModelIsNotEnabledChatModel() {
-        AgentProfileVersion publishedVersion = version(true, "default-qa", 1, "qwen-unknown");
+        AgentProfileVersion publishedVersion = version(true, AgentProfileVersionType.MAIN, "default-qa", 1, "qwen-unknown");
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(publishedVersion));
         when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("qwen-unknown", ModelType.CHAT))
                 .thenReturn(Optional.empty());
@@ -65,15 +66,33 @@ class PublishedProfileRoutingModelValidatorTests {
     }
 
     @Test
-    void shouldIgnoreUnpublishedVersions() {
-        AgentProfileVersion draftVersion = version(false, "default-qa", 2, "");
+    void shouldFailWhenNoPublishedMainVersionExists() {
+        AgentProfileVersion draftVersion = version(false, AgentProfileVersionType.ENTRY, "default-qa", 2, "");
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(draftVersion));
 
-        assertThatCode(() -> validator.run(null)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> validator.run(null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("published MAIN agent profile version is required");
         verifyNoInteractions(modelCatalogRepository);
     }
 
-    private AgentProfileVersion version(boolean published, String profileCode, int versionNumber, String routingModel) {
+    @Test
+    void shouldFailWhenPublishedVersionIsNotMain() {
+        AgentProfileVersion publishedVersion = version(true, AgentProfileVersionType.ENTRY, "default-qa", 1, "qwen-plus");
+        when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(publishedVersion));
+
+        assertThatThrownBy(() -> validator.run(null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must be MAIN");
+    }
+
+    private AgentProfileVersion version(
+            boolean published,
+            AgentProfileVersionType agentType,
+            String profileCode,
+            int versionNumber,
+            String routingModel
+    ) {
         AgentProfile profile = new AgentProfile();
         profile.setCode(profileCode);
 
@@ -81,6 +100,7 @@ class PublishedProfileRoutingModelValidatorTests {
         version.setProfile(profile);
         version.setVersionNumber(versionNumber);
         version.setPublished(published);
+        version.setAgentType(agentType);
         version.setRoutingModel(routingModel);
         return version;
     }

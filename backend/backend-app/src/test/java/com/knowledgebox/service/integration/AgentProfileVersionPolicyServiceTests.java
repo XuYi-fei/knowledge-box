@@ -34,12 +34,12 @@ class AgentProfileVersionPolicyServiceTests {
     }
 
     @Test
-    void shouldRejectChangingPublishedEntryToAtomic() {
-        AgentProfileVersion version = version(1L, "default-qa", "Default QA", 1, AgentProfileVersionType.ENTRY, true);
+    void shouldRejectChangingPublishedMainToAtomic() {
+        AgentProfileVersion version = version(1L, "default-qa", "Default QA", 1, AgentProfileVersionType.MAIN, true);
 
         assertThatThrownBy(() -> service.validateTypeTransition(version, AgentProfileVersionType.ATOMIC))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Only ENTRY agent versions can stay published");
+                .hasMessageContaining("Only MAIN agent versions can stay published");
     }
 
     @Test
@@ -69,6 +69,16 @@ class AgentProfileVersionPolicyServiceTests {
         AgentProfileVersion version = version(9L, "atomic-agent", "Atomic Agent", 1, AgentProfileVersionType.ATOMIC, false);
         when(agentProfileVersionRepository.findById(9L)).thenReturn(Optional.of(version));
         service.requireVersion(9L);
+    }
+
+    @Test
+    void shouldRejectSecondMainAgentVersion() {
+        AgentProfileVersion version = version(12L, "router-agent", "Router Agent", 1, AgentProfileVersionType.ENTRY, false);
+        when(agentProfileVersionRepository.existsByAgentTypeAndIdNot(AgentProfileVersionType.MAIN, 12L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.validateTypeTransition(version, AgentProfileVersionType.MAIN))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Only one MAIN agent version is allowed");
     }
 
     private AgentProfileVersion version(

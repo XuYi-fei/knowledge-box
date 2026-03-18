@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="048-001-about-release-note-agent-main-profile" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.20',
+                'Agent 管理新增 MAIN 主入口与创建删除能力',
+                '管理端现在可以新增/删除普通 Agent，并将唯一公开聊天入口提升为 MAIN 类型进行保护。',
+                E'## 本次更新\n\n- 新增 `MAIN` Agent 类型，作为唯一公开聊天入口，运行时只会读取已发布 `MAIN` 版本\n- 管理端新增 Agent 创建与删除能力，普通 Agent 可直接在后台维护\n- 默认主入口 Agent 会被保护，避免误删导致公开对话入口失效',
+                TIMESTAMPTZ '2026-03-20 12:00:00+08',
+                -14,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.20'
+                   AND title = 'Agent 管理新增 MAIN 主入口与创建删除能力'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

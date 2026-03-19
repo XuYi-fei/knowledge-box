@@ -1361,6 +1361,36 @@ a {
   overflow: auto;
 }
 
+.markdown-code-block {
+  position: relative;
+}
+
+.markdown-code-block-copy.ant-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  color: rgba(16, 42, 43, 0.68);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.markdown-code-block-copy.ant-btn:hover,
+.markdown-code-block-copy.ant-btn:focus-visible {
+  color: #0f766e;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.chat-markdown-code-block pre,
+.admin-markdown-code-block pre {
+  padding-top: 44px !important;
+}
+
 .chat-markdown p,
 .chat-markdown ul,
 .chat-markdown ol,

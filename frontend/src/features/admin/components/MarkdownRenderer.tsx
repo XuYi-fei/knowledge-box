@@ -1,10 +1,9 @@
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Image } from 'antd';
 import { createElement, type CSSProperties, type ReactNode } from 'react';
+import { MarkdownCodeBlock } from '../../../components/MarkdownCodeBlock';
 
 type MarkdownRendererProps = {
   content: string;
@@ -254,20 +253,17 @@ export function MarkdownRenderer({
         return <code className="admin-inline-code">{code}</code>;
       }
       return (
-        <SyntaxHighlighter
+        <MarkdownCodeBlock
+          className="admin-markdown-code-block"
           language={language}
-          style={oneLight}
-          PreTag="div"
+          code={code}
           customStyle={{
-            margin: 0,
             borderRadius: 10,
             padding: '14px',
             fontSize: '0.87rem',
             background: '#f5f8f7',
           }}
-        >
-          {code}
-        </SyntaxHighlighter>
+        />
       );
     },
   } as any;

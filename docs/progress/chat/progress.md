@@ -15,6 +15,7 @@
 - `PROCESS_ENV` 现在会优先读宿主环境变量，缺失时再回退读取 Spring `Environment`；因此本地开发可直接在 `application-local.yml` 中配置 `KB_TAVILY_API_KEY` 这类值。
 - 对话主界面现已支持“停止回答”；用户主动中止后会立即截断当前流式输出，并把已有部分回答持久化为 `CANCELLED`，不会在刷新或会话恢复时被误续跑。
 - 聊天回答中的 Markdown 代码块右上角现已支持一键复制，可直接把示例代码写入剪贴板。
+- 聊天回答中的代码块复制入口已升级为双按钮工具条，支持“复制纯代码”和“复制 Markdown fenced code block”，复制成功后会给出更明确的按钮态和提示反馈。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
@@ -26,6 +27,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页细滚动条、引用详情页左上返回按钮等本次 UI 修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖停止回答按钮、`CANCELLED` 消息态和停止后不自动恢复的前端状态机。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天消息代码块复制按钮，以及与公开文档/后台 Markdown 预览共用的代码块渲染组件。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖代码块双按钮复制工具条、更明确的复制成功反馈，以及 fenced code block 复制能力。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。

@@ -1365,19 +1365,21 @@ a {
   position: relative;
 }
 
-.markdown-code-block-copy.ant-btn {
+.markdown-code-block-toolbar {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 1;
-  width: 28px;
-  min-width: 28px;
+}
+
+.markdown-code-block-copy.ant-btn {
   height: 28px;
-  padding: 0;
+  padding: 0 9px;
   border-radius: 999px;
   color: rgba(16, 42, 43, 0.68);
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
 }
 
 .markdown-code-block-copy.ant-btn:hover,
@@ -1386,9 +1388,14 @@ a {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.markdown-code-block-copy-active.ant-btn {
+  background: #0f766e;
+  color: #ffffff;
+}
+
 .chat-markdown-code-block pre,
 .admin-markdown-code-block pre {
-  padding-top: 44px !important;
+  padding-top: 52px !important;
 }
 
 .chat-markdown p,

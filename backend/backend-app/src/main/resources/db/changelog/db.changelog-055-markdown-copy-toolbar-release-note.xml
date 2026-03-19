@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="055-001-about-release-note-markdown-copy-toolbar" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                highlighted,
+                published_at,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                'v0.1.55',
+                '代码块复制按钮增强',
+                '代码块复制入口升级为双按钮工具条，支持复制纯代码与复制带语言标记的 Markdown fenced code block。',
+                E'## 本次更新\n\n- 代码块右上角复制入口升级为更明确的双按钮工具条，复制成功后会显示更醒目的状态反馈\n- 新增 `复制 Markdown`，可直接复制带语言标记的 fenced code block，适合粘贴回文档或聊天上下文\n- 复制逻辑始终基于原始源码字符串，即使未来打开行号显示，也不会把行号一起复制到剪贴板',
+                FALSE,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

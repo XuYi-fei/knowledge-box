@@ -14,12 +14,14 @@
 - 已补齐公开文库筛选栏与正文区的细滚动条样式，避免左侧分类/tag 滚动条过粗影响阅读；文章列表已统一改为单列横向长条卡片，左侧固定展示“标题 + 标签”两行，右侧展示缩略简介，减少不同窗口宽度下的排版波动。
 - 公开目录与分类/标签计数已按“分类 + 标题 + 正文指纹”聚合去重，避免底层重复文档对外重复展示。
 - 公开文档详情与后台复用的 Markdown 渲染器现已支持代码块右上角一键复制，便于直接复用文档里的代码示例。
+- 公开文档详情与后台复用的代码块复制入口已升级为双按钮工具条，支持复制纯代码与复制 Markdown fenced code block。
 
 ## 已验证范围
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库路由、筛选栏、公开文章详情与同专栏侧栏。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文库筛选栏细滚动条与“默认单列横向长条卡片”布局修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文档详情代码块复制按钮与统一 Markdown 代码块渲染组件。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文档详情代码块双按钮复制工具条与 fenced code block 复制能力。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖公开文档分页、facet、详情与匿名访问接口。
 - 后端：已用只读 SQL 实查本地 `knowledge_document`，确认存在相同正文的重复正式文档时，当前公开文库目录已在服务层聚合去重。
 - 后端：`KnowledgeBoxPostgresIntegrationTests#shouldServeAnonymousPublicDocumentCatalogAndRespectVisibility` 已补充，但当前沙箱因 PostgreSQL 连接受限未实际跑通。

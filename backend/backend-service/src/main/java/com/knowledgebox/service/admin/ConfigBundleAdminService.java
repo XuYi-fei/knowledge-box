@@ -209,8 +209,8 @@ public class ConfigBundleAdminService {
         ParsedConfigBundle bundle = parseBundle(bytes, sourceDescription);
         Map<ConfigBundleResourceType, Map<String, ?>> existingSnapshots = loadExistingSnapshotMaps();
         PlannedExecution execution = buildExecutionPlan(bundle, existingSnapshots, Map.of(), false);
-        if (failFast && !execution.globalMessages().isEmpty()) {
-            throw new IllegalStateException(String.join("; ", execution.globalMessages()));
+        if (failFast && execution.failedCount() > 0) {
+            throw new IllegalStateException(execution.failureSummary());
         }
         AppliedExecution appliedExecution = applyExecution(execution);
         ArrayList<String> messages = new ArrayList<>(execution.globalMessages());
@@ -532,7 +532,17 @@ public class ConfigBundleAdminService {
         if (strict && !computation.errorsByKey().isEmpty()) {
             throw new IllegalArgumentException(renderErrors(computation.errorsByKey(), computation.globalMessages()));
         }
-        return new PlannedExecution(bundle, computation.operations(), computation.globalMessages(), computation.skippedCount(), computation.failedCount());
+        String failureSummary = computation.errorsByKey().isEmpty()
+                ? ""
+                : renderErrors(computation.errorsByKey(), computation.globalMessages());
+        return new PlannedExecution(
+                bundle,
+                computation.operations(),
+                computation.globalMessages(),
+                computation.skippedCount(),
+                computation.failedCount(),
+                failureSummary
+        );
     }
 
     private String renderErrors(Map<ResourceKey, List<String>> errorsByKey, List<String> globalMessages) {
@@ -2035,7 +2045,8 @@ public class ConfigBundleAdminService {
             LinkedHashMap<ResourceKey, PlannedOperation> operations,
             List<String> globalMessages,
             int skippedCount,
-            int failedCount
+            int failedCount,
+            String failureSummary
     ) {
     }
 

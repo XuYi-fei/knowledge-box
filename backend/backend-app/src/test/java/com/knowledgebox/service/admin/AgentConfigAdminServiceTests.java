@@ -167,7 +167,7 @@ class AgentConfigAdminServiceTests {
         AgentConfigAdminService.BootstrapImportResult result = service.importForBootstrap(
                 new java.io.ByteArrayInputStream(singleExistingPayload().getBytes(StandardCharsets.UTF_8)),
                 "bootstrap.json",
-                false
+                true
         );
 
         assertThat(result.createdCount()).isEqualTo(0);

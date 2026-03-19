@@ -19,6 +19,7 @@
 - 运行时环境变量解析现已支持从 Spring `Environment` 回退取值，本地可直接在 `application-local.yml` 配置与 `sourceRef` 同名的 key 做联调，无需额外导出 shell 环境变量。
 - 系统启动期 bootstrap 现已支持统一配置 Bundle schema；Skill 可按约定从 `classpath:bootstrap/skills/<code>` 或显式 `packageLocation` 目录自动打包并上传到 OSS。
 - 系统启动期已支持通过 `knowledge-box.agent.bootstrap.*` 从外置 JSON seed file / seed directory 自动创建缺失 Agent，并在重复 `profileCode` / `profileName` 时保留数据库现状并记录告警。
+- 启动期统一配置 Bundle / Agent bootstrap 的 fail-fast 逻辑已修复为“仅真实校验失败才阻断启动”；对数据库里已存在资源的幂等跳过现在只记消息与计数，不再导致应用启动失败。
 - Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
 - 管理端公共布局已修复为内容区独立滚动，`知识文档` 与 `文档审核` 页面在关闭窗口级滚动后仍可正常使用。
 
@@ -33,7 +34,9 @@
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖 Agent 创建删除、`MAIN` 唯一性和主入口校验。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentConfigAdminServiceTests,AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests test` 可通过，已覆盖 Agent JSON 导入预览、覆盖提交与启动期跳过策略。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ChatOrchestratorTests test` 可通过，已覆盖统一配置 Bundle v2、运行时环境变量回显/导出以及 web-search 子 Agent 装配。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests test` 可通过，已覆盖启动期 bootstrap 在 `failFast=true` 时对重复资源的幂等跳过策略回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺失宿主环境变量告警与 fail-fast 启动保护。
+- 后端：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证不再触发 bootstrap skip 异常；当前沙箱下仅因 PostgreSQL 连接受限而停止，说明启动链路已越过本次回归点。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖 `publicDebug` 约束、删除 Agent 时的聊天/trace 清理与调试会话停止链路。
 
 ## 待继续推进

@@ -257,6 +257,45 @@ class ConfigBundleAdminServiceTests {
         );
     }
 
+    @Test
+    void shouldSkipExistingResourcesDuringBootstrapImportWhenFailFastEnabled() {
+        AgentProfileVersion mainVersion = version(10L, 1L, "default-main", "Default Main", AgentProfileVersionType.MAIN, true, 1);
+        when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(mainVersion));
+        when(agentProfileBindingService.bindings(10L)).thenReturn(emptyBindings(10L));
+
+        ToolDefinition existingTool = new ToolDefinition();
+        existingTool.setCode("sample-tool");
+        existingTool.setName("Sample Tool");
+        existingTool.setClassName("com.example.tools.SampleTool");
+        existingTool.setEnabled(Boolean.TRUE);
+        setId(existingTool, 20L);
+        when(toolDefinitionRepository.findAll()).thenReturn(List.of(existingTool));
+
+        SkillBinding existingSkill = new SkillBinding();
+        existingSkill.setCode("existing-skill");
+        existingSkill.setName("Existing Skill");
+        existingSkill.setDescription("existing");
+        existingSkill.setSourceType("UPLOAD");
+        existingSkill.setEnabled(Boolean.TRUE);
+        setId(existingSkill, 40L);
+        when(skillBindingRepository.findAll()).thenReturn(List.of(existingSkill));
+
+        when(mcpServerConfigRepository.findAll()).thenReturn(List.of());
+        mockEnabledModels();
+
+        AgentConfigAdminService.BootstrapImportResult result = service.importForBootstrap(
+                new java.io.ByteArrayInputStream(bootstrapSkipBundlePayload().getBytes(StandardCharsets.UTF_8)),
+                "bootstrap-bundle.json",
+                true
+        );
+
+        assertThat(result.createdCount()).isEqualTo(0);
+        assertThat(result.skippedCount()).isEqualTo(2);
+        assertThat(result.failedCount()).isEqualTo(0);
+        assertThat(result.messages()).anyMatch(message -> message.contains("TOOL:sample-tool") && message.contains("跳过"));
+        assertThat(result.messages()).anyMatch(message -> message.contains("SKILL:existing-skill") && message.contains("跳过"));
+    }
+
     private void mockEnabledModels() {
         lenient().when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("qwen-max", ModelType.CHAT))
                 .thenReturn(Optional.of(model("qwen-max", ModelType.CHAT)));
@@ -363,6 +402,37 @@ class ConfigBundleAdminServiceTests {
                       ]
                     }
                   ]
+                }
+                """;
+    }
+
+    private String bootstrapSkipBundlePayload() {
+        return """
+                {
+                  "schemaVersion": "knowledge-box.config-bundle.v2",
+                  "tools": [
+                    {
+                      "code": "sample-tool",
+                      "name": "Sample Tool",
+                      "className": "com.example.tools.SampleTool",
+                      "beanName": null,
+                      "configJson": "{}",
+                      "runtimeEnvRequirements": [],
+                      "enabled": true
+                    }
+                  ],
+                  "skills": [
+                    {
+                      "code": "existing-skill",
+                      "name": "Existing Skill",
+                      "description": "existing",
+                      "sourceType": "UPLOAD",
+                      "runtimeEnvRequirements": [],
+                      "enabled": true
+                    }
+                  ],
+                  "mcpServers": [],
+                  "agents": []
                 }
                 """;
     }

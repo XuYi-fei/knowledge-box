@@ -161,8 +161,8 @@ public class AgentConfigAdminService {
                 Collections.emptyMap(),
                 false
         );
-        if (!plannedExecution.globalMessages().isEmpty() && failFast) {
-            throw new IllegalStateException(String.join("; ", plannedExecution.globalMessages()));
+        if (failFast && plannedExecution.failedCount() > 0) {
+            throw new IllegalStateException(plannedExecution.failureSummary());
         }
         AppliedExecution appliedExecution = applyExecution(plannedExecution);
         return new BootstrapImportResult(
@@ -357,11 +357,15 @@ public class AgentConfigAdminService {
         if (strict && !computation.errorsByProfileCode().isEmpty()) {
             throw new IllegalArgumentException(renderErrors(computation.errorsByProfileCode(), computation.globalMessages()));
         }
+        String failureSummary = computation.errorsByProfileCode().isEmpty()
+                ? ""
+                : renderErrors(computation.errorsByProfileCode(), computation.globalMessages());
         return new PlannedExecution(
                 computation.operations(),
                 computation.globalMessages(),
                 computation.skippedCount(),
-                computation.failedCount()
+                computation.failedCount(),
+                failureSummary
         );
     }
 
@@ -1045,7 +1049,8 @@ public class AgentConfigAdminService {
             LinkedHashMap<String, PlannedOperation> operations,
             List<String> globalMessages,
             int skippedCount,
-            int failedCount
+            int failedCount,
+            String failureSummary
     ) {
     }
 

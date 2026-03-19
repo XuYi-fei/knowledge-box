@@ -114,6 +114,9 @@ public class ConversationMemoryService {
             List<String> reasoningSteps
     ) {
         ChatTurn turn = loadMessage(userId, sessionCode, messageCode);
+        if (!isStreamWritable(turn)) {
+            return turn;
+        }
         turn.setStatus(ChatMessageStatus.STREAMING);
         turn.setContent(content);
         turn.setReasoningStepsJson(writeJson(reasoningSteps));
@@ -132,6 +135,9 @@ public class ConversationMemoryService {
             List<String> toolCalls
     ) {
         ChatTurn turn = loadMessage(userId, sessionCode, messageCode);
+        if (turn.getStatus() == ChatMessageStatus.CANCELLED) {
+            return turn;
+        }
         turn.setStatus(ChatMessageStatus.COMPLETED);
         turn.setContent(content);
         turn.setReasoningStepsJson(writeJson(reasoningSteps));
@@ -152,10 +158,40 @@ public class ConversationMemoryService {
             String errorMessage
     ) {
         ChatTurn turn = loadMessage(userId, sessionCode, messageCode);
+        if (turn.getStatus() == ChatMessageStatus.CANCELLED) {
+            return turn;
+        }
         turn.setStatus(ChatMessageStatus.FAILED);
         turn.setContent(partialContent);
         turn.setReasoningStepsJson(writeJson(reasoningSteps));
         turn.setErrorMessage(errorMessage);
+        turn.setCompletedAt(OffsetDateTime.now());
+        touchSession(userId, sessionCode, turn.getModelCode(), null);
+        return chatTurnRepository.save(turn);
+    }
+
+    @Transactional
+    public ChatTurn cancelAssistantMessage(
+            Long userId,
+            String sessionCode,
+            String messageCode,
+            String partialContent,
+            List<String> reasoningSteps,
+            String stopMessage
+    ) {
+        ChatTurn turn = loadMessage(userId, sessionCode, messageCode);
+        if (!"assistant".equals(turn.getRole())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_NOT_ASSISTANT", "当前消息不是助手回答");
+        }
+        if (turn.getStatus() == ChatMessageStatus.COMPLETED
+                || turn.getStatus() == ChatMessageStatus.FAILED
+                || turn.getStatus() == ChatMessageStatus.CANCELLED) {
+            return turn;
+        }
+        turn.setStatus(ChatMessageStatus.CANCELLED);
+        turn.setContent(partialContent == null ? turn.getContent() : partialContent);
+        turn.setReasoningStepsJson(writeJson(reasoningSteps == null ? readStringList(turn.getReasoningStepsJson()) : reasoningSteps));
+        turn.setErrorMessage(stopMessage);
         turn.setCompletedAt(OffsetDateTime.now());
         touchSession(userId, sessionCode, turn.getModelCode(), null);
         return chatTurnRepository.save(turn);
@@ -246,6 +282,11 @@ public class ConversationMemoryService {
     }
 
     @Transactional(readOnly = true)
+    public UserChatMessageView messageView(Long userId, String sessionCode, String messageCode) {
+        return toView(loadMessage(userId, sessionCode, messageCode));
+    }
+
+    @Transactional(readOnly = true)
     public ChatTurn findAssistantByClientMessageId(Long userId, String sessionCode, String clientMessageId) {
         List<ChatTurn> turns = chatTurnRepository.findByUserIdAndSessionCodeOrderByIdAsc(userId, sessionCode);
         for (int index = 0; index < turns.size(); index++) {
@@ -291,6 +332,10 @@ public class ConversationMemoryService {
                 turn.getCreatedAt(),
                 turn.getCompletedAt()
         );
+    }
+
+    private boolean isStreamWritable(ChatTurn turn) {
+        return turn.getStatus() == ChatMessageStatus.PENDING || turn.getStatus() == ChatMessageStatus.STREAMING;
     }
 
     private String buildSessionTitle(String query) {

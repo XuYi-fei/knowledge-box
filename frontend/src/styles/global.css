@@ -881,6 +881,13 @@ a {
   gap: 12px;
 }
 
+.chat-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .chat-empty-state {
   height: 100%;
   display: grid;
@@ -950,6 +957,11 @@ a {
 .message-placeholder.ant-typography,
 .message-error.ant-typography {
   margin: 6px 0 0;
+}
+
+.message-cancelled.ant-typography {
+  margin: 6px 0 0;
+  color: rgba(16, 42, 43, 0.62);
 }
 
 .reasoning-collapse.ant-collapse {

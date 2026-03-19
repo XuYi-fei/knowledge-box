@@ -10,6 +10,7 @@ import {
   MessageOutlined,
   PlusOutlined,
   SendOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { App, Button, Card, Collapse, Empty, Input, List, Popconfirm, Select, Space, Spin, Tag, Typography } from 'antd';
@@ -263,7 +264,7 @@ function normalizeStreamEvent(eventName: string, raw: ChatStreamEvent): Normaliz
         : null;
 
   const statusFromType: ChatMessageStatus | null =
-    resolvedType === 'done' ? 'COMPLETED' : resolvedType === 'error' ? 'FAILED' : null;
+    resolvedType === 'done' ? 'COMPLETED' : resolvedType === 'error' ? 'FAILED' : resolvedType === 'stopped' ? 'CANCELLED' : null;
 
   const delta = typeof raw.delta === 'string' ? raw.delta : null;
   const trimmedDelta = delta?.trim() ?? '';
@@ -350,6 +351,7 @@ export function PublicChatPage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
   const [streamingSessions, setStreamingSessions] = useState<Record<string, boolean>>({});
+  const [stoppingSessions, setStoppingSessions] = useState<Record<string, boolean>>({});
   const streamControllersRef = useRef(new Map<string, AbortController>());
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -494,7 +496,7 @@ export function PublicChatPage() {
         localOnly: false,
       });
       const resumableAssistant = resumePending ? findResumableAssistant(normalizedDetail.messages) : null;
-      if (resumePending && resumableAssistant) {
+      if (resumePending && resumableAssistant && !stoppingSessions[sessionId]) {
         void resumeStream(sessionId, resumableAssistant.messageId);
       }
       return normalizedDetail;
@@ -508,6 +510,9 @@ export function PublicChatPage() {
       return;
     }
     if (sessionDetails[activeSessionId]) {
+      if (stoppingSessions[activeSessionId]) {
+        return;
+      }
       const resumableAssistant = findResumableAssistant(sessionDetails[activeSessionId].messages);
       if (resumableAssistant) {
         void resumeStream(activeSessionId, resumableAssistant.messageId);
@@ -536,7 +541,7 @@ export function PublicChatPage() {
     }
 
     void loadSessionDetail(activeSessionId);
-  }, [activeSessionId, chatOptionsQuery.data, sessionDetails, sessions]);
+  }, [activeSessionId, chatOptionsQuery.data, sessionDetails, sessions, stoppingSessions]);
 
   function setStreaming(sessionId: string, streaming: boolean) {
     setStreamingSessions((current) => {
@@ -548,6 +553,38 @@ export function PublicChatPage() {
       return {
         ...current,
         [sessionId]: true,
+      };
+    });
+  }
+
+  function setStopping(sessionId: string, stopping: boolean) {
+    setStoppingSessions((current) => {
+      if (!stopping) {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      }
+      return {
+        ...current,
+        [sessionId]: true,
+      };
+    });
+  }
+
+  function mergePersistedAssistantMessage(sessionId: string, nextAssistant: UserChatMessage) {
+    const normalizedAssistant = normalizeMessageCitations([nextAssistant])[0];
+    updateSessionDetail(sessionId, (detail) => {
+      const nextMessages = [...detail.messages];
+      const targetIndex = nextMessages.findIndex((item) => item.messageId === normalizedAssistant.messageId);
+      if (targetIndex >= 0) {
+        nextMessages[targetIndex] = normalizedAssistant;
+      } else {
+        nextMessages.push(normalizedAssistant);
+      }
+      return {
+        ...detail,
+        selectedChatModel: normalizedAssistant.chatModel ?? detail.selectedChatModel,
+        messages: nextMessages,
       };
     });
   }
@@ -565,7 +602,15 @@ export function PublicChatPage() {
 
       const nextStatus: ChatMessageStatus =
         normalized.status ??
-        (normalized.type === 'done' ? 'COMPLETED' : normalized.type === 'error' ? 'FAILED' : previous.status === 'PENDING' ? 'STREAMING' : previous.status);
+        (normalized.type === 'done'
+          ? 'COMPLETED'
+          : normalized.type === 'error'
+            ? 'FAILED'
+            : normalized.type === 'stopped'
+              ? 'CANCELLED'
+              : previous.status === 'PENDING'
+                ? 'STREAMING'
+                : previous.status);
 
       const nextContent =
         normalized.content ??
@@ -582,10 +627,14 @@ export function PublicChatPage() {
       const nextErrorMessage =
         nextStatus === 'FAILED'
           ? normalized.errorMessage ?? previous.errorMessage ?? '生成失败，请稍后重试'
-          : normalized.errorMessage ?? previous.errorMessage ?? null;
+          : nextStatus === 'CANCELLED'
+            ? normalized.errorMessage ?? previous.errorMessage ?? '已停止回答'
+            : normalized.errorMessage ?? previous.errorMessage ?? null;
 
       const completedAt =
-        nextStatus === 'COMPLETED' || nextStatus === 'FAILED' ? previous.completedAt ?? new Date().toISOString() : null;
+        nextStatus === 'COMPLETED' || nextStatus === 'FAILED' || nextStatus === 'CANCELLED'
+          ? previous.completedAt ?? new Date().toISOString()
+          : null;
       const nextAssistant: UserChatMessage = {
         messageId: resolvedMessageId,
         clientMessageId: null,
@@ -802,6 +851,7 @@ export function PublicChatPage() {
       streamControllersRef.current.delete(session.sessionId);
       setStreaming(session.sessionId, false);
     }
+    setStopping(session.sessionId, false);
 
     if (session.localOnly) {
       removeSessionLocally(session.sessionId);
@@ -829,7 +879,7 @@ export function PublicChatPage() {
         messages: [],
       } satisfies UserChatSessionDetail);
 
-    if (hasPendingAssistant(activeDetail.messages) || streamingSessions[activeSessionId]) {
+    if (hasPendingAssistant(activeDetail.messages) || streamingSessions[activeSessionId] || stoppingSessions[activeSessionId]) {
       message.warning('当前会话仍有回答进行中，请等待完成后再发送新问题');
       return;
     }
@@ -881,9 +931,40 @@ export function PublicChatPage() {
   const selectedChatModel =
     activeDetail?.selectedChatModel ?? chatOptionsQuery.data?.defaultChatModel ?? chatOptionsQuery.data?.activeChatModel;
   const activeStreaming = Boolean(activeSessionId && streamingSessions[activeSessionId]);
+  const activeStopping = Boolean(activeSessionId && stoppingSessions[activeSessionId]);
+  const activeResumableAssistant = activeDetail ? findResumableAssistant(activeDetail.messages) : null;
+  const composerBusy = activeStreaming || activeStopping;
 
   function openCitationDetail(citation: ChatCitation) {
     navigate(buildCitationDetailPath(citation));
+  }
+
+  async function stopCurrentAnswer() {
+    if (!activeSessionId || !activeResumableAssistant) {
+      return;
+    }
+
+    setStopping(activeSessionId, true);
+    const controller = streamControllersRef.current.get(activeSessionId);
+    if (controller) {
+      controller.abort();
+    }
+
+    try {
+      const stoppedMessage = await api.stopUserChatMessage(activeSessionId, activeResumableAssistant.messageId);
+      mergePersistedAssistantMessage(activeSessionId, stoppedMessage);
+      await reloadSessions();
+      await loadSessionDetail(activeSessionId, false);
+    } catch (error) {
+      try {
+        await loadSessionDetail(activeSessionId, true);
+      } catch {
+        // Keep the original stop error below.
+      }
+      throw error;
+    } finally {
+      setStopping(activeSessionId, false);
+    }
   }
 
   useEffect(() => {
@@ -1051,13 +1132,19 @@ export function PublicChatPage() {
                                   <div className="message-content">
                                     <MarkdownMessage content={item.content} />
                                   </div>
-                                ) : item.role === 'assistant' && item.status !== 'FAILED' ? (
+                                ) : item.role === 'assistant' && item.status !== 'FAILED' && item.status !== 'CANCELLED' ? (
                                   <Typography.Paragraph className="message-placeholder" type="secondary">
                                     正在生成回答...
                                   </Typography.Paragraph>
                                 ) : null}
 
-                                {item.errorMessage ? (
+                                {item.status === 'CANCELLED' && item.errorMessage ? (
+                                  <Typography.Paragraph className="message-cancelled" type="secondary">
+                                    {item.errorMessage}
+                                  </Typography.Paragraph>
+                                ) : null}
+
+                                {item.status !== 'CANCELLED' && item.errorMessage ? (
                                   <Typography.Paragraph className="message-error" type="danger">
                                     {item.errorMessage}
                                   </Typography.Paragraph>
@@ -1168,7 +1255,7 @@ export function PublicChatPage() {
                       value={selectedChatModel ?? undefined}
                       style={{ minWidth: 240 }}
                       placeholder="使用后台默认模型"
-                      disabled={!chatOptionsQuery.data?.models.length}
+                      disabled={composerBusy || !chatOptionsQuery.data?.models.length}
                       options={chatOptionsQuery.data?.models.map((item) => ({
                         label: `${item.displayName} (${item.code})`,
                         value: item.code,
@@ -1194,7 +1281,7 @@ export function PublicChatPage() {
                   value={input}
                   rows={4}
                   placeholder="输入你的问题，例如：这个系统如何保证流式回答在刷新后继续恢复？"
-                  disabled={activeStreaming}
+                  disabled={composerBusy}
                   onChange={(event) => setInput(event.target.value)}
                   onCompositionStart={() => {
                     isComposingRef.current = true;
@@ -1218,14 +1305,30 @@ export function PublicChatPage() {
                     }
                   }}
                 />
-                <Button
-                  type="primary"
-                  icon={<SendOutlined />}
-                  loading={activeStreaming}
-                  onClick={() => void sendQuery(input)}
-                >
-                  发送问题
-                </Button>
+                <div className="chat-composer-actions">
+                  <Button
+                    danger
+                    icon={<StopOutlined />}
+                    disabled={!activeResumableAssistant || activeStopping}
+                    loading={activeStopping}
+                    onClick={() => {
+                      void stopCurrentAnswer().catch((error) => {
+                        message.error(buildErrorSummary(error, '停止回答失败，请稍后重试'));
+                      });
+                    }}
+                  >
+                    停止回答
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<SendOutlined />}
+                    loading={activeStreaming}
+                    disabled={composerBusy}
+                    onClick={() => void sendQuery(input)}
+                  >
+                    发送问题
+                  </Button>
+                </div>
               </div>
             </Card>
         </main>

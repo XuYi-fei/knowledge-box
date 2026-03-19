@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="053-001-about-release-note-chat-stop-response" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                highlighted,
+                published_at,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                'v0.1.53',
+                '聊天支持停止回答',
+                '问答主界面新增停止回答按钮，用户可主动截断当前流式生成，并将部分回答稳定保存为已停止状态。',
+                E'## 本次更新\n\n- 聊天主界面新增 `停止回答` 按钮，点击后会主动中止当前回答链路\n- 已生成的部分回答会保留在会话历史中，并以 `已停止回答` 的状态展示\n- 刷新页面或恢复会话时，不会再把这类已停止回答误判为待恢复流式消息',
+                FALSE,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

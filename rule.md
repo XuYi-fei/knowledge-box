@@ -79,3 +79,4 @@
 - 公开文库目录若底层存在不同 `importKey` 但标题和正文完全相同的公开文档，展示层需按“分类 + 标题 + 正文指纹”去重，否则分类计数和列表会把同一篇文章重复展示。
 - Agent 配置导入/导出与启动 bootstrap 统一使用 `profileCode` 作为稳定业务标识；跨环境迁移不要依赖数据库自增 `id`，重复 `profileCode` / `profileName` 启动期默认保留数据库现状。
 - 统一配置 Bundle 导入里的 Skill `packageLocation` 由服务端解析；后台上传的 JSON 不能引用管理员本机路径，需使用服务端可访问的 `file:` / `classpath:` 路径或约定的 `classpath:bootstrap/skills/<code>` 目录。
+- 用户主动停止对话回答时，助手消息必须持久化为独立 `CANCELLED` 终态并禁止自动 resume；不要把这种情况混入 `FAILED`。

@@ -3,6 +3,7 @@ package com.knowledgebox.web.publicapi;
 import com.knowledgebox.api.ChatRequest;
 import com.knowledgebox.api.ChatResponse;
 import com.knowledgebox.api.ChatMessageRequest;
+import com.knowledgebox.api.UserChatMessageView;
 import com.knowledgebox.api.UserChatSessionDetailView;
 import com.knowledgebox.api.UserChatSessionSummaryView;
 import com.knowledgebox.security.CurrentUserAccessor;
@@ -64,5 +65,10 @@ public class UserChatController {
     @GetMapping(path = "/sessions/{sessionId}/messages/{messageId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter resume(@PathVariable String sessionId, @PathVariable String messageId) {
         return chatOrchestrator.resume(currentUserAccessor.requireCurrentUser().id(), sessionId, messageId);
+    }
+
+    @PostMapping("/sessions/{sessionId}/messages/{messageId}/stop")
+    public UserChatMessageView stop(@PathVariable String sessionId, @PathVariable String messageId) {
+        return chatOrchestrator.stop(currentUserAccessor.requireCurrentUser().id(), sessionId, messageId);
     }
 }

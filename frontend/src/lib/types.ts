@@ -52,7 +52,7 @@ export type PublicChatOptions = {
   models: PublicChatModelOption[];
 };
 
-export type ChatMessageStatus = 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED';
+export type ChatMessageStatus = 'PENDING' | 'STREAMING' | 'CANCELLED' | 'COMPLETED' | 'FAILED';
 
 export type UserChatMessage = {
   messageId: string;
@@ -86,7 +86,7 @@ export type UserChatSessionDetail = {
   messages: UserChatMessage[];
 };
 
-export type ChatStreamEventType = 'snapshot' | 'thinking' | 'delta' | 'done' | 'error' | (string & {});
+export type ChatStreamEventType = 'snapshot' | 'thinking' | 'delta' | 'done' | 'error' | 'stopped' | (string & {});
 
 // Backend may add new event types / fields over time.
 // Keep this shape backward compatible: older required fields remain, newer fields are optional.

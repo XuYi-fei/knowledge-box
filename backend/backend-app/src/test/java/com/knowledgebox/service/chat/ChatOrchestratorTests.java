@@ -10,13 +10,19 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.knowledgebox.api.UserChatMessageView;
+import com.knowledgebox.api.UserChatSessionDetailView;
 import com.knowledgebox.api.ChatCitationView;
 import com.knowledgebox.api.ChatStreamEvent;
+import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.chat.ChatMessageStatus;
+import com.knowledgebox.domain.chat.ChatTurn;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import io.agentscope.core.agent.Event;
@@ -31,6 +37,7 @@ import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.tool.Toolkit;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -373,6 +380,79 @@ class ChatOrchestratorTests {
         assertThat(citations.get(0).headingPath()).contains("MCP 简介").contains("MCP 工作流");
         assertThat(citations.get(0).snippet()).contains("第一段摘要").contains("第二段摘要");
         assertThat(citations.get(0).anchor()).isEqualTo("mcp-intro");
+    }
+
+    @Test
+    void shouldStopAssistantMessageAndPublishCancelledSnapshot() {
+        ChatTurn assistantTurn = new ChatTurn();
+        assistantTurn.setUserId(1L);
+        assistantTurn.setSessionCode(SESSION_ID);
+        assistantTurn.setMessageCode(ASSISTANT_MESSAGE_ID);
+        assistantTurn.setRole("assistant");
+        assistantTurn.setStatus(ChatMessageStatus.STREAMING);
+        assistantTurn.setContent("部分回答");
+        assistantTurn.setModelCode("qwen-max");
+
+        UserChatMessageView cancelledView = new UserChatMessageView(
+                ASSISTANT_MESSAGE_ID,
+                null,
+                "assistant",
+                "部分回答",
+                ChatMessageStatus.CANCELLED.name(),
+                List.of("已接收问题", "已停止回答"),
+                List.of(),
+                List.of(),
+                "qwen-max",
+                "已停止回答",
+                OffsetDateTime.now(),
+                OffsetDateTime.now()
+        );
+
+        when(conversationMemoryService.loadMessage(1L, SESSION_ID, ASSISTANT_MESSAGE_ID)).thenReturn(assistantTurn);
+        when(conversationMemoryService.sessionDetail(1L, SESSION_ID))
+                .thenReturn(new UserChatSessionDetailView(SESSION_ID, "新对话", "qwen-max", List.of(cancelledView)));
+        when(conversationMemoryService.cancelAssistantMessage(
+                eq(1L),
+                eq(SESSION_ID),
+                eq(ASSISTANT_MESSAGE_ID),
+                eq("部分回答"),
+                anyList(),
+                eq("已停止回答")
+        )).thenReturn(assistantTurn);
+        when(conversationMemoryService.messageView(1L, SESSION_ID, ASSISTANT_MESSAGE_ID)).thenReturn(cancelledView);
+
+        UserChatMessageView result = orchestrator.stop(1L, SESSION_ID, ASSISTANT_MESSAGE_ID);
+
+        assertThat(result.status()).isEqualTo(ChatMessageStatus.CANCELLED.name());
+        assertThat(result.errorMessage()).isEqualTo("已停止回答");
+        verify(conversationMemoryService).cancelAssistantMessage(
+                eq(1L),
+                eq(SESSION_ID),
+                eq(ASSISTANT_MESSAGE_ID),
+                eq("部分回答"),
+                anyList(),
+                eq("已停止回答")
+        );
+        verify(chatStreamBroker).publish(eq(ASSISTANT_MESSAGE_ID), eq("done"), any(ChatStreamEvent.class));
+        verify(chatStreamBroker).complete(ASSISTANT_MESSAGE_ID);
+    }
+
+    @Test
+    void shouldRejectStopForUserMessage() {
+        ChatTurn userTurn = new ChatTurn();
+        userTurn.setUserId(1L);
+        userTurn.setSessionCode(SESSION_ID);
+        userTurn.setMessageCode("user-message-1");
+        userTurn.setRole("user");
+        userTurn.setStatus(ChatMessageStatus.COMPLETED);
+
+        when(conversationMemoryService.loadMessage(1L, SESSION_ID, "user-message-1")).thenReturn(userTurn);
+
+        assertThatThrownBy(() -> orchestrator.stop(1L, SESSION_ID, "user-message-1"))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("当前消息不是助手回答");
+
+        verify(chatStreamBroker, never()).publish(eq("user-message-1"), anyString(), any(ChatStreamEvent.class));
     }
 
     private Object invokePrivateMethod(String methodName, Class<?>[] parameterTypes, Object... args) throws Exception {

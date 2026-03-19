@@ -164,6 +164,42 @@ public class ChatOrchestrator {
         conversationMemoryService.deleteSession(userId, sessionId);
     }
 
+    @Transactional
+    public UserChatMessageView stop(Long userId, String sessionId, String messageId) {
+        ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
+        if (!"assistant".equals(assistantTurn.getRole())) {
+            throw new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_NOT_ASSISTANT", "当前消息不是助手回答");
+        }
+        if (assistantTurn.getStatus() == ChatMessageStatus.COMPLETED
+                || assistantTurn.getStatus() == ChatMessageStatus.FAILED
+                || assistantTurn.getStatus() == ChatMessageStatus.CANCELLED) {
+            return conversationMemoryService.messageView(userId, sessionId, messageId);
+        }
+        RunningTaskControl control = runningTasks.get(messageId);
+        if (control != null) {
+            control.cancelByUser();
+            Thread worker = control.worker();
+            if (worker != null) {
+                worker.interrupt();
+            }
+        }
+        ChatTurn cancelledTurn = conversationMemoryService.cancelAssistantMessage(
+                userId,
+                sessionId,
+                messageId,
+                assistantTurn.getContent(),
+                chatMessagePayloadService.resolvePayload(assistantTurn).reasoningSteps(),
+                "已停止回答"
+        );
+        chatStreamBroker.publish(
+                messageId,
+                "done",
+                snapshotEvent("stopped", sessionId, cancelledTurn, "")
+        );
+        chatStreamBroker.complete(messageId);
+        return conversationMemoryService.messageView(userId, sessionId, messageId);
+    }
+
     public ChatResponse answerLegacy(Long userId, com.knowledgebox.api.ChatRequest request) {
         String sessionId = request.sessionId() == null || request.sessionId().isBlank()
                 ? java.util.UUID.randomUUID().toString()
@@ -197,6 +233,9 @@ public class ChatOrchestrator {
         if (assistantTurn.getStatus() == ChatMessageStatus.COMPLETED) {
             sendDirect(emitter, "done", snapshotEvent("done", sessionId, assistantTurn, ""));
             emitter.complete();
+        } else if (assistantTurn.getStatus() == ChatMessageStatus.CANCELLED) {
+            sendDirect(emitter, "done", snapshotEvent("stopped", sessionId, assistantTurn, ""));
+            emitter.complete();
         } else if (assistantTurn.getStatus() == ChatMessageStatus.FAILED) {
             sendDirect(emitter, "error", snapshotEvent("error", sessionId, assistantTurn, ""));
             emitter.complete();
@@ -213,7 +252,9 @@ public class ChatOrchestrator {
 
     private void startGenerationIfNeeded(StreamTask task) {
         ChatTurn turn = conversationMemoryService.loadMessage(task.userId(), task.sessionId(), task.assistantMessageId());
-        if (turn.getStatus() == ChatMessageStatus.COMPLETED || turn.getStatus() == ChatMessageStatus.FAILED) {
+        if (turn.getStatus() == ChatMessageStatus.COMPLETED
+                || turn.getStatus() == ChatMessageStatus.FAILED
+                || turn.getStatus() == ChatMessageStatus.CANCELLED) {
             return;
         }
         RunningTaskControl control = new RunningTaskControl(task.userId(), task.sessionId());
@@ -490,23 +531,33 @@ public class ChatOrchestrator {
             );
         } catch (ChatGenerationCancelledException exception) {
             log.info(
-                    "Chat generation was cancelled or message removed. userId={}, sessionId={}, assistantMessageId={}",
+                    "Chat generation was cancelled. userId={}, sessionId={}, assistantMessageId={}, cancelledByUser={}",
                     task.userId(),
                     task.sessionId(),
-                    task.assistantMessageId()
+                    task.assistantMessageId(),
+                    control.cancelledByUser()
             );
             chatStreamBroker.complete(task.assistantMessageId());
-            agentExecutionTraceService.cancelTrace(traceContext);
+            agentExecutionTraceService.cancelTrace(
+                    traceContext,
+                    control.cancelledByUser() ? "CHAT_CANCELLED_BY_USER" : "CHAT_CANCELLED",
+                    control.cancelledByUser() ? "generation cancelled by user" : "generation cancelled"
+            );
         } catch (Exception exception) {
             if (isCancellationException(exception)) {
                 log.info(
-                        "Chat generation interrupted by cancellation. userId={}, sessionId={}, assistantMessageId={}",
+                        "Chat generation interrupted by cancellation. userId={}, sessionId={}, assistantMessageId={}, cancelledByUser={}",
                         task.userId(),
                         task.sessionId(),
-                        task.assistantMessageId()
+                        task.assistantMessageId(),
+                        control.cancelledByUser()
                 );
                 chatStreamBroker.complete(task.assistantMessageId());
-                agentExecutionTraceService.cancelTrace(traceContext);
+                agentExecutionTraceService.cancelTrace(
+                        traceContext,
+                        control.cancelledByUser() ? "CHAT_CANCELLED_BY_USER" : "CHAT_CANCELLED",
+                        control.cancelledByUser() ? "generation cancelled by user" : "generation cancelled"
+                );
                 return;
             }
             if (isMessageMissing(exception)) {
@@ -1426,6 +1477,7 @@ public class ChatOrchestrator {
         private final Long userId;
         private final String sessionId;
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
+        private final AtomicBoolean cancelledByUser = new AtomicBoolean(false);
         private volatile Thread worker;
 
         private RunningTaskControl(Long userId, String sessionId) {
@@ -1441,8 +1493,17 @@ public class ChatOrchestrator {
             this.cancelled.set(true);
         }
 
+        private void cancelByUser() {
+            this.cancelled.set(true);
+            this.cancelledByUser.set(true);
+        }
+
         private boolean isCancelled() {
             return cancelled.get();
+        }
+
+        private boolean cancelledByUser() {
+            return cancelledByUser.get();
         }
 
         private Long userId() {

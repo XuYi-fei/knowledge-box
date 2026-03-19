@@ -283,8 +283,15 @@ public class AgentExecutionTraceService {
 
     @Transactional
     public void cancelTrace(AgentExecutionTraceContext context) {
-        closeRemainingSpans(context, AgentExecutionStatus.CANCELLED, Map.of("message", "generation cancelled"));
-        updateTraceTerminalState(context, AgentExecutionStatus.CANCELLED, Map.of(), "CHAT_CANCELLED", "generation cancelled");
+        cancelTrace(context, "CHAT_CANCELLED", "generation cancelled");
+    }
+
+    @Transactional
+    public void cancelTrace(AgentExecutionTraceContext context, String errorCode, String message) {
+        String resolvedCode = sanitizer.sanitizeText(errorCode == null || errorCode.isBlank() ? "CHAT_CANCELLED" : errorCode);
+        String resolvedMessage = sanitizer.sanitizeText(message == null || message.isBlank() ? "generation cancelled" : message);
+        closeRemainingSpans(context, AgentExecutionStatus.CANCELLED, Map.of("message", resolvedMessage));
+        updateTraceTerminalState(context, AgentExecutionStatus.CANCELLED, Map.of(), resolvedCode, resolvedMessage);
     }
 
     public String nextBackendSpanIdValue() {

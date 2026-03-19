@@ -57,4 +57,5 @@
     <include file="db/changelog/db.changelog-050-config-bundle-release-note.xml"/>
     <include file="db/changelog/db.changelog-051-agent-web-search-env.xml"/>
     <include file="db/changelog/db.changelog-052-agent-web-search-env-release-note.xml"/>
+    <include file="db/changelog/db.changelog-053-chat-stop-response-release-note.xml"/>
 </databaseChangeLog>

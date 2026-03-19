@@ -68,6 +68,9 @@ final class AssistantTurnAwaitService {
             );
             throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "CHAT_STREAM_FAILED", assistantTurn.getErrorMessage());
         }
+        if (assistantTurn.getStatus() == ChatMessageStatus.CANCELLED) {
+            throw new ApiException(HttpStatus.CONFLICT, "CHAT_STREAM_CANCELLED", assistantTurn.getErrorMessage());
+        }
         return assistantTurn;
     }
 }

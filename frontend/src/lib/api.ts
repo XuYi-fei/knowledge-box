@@ -46,6 +46,7 @@ import {
   SkillBinding,
   ToolDefinition,
   UserAuthResponse,
+  UserChatMessage,
   UserChatSessionDetail,
   UserChatSessionSummary,
   UserView,
@@ -493,6 +494,15 @@ export const api = {
   },
   async userChatSessionDetail(sessionId: string) {
     return requestJson<UserChatSessionDetail>(`/api/app/chat/sessions/${sessionId}`, undefined, 'user');
+  },
+  async stopUserChatMessage(sessionId: string, messageId: string) {
+    return requestJson<UserChatMessage>(
+      `/api/app/chat/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/stop`,
+      {
+        method: 'POST',
+      },
+      'user',
+    );
   },
   async deleteUserChatSession(sessionId: string) {
     return requestJson<void>(

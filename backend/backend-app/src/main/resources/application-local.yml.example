@@ -41,6 +41,11 @@ spring:
           model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
           dimensions: ${KB_RETRIEVAL_EMBEDDING_DIMENSIONS:1024}
 
+# DashScope API Key。
+# 这里额外保留一个与启动期 runtime-env-check 同名的顶层 Spring 配置键，
+# 方便本地在未导出系统环境变量时，仍可直接通过 application-local.yml 被启动自检读取到。
+DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:your-dashscope-api-key}
+
 # Tavily 搜索 API Key。
 # 这里用一个与 Agent envVar sourceRef 同名的 Spring 配置键，方便本地直接调试。
 # Agent 对 PROCESS_ENV 的解析顺序是：

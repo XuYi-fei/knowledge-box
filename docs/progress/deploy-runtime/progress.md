@@ -13,6 +13,7 @@
 - 已将 `tmp/yuque-batch` 与 bootstrap seeds 一并纳入发布包，保证服务器启动时的 bootstrap 导入链路可用。
 - 已补齐 Agent bootstrap 配置链路：`application-local.yml`、`application-local.yml.example`、`config/application-prod.yml`、`config/knowledge-box.env`、模板 env/prod 配置均支持自动导入 `backend/bootstrap/config-bundle.web-search.json`。
 - 远程平铺部署脚本现已同步 `backend/bootstrap/` 目录，确保服务器重启时能读到 `web-search-agent` 相关 bundle。
+- 本地 `application-local.yml` 现已补充顶层 `DASHSCOPE_API_KEY`，远程 `knowledge-box.env` 也已明确由启动脚本自动导出；因此启动期 runtime-env-check 可同时覆盖本地 IDEA 启动与远程平铺部署。
 - 本地启动链路已验证可跑通，`/api/public/system/availability` 可正常返回 `UP`。
 
 ## 已验证范围

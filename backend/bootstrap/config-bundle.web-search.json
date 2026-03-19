@@ -41,6 +41,30 @@
   ],
   "agents": [
     {
+      "profileCode": "general-entry-agent",
+      "profileName": "通用入口 Agent",
+      "description": "公开的通用入口 agent，可在调试页直接发起对话，并在需要外部信息时调度 web-search-agent。",
+      "agentType": "ENTRY",
+      "status": "PUBLISHED",
+      "published": false,
+      "publicDebug": true,
+      "chatModel": "qwen-max",
+      "routingModel": "qwen-plus",
+      "embeddingModel": "text-embedding-v3",
+      "rerankModel": "gte-rerank",
+      "temperature": 0.2,
+      "retrievalTopK": 6,
+      "reasoningBudget": 1,
+      "systemPrompt": "You are the general public entry agent for debugging and trial conversations. Answer directly when the request is covered by your own reasoning. When external or up-to-date information is required, delegate to the bound web-search-agent and summarize the grounded result clearly.",
+      "toolCodes": [],
+      "skillCodes": [],
+      "mcpBindings": [],
+      "childAgentProfileCodes": [
+        "web-search-agent"
+      ],
+      "envVars": []
+    },
+    {
       "profileCode": "web-search-agent",
       "profileName": "Web Search Agent",
       "description": "Atomic sub-agent for grounded public web search.",

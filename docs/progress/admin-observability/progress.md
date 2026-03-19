@@ -20,6 +20,7 @@
 - 系统启动期 bootstrap 现已支持统一配置 Bundle schema；Skill 可按约定从 `classpath:bootstrap/skills/<code>` 或显式 `packageLocation` 目录自动打包并上传到 OSS。
 - 系统启动期已支持通过 `knowledge-box.agent.bootstrap.*` 从外置 JSON seed file / seed directory 自动创建缺失 Agent，并在重复 `profileCode` / `profileName` 时保留数据库现状并记录告警。
 - 启动期统一配置 Bundle / Agent bootstrap 的 fail-fast 逻辑已修复为“仅真实校验失败才阻断启动”；对数据库里已存在资源的幂等跳过现在只记消息与计数，不再导致应用启动失败。
+- 默认 `config-bundle.web-search.json` 现已额外提供一个 `general-entry-agent`：它以 `ENTRY + PUBLISHED + publicDebug=true` 方式公开给用户侧调试页，并默认绑定 `web-search-agent` 作为子 Agent。
 - Trace 已支持列表、详情、删除、时间线、瀑布图与通俗解读视图。
 - 管理端公共布局已修复为内容区独立滚动，`知识文档` 与 `文档审核` 页面在关闭窗口级滚动后仍可正常使用。
 

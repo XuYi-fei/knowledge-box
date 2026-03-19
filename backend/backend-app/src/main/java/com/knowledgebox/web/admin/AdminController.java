@@ -341,13 +341,14 @@ public class AdminController {
     public AgentExecutionTracePageView traces(
             @RequestParam(required = false) String traceId,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String profileCode,
             @RequestParam(required = false) String sessionCode,
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) String queryKeyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return agentExecutionTraceQueryService.traces(traceId, status, sessionCode, userId, queryKeyword, page, pageSize);
+        return agentExecutionTraceQueryService.traces(traceId, status, profileCode, sessionCode, userId, queryKeyword, page, pageSize);
     }
 
     @GetMapping("/traces/{traceId}")

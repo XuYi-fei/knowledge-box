@@ -92,10 +92,22 @@ function buildLastSessionKey(userId: number) {
   return `knowledge-box-active-session:${userId}`;
 }
 
+function buildDebugLastSessionKey(userId: number, profileCode: string) {
+  return `knowledge-box-agent-debug-active-session:${userId}:${profileCode}`;
+}
+
 export function setUserLastSessionId(userId: number, sessionId: string) {
   localStorage.setItem(buildLastSessionKey(userId), sessionId);
 }
 
 export function getUserLastSessionId(userId: number) {
   return localStorage.getItem(buildLastSessionKey(userId));
+}
+
+export function setUserDebugLastSessionId(userId: number, profileCode: string, sessionId: string) {
+  localStorage.setItem(buildDebugLastSessionKey(userId, profileCode), sessionId);
+}
+
+export function getUserDebugLastSessionId(userId: number, profileCode: string) {
+  return localStorage.getItem(buildDebugLastSessionKey(userId, profileCode));
 }

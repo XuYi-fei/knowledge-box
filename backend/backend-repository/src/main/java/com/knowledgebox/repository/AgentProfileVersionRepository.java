@@ -2,6 +2,7 @@ package com.knowledgebox.repository;
 
 import com.knowledgebox.domain.agent.AgentProfileVersion;
 import com.knowledgebox.domain.agent.AgentProfileVersionType;
+import com.knowledgebox.domain.agent.ProfileStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +28,12 @@ public interface AgentProfileVersionRepository extends JpaRepository<AgentProfil
 
     @EntityGraph(attributePaths = "profile")
     List<AgentProfileVersion> findAllByIdIn(Collection<Long> ids);
+
+    @EntityGraph(attributePaths = "profile")
+    List<AgentProfileVersion> findAllByAgentTypeAndStatusAndPublicDebugTrueOrderByProfile_NameAscVersionNumberDesc(
+            AgentProfileVersionType agentType,
+            ProfileStatus status
+    );
 
     @Query("select version from AgentProfileVersion version join fetch version.profile order by version.profile.code asc, version.versionNumber desc")
     List<AgentProfileVersion> findAllForAdmin();

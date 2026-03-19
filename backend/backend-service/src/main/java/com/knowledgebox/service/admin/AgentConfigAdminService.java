@@ -272,6 +272,7 @@ public class AgentConfigAdminService {
         AgentProfileVersionType agentType = readEnum(node.get("agentType"), AgentProfileVersionType.class, "agentType", index);
         ProfileStatus status = readEnumOrDefault(node.get("status"), ProfileStatus.class, ProfileStatus.DRAFT);
         boolean published = readBoolean(node.get("published"), false);
+        boolean publicDebug = readBoolean(node.get("publicDebug"), false);
         String chatModel = readRequiredText(node.get("chatModel"), "chatModel", index).trim();
         String routingModel = readRequiredText(node.get("routingModel"), "routingModel", index).trim();
         String embeddingModel = readRequiredText(node.get("embeddingModel"), "embeddingModel", index).trim();
@@ -291,6 +292,7 @@ public class AgentConfigAdminService {
                 agentType,
                 status,
                 published,
+                publicDebug,
                 chatModel,
                 routingModel,
                 embeddingModel,
@@ -509,6 +511,9 @@ public class AgentConfigAdminService {
             if (snapshot.published() && snapshot.status() != ProfileStatus.PUBLISHED) {
                 errors.add("published=true 时 status 必须为 PUBLISHED");
             }
+            if (snapshot.publicDebug() && snapshot.agentType() != AgentProfileVersionType.ENTRY) {
+                errors.add("publicDebug=true 时 agentType 必须为 ENTRY");
+            }
         }
         errorsByProfileCode.entrySet().removeIf(entry -> entry.getValue() == null || entry.getValue().isEmpty());
     }
@@ -599,6 +604,9 @@ public class AgentConfigAdminService {
         }
         if (snapshot.published() && snapshot.agentType() != AgentProfileVersionType.MAIN) {
             addError(errorsByProfileCode, snapshot.profileCode(), "仅 MAIN Agent 可以设置为 published=true");
+        }
+        if (snapshot.publicDebug() && snapshot.agentType() != AgentProfileVersionType.ENTRY) {
+            addError(errorsByProfileCode, snapshot.profileCode(), "仅 ENTRY Agent 可以设置为 publicDebug=true");
         }
         for (String toolCode : snapshot.toolCodes()) {
             ToolDefinition definition = toolDefinitionRepository.findByCode(toolCode).orElse(null);
@@ -756,6 +764,7 @@ public class AgentConfigAdminService {
         version.setVersionNumber(1);
         version.setStatus(snapshot.status());
         version.setPublished(snapshot.published());
+        version.setPublicDebug(snapshot.publicDebug());
         version.setAgentType(policyService.normalizeType(snapshot.agentType()));
         version.setChatModel(snapshot.chatModel());
         version.setRoutingModel(snapshot.routingModel());
@@ -779,6 +788,7 @@ public class AgentConfigAdminService {
                 snapshot.agentType(),
                 snapshot.status(),
                 snapshot.published(),
+                snapshot.publicDebug(),
                 snapshot.chatModel(),
                 snapshot.routingModel(),
                 snapshot.embeddingModel(),
@@ -810,6 +820,7 @@ public class AgentConfigAdminService {
 
         version.setStatus(operation.snapshot().status());
         version.setPublished(operation.snapshot().published());
+        version.setPublicDebug(operation.snapshot().publicDebug());
         version.setAgentType(policyService.normalizeType(operation.snapshot().agentType()));
         version.setChatModel(operation.snapshot().chatModel());
         version.setRoutingModel(operation.snapshot().routingModel());
@@ -831,6 +842,7 @@ public class AgentConfigAdminService {
                 operation.snapshot().agentType(),
                 operation.snapshot().status(),
                 operation.snapshot().published(),
+                operation.snapshot().publicDebug(),
                 operation.snapshot().chatModel(),
                 operation.snapshot().routingModel(),
                 operation.snapshot().embeddingModel(),
@@ -865,6 +877,7 @@ public class AgentConfigAdminService {
                     policyService.normalizeType(version.getAgentType()),
                     version.getStatus(),
                     Boolean.TRUE.equals(version.getPublished()),
+                    Boolean.TRUE.equals(version.getPublicDebug()),
                     version.getChatModel(),
                     version.getRoutingModel(),
                     version.getEmbeddingModel(),
@@ -1068,6 +1081,7 @@ public class AgentConfigAdminService {
             AgentProfileVersionType agentType,
             ProfileStatus status,
             boolean published,
+            boolean publicDebug,
             String chatModel,
             String routingModel,
             String embeddingModel,
@@ -1089,6 +1103,7 @@ public class AgentConfigAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -1113,6 +1128,7 @@ public class AgentConfigAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -1140,6 +1156,7 @@ public class AgentConfigAdminService {
             AgentProfileVersionType agentType,
             ProfileStatus status,
             boolean published,
+            boolean publicDebug,
             String chatModel,
             String routingModel,
             String embeddingModel,
@@ -1161,6 +1178,7 @@ public class AgentConfigAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -1185,6 +1203,7 @@ public class AgentConfigAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -1209,6 +1228,7 @@ public class AgentConfigAdminService {
             AgentProfileVersionType agentType,
             ProfileStatus status,
             boolean published,
+            boolean publicDebug,
             String chatModel,
             String routingModel,
             String embeddingModel,

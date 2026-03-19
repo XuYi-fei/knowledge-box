@@ -11,6 +11,7 @@ public record AgentConfigSnapshotView(
         AgentProfileVersionType agentType,
         ProfileStatus status,
         boolean published,
+        boolean publicDebug,
         String chatModel,
         String routingModel,
         String embeddingModel,

@@ -60,4 +60,6 @@
     <include file="db/changelog/db.changelog-053-chat-stop-response-release-note.xml"/>
     <include file="db/changelog/db.changelog-054-markdown-copy-release-note.xml"/>
     <include file="db/changelog/db.changelog-055-markdown-copy-toolbar-release-note.xml"/>
+    <include file="db/changelog/db.changelog-056-agent-debug-entry.xml"/>
+    <include file="db/changelog/db.changelog-057-agent-debug-entry-release-note.xml"/>
 </databaseChangeLog>

@@ -86,6 +86,21 @@ export type UserChatSessionDetail = {
   messages: UserChatMessage[];
 };
 
+export type UserDebugChatEntry = {
+  profileCode: string;
+  profileName: string;
+  description: string | null;
+  available: boolean;
+  canStartNewConversation: boolean;
+  hasHistory: boolean;
+};
+
+export type UserDebugChatOptions = {
+  defaultChatModel: string | null;
+  models: PublicChatModelOption[];
+  entries: UserDebugChatEntry[];
+};
+
 export type ChatStreamEventType = 'snapshot' | 'thinking' | 'delta' | 'done' | 'error' | 'stopped' | (string & {});
 
 // Backend may add new event types / fields over time.
@@ -119,6 +134,7 @@ export type AgentProfileVersion = {
   versionNumber: number;
   status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
   published: boolean;
+  publicDebug: boolean;
   agentType: 'MAIN' | 'ENTRY' | 'ORCHESTRATOR' | 'ATOMIC';
   chatModel: string;
   routingModel: string | null;

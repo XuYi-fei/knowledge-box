@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="057-001-agent-debug-entry-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.19',
+                '新增 Agent 调试入口与按入口隔离的会话日志',
+                '登录用户现在可以在独立调试页选择公开的 ENTRY Agent 进行对话测试，并按入口查看自己的会话与执行日志。',
+                E'## 本次更新\n\n- 新增独立的 Agent 调试页，支持选择公开的 ENTRY Agent 作为对话入口\n- 调试会话、历史记录与 trace 日志按 `用户 + Entry Agent` 维度隔离，不再混入主页 MAIN 会话\n- 当 Entry Agent 下线或不再公开时，旧历史仍可查看，但系统会禁止继续发起新的调试对话\n- 管理端删除 Entry Agent 时，会同时清理该入口关联的用户会话与 trace 数据',
+                TIMESTAMPTZ '2026-03-19 23:59:00+08',
+                -17,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.19'
+                   AND title = '新增 Agent 调试入口与按入口隔离的会话日志'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

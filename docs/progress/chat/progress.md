@@ -14,6 +14,8 @@
 - 现已支持通过 `knowledge-box.agent.runtime-env-check.*` 在启动期扫描 Agent envVars 与绑定依赖的必填 requirement，提前发现缺 key 配置。
 - `PROCESS_ENV` 现在会优先读宿主环境变量，缺失时再回退读取 Spring `Environment`；因此本地开发可直接在 `application-local.yml` 中配置 `KB_TAVILY_API_KEY` 这类值。
 - 对话主界面现已支持“停止回答”；用户主动中止后会立即截断当前流式输出，并把已有部分回答持久化为 `CANCELLED`，不会在刷新或会话恢复时被误续跑。
+- 用户侧现已新增独立的 `Agent 调试` 页：登录用户可选择 `ENTRY + PUBLISHED + publicDebug=true` 的入口 Agent 发起调试会话，并按入口隔离历史记录与 trace 摘要。
+- 当调试入口 Agent 下线、改为非公开或改成非 `ENTRY` 时，旧调试会话仍可查看，但前端与后端都会禁止继续创建新调试对话。
 - 聊天回答中的 Markdown 代码块右上角现已支持一键复制，可直接把示例代码写入剪贴板。
 - 聊天回答中的代码块复制入口已升级为双按钮工具条，支持“复制纯代码”和“复制 Markdown fenced code block”，复制成功后会给出更明确的按钮态和提示反馈。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
@@ -28,11 +30,13 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖停止回答按钮、`CANCELLED` 消息态和停止后不自动恢复的前端状态机。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天消息代码块复制按钮，以及与公开文档/后台 Markdown 预览共用的代码块渲染组件。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖代码块双按钮复制工具条、更明确的复制成功反馈，以及 fenced code block 复制能力。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖新增的 `Agent 调试` tab、独立调试页、按入口隔离的会话恢复键与 trace 摘要侧栏。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 可通过，已覆盖运行时环境变量注入、web-search Tool 装配与配置 Bundle v2 相关回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺少宿主环境变量与 requirement 缺失告警。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖调试入口约束、按入口停止回答与删除 Agent 时的聊天/trace 清理回归。
 
 ## 待继续推进
 
@@ -48,3 +52,4 @@
 - 子 Agent 运行时按 `SubAgentTool` 作为工具注册；当前仅支持单层调用，且父 Agent 只能绑定 `ATOMIC` 版本。
 - Agent 运行时环境变量当前按 `profileVersionId` 独立解析，子 Agent 不继承父 Agent 的密钥；若子 Agent 也依赖外部服务，需要单独绑定自己的 `envVars`。
 - 停止回答后的助手消息使用 `CANCELLED` 独立终态；刷新恢复逻辑只能续跑 `PENDING/STREAMING`，不要把 `CANCELLED` 再次接回 SSE。
+- 用户侧多入口调试不要复用主聊天入口的 session 存储键；最近会话恢复必须按 `userId + profileCode` 维度隔离，否则不同 Entry Agent 会串会话。

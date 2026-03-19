@@ -37,7 +37,8 @@ final class ChatMessagePayloadService {
     }
 
     private UserChatMessageView findMessageView(ChatTurn assistantTurn) {
-        return conversationMemoryService.sessionDetail(assistantTurn.getUserId(), assistantTurn.getSessionCode())
+        String profileCode = conversationMemoryService.loadSession(assistantTurn.getUserId(), assistantTurn.getSessionCode()).getActiveProfileCode();
+        return conversationMemoryService.sessionDetail(assistantTurn.getUserId(), assistantTurn.getSessionCode(), profileCode)
                 .messages().stream()
                 .filter(message -> message.messageId().equals(assistantTurn.getMessageCode()))
                 .findFirst()

@@ -12,12 +12,17 @@ import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.domain.agent.ModelCatalog;
 import com.knowledgebox.domain.agent.ModelType;
 import com.knowledgebox.domain.agent.ProfileStatus;
+import com.knowledgebox.domain.chat.AgentExecutionStatus;
+import com.knowledgebox.repository.AgentExecutionTraceRepository;
 import com.knowledgebox.repository.AgentProfileRepository;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
+import com.knowledgebox.repository.ChatSessionRepository;
+import com.knowledgebox.repository.ChatTurnRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import com.knowledgebox.service.integration.AgentProfileVersionPolicyService;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,19 +35,28 @@ public class AdminCommandService {
     private final ModelCatalogRepository modelCatalogRepository;
     private final AdminSecurityService adminSecurityService;
     private final AgentProfileVersionPolicyService policyService;
+    private final ChatSessionRepository chatSessionRepository;
+    private final ChatTurnRepository chatTurnRepository;
+    private final AgentExecutionTraceRepository agentExecutionTraceRepository;
 
     public AdminCommandService(
             AgentProfileRepository agentProfileRepository,
             AgentProfileVersionRepository agentProfileVersionRepository,
             ModelCatalogRepository modelCatalogRepository,
             AdminSecurityService adminSecurityService,
-            AgentProfileVersionPolicyService policyService
+            AgentProfileVersionPolicyService policyService,
+            ChatSessionRepository chatSessionRepository,
+            ChatTurnRepository chatTurnRepository,
+            AgentExecutionTraceRepository agentExecutionTraceRepository
     ) {
         this.agentProfileRepository = agentProfileRepository;
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.modelCatalogRepository = modelCatalogRepository;
         this.adminSecurityService = adminSecurityService;
         this.policyService = policyService;
+        this.chatSessionRepository = chatSessionRepository;
+        this.chatTurnRepository = chatTurnRepository;
+        this.agentExecutionTraceRepository = agentExecutionTraceRepository;
     }
 
     @Transactional
@@ -75,6 +89,8 @@ public class AdminCommandService {
         version.setSkillBindings("[]");
         version.setAgentType(targetType);
         policyService.validateTypeTransition(version, targetType);
+        version.setPublicDebug(Boolean.TRUE.equals(request.publicDebug()));
+        policyService.validatePublicDebugSetting(version, request.publicDebug());
         version.setChatModel(requireEnabledModel(request.chatModel(), ModelType.CHAT).getCode());
         version.setRoutingModel(requireEnabledModel(request.routingModel(), ModelType.CHAT).getCode());
         version.setEmbeddingModel(requireEnabledModel(request.embeddingModel(), ModelType.EMBEDDING).getCode());
@@ -93,6 +109,8 @@ public class AdminCommandService {
         AgentProfileVersionType targetType = policyService.normalizeType(request.agentType());
         policyService.validateTypeTransition(version, targetType);
         version.setAgentType(targetType);
+        version.setPublicDebug(Boolean.TRUE.equals(request.publicDebug()));
+        policyService.validatePublicDebugSetting(version, request.publicDebug());
         version.setChatModel(requireEnabledModel(request.chatModel(), ModelType.CHAT).getCode());
         version.setRoutingModel(requireEnabledModel(request.routingModel(), ModelType.CHAT).getCode());
         version.setEmbeddingModel(requireEnabledModel(request.embeddingModel(), ModelType.EMBEDDING).getCode());
@@ -116,6 +134,11 @@ public class AdminCommandService {
         if (containsMain) {
             throw new IllegalArgumentException("MAIN 主入口 Agent 不允许删除");
         }
+        String profileCode = version.getProfile().getCode();
+        if (agentExecutionTraceRepository.existsByProfileCodeAndStatus(profileCode, AgentExecutionStatus.RUNNING)) {
+            throw new IllegalArgumentException("该 Agent 仍存在 RUNNING 的执行链路，请等待结束后再删除");
+        }
+        cleanupChatAndTraceData(profileCode);
         agentProfileVersionRepository.deleteAllInBatch(versions);
         agentProfileRepository.deleteById(profileId);
     }
@@ -236,6 +259,7 @@ public class AdminCommandService {
                 version.getVersionNumber(),
                 version.getStatus(),
                 Boolean.TRUE.equals(version.getPublished()),
+                Boolean.TRUE.equals(version.getPublicDebug()),
                 policyService.normalizeType(version.getAgentType()),
                 version.getChatModel(),
                 version.getRoutingModel(),
@@ -245,5 +269,16 @@ public class AdminCommandService {
                 version.getRetrievalTopK(),
                 version.getReasoningBudget()
         );
+    }
+
+    private void cleanupChatAndTraceData(String profileCode) {
+        List<String> sessionCodes = chatSessionRepository.findAllByActiveProfileCode(profileCode).stream()
+                .map(session -> session.getSessionCode())
+                .collect(Collectors.toList());
+        if (!sessionCodes.isEmpty()) {
+            chatTurnRepository.deleteBySessionCodeIn(sessionCodes);
+            chatSessionRepository.deleteByActiveProfileCode(profileCode);
+        }
+        agentExecutionTraceRepository.deleteByProfileCode(profileCode);
     }
 }

@@ -64,6 +64,7 @@ public class AgentExecutionTraceQueryService {
     public AgentExecutionTracePageView traces(
             @Nullable String traceId,
             @Nullable String status,
+            @Nullable String profileCode,
             @Nullable String sessionCode,
             @Nullable Long userId,
             @Nullable String queryKeyword,
@@ -83,6 +84,9 @@ public class AgentExecutionTraceQueryService {
         }
         if (StringUtils.hasText(status)) {
             specification = specification.and((root, query, builder) -> builder.equal(root.get("status").as(String.class), status.trim()));
+        }
+        if (StringUtils.hasText(profileCode)) {
+            specification = specification.and((root, query, builder) -> builder.equal(root.get("profileCode"), profileCode.trim()));
         }
         if (StringUtils.hasText(sessionCode)) {
             specification = specification.and((root, query, builder) -> builder.equal(root.get("sessionCode"), sessionCode.trim()));

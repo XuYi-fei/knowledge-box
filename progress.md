@@ -10,6 +10,7 @@
 - 文档治理闭环继续收口：审核策略、失败可观测性、重复治理和导入运维仍是近期主线。
 - 用户体验继续打磨：聊天流式细节、公开文库阅读体验和用户工具扩展仍有持续迭代空间。
 - 聊天停止链路已补齐：当前支持用户主动停止回答并以 `CANCELLED` 持久化，后续重点转向真实模型调用下的中断时延观察。
+- 用户侧多入口调试已补齐：当前支持独立 `Agent 调试` 工作区，后续重点转向真实环境下不同 Entry Agent 的联调与可用性反馈。
 - 真实环境联调继续补齐：Redis、邮件、OSS、模型配置与部署链路仍需持续验证。
 - Agent 运行时配置继续完善：当前已补齐 Agent 级环境变量、外网搜索子 Agent 与配置 Bundle v2，后续重点转向真实联网场景联调。
 - Agent 启动导入链路已补齐：web-search 相关 bundle 现可在本地与远程部署时自动导入，后续重点转向真实环境下的首启验证与幂等性观察。
@@ -31,6 +32,7 @@
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 已通过，覆盖 Agent 运行时环境变量启动自检、必填 requirement 校验与 fail-fast 启动保护。
 - Agent 运行时 `PROCESS_ENV` 现已支持在缺少宿主环境变量时回退读取 Spring `Environment`，因此可直接从 `application-local.yml` 读取 `KB_TAVILY_API_KEY` 这类配置做本地启动联调。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 已通过，覆盖 Agent 创建删除、`MAIN` 唯一性与公开入口校验。
+- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,ChatOrchestratorTests test` 已通过，覆盖 `publicDebug` 调试入口约束、按入口停止回答与删除 Agent 时的聊天/trace 清理。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。
 

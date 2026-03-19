@@ -468,6 +468,7 @@ public class ConfigBundleAdminService {
             AgentProfileVersionType agentType = readEnum(item.get("agentType"), AgentProfileVersionType.class, "agents[%s].agentType".formatted(index));
             ProfileStatus status = readEnumOrDefault(item.get("status"), ProfileStatus.class, ProfileStatus.DRAFT);
             boolean published = readBoolean(item.get("published"), false);
+            boolean publicDebug = readBoolean(item.get("publicDebug"), false);
             String chatModel = readRequiredText(item.get("chatModel"), "agents[%s].chatModel".formatted(index)).trim();
             String routingModel = readRequiredText(item.get("routingModel"), "agents[%s].routingModel".formatted(index)).trim();
             String embeddingModel = readRequiredText(item.get("embeddingModel"), "agents[%s].embeddingModel".formatted(index)).trim();
@@ -488,6 +489,7 @@ public class ConfigBundleAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -746,6 +748,9 @@ public class ConfigBundleAdminService {
             if (agent.published() && agent.status() != ProfileStatus.PUBLISHED) {
                 addError(errorsByKey, key, "published=true 时 status 必须为 PUBLISHED");
             }
+            if (agent.publicDebug() && agent.agentType() != AgentProfileVersionType.ENTRY) {
+                addError(errorsByKey, key, "publicDebug=true 时 agentType 必须为 ENTRY");
+            }
         }
     }
 
@@ -986,6 +991,9 @@ public class ConfigBundleAdminService {
         }
         if (snapshot.published() && snapshot.agentType() != AgentProfileVersionType.MAIN) {
             addError(errorsByKey, key, "仅 MAIN Agent 可以设置为 published=true");
+        }
+        if (snapshot.publicDebug() && snapshot.agentType() != AgentProfileVersionType.ENTRY) {
+            addError(errorsByKey, key, "仅 ENTRY Agent 可以设置为 publicDebug=true");
         }
         for (String toolCode : snapshot.toolCodes()) {
             ResolvedToolSnapshot tool = finalTools.get(toolCode);
@@ -1320,6 +1328,7 @@ public class ConfigBundleAdminService {
         }
         version.setStatus(snapshot.status());
         version.setPublished(snapshot.published());
+        version.setPublicDebug(snapshot.publicDebug());
         version.setAgentType(policyService.normalizeType(snapshot.agentType()));
         version.setChatModel(snapshot.chatModel());
         version.setRoutingModel(snapshot.routingModel());
@@ -1343,6 +1352,7 @@ public class ConfigBundleAdminService {
                 snapshot.agentType(),
                 snapshot.status(),
                 snapshot.published(),
+                snapshot.publicDebug(),
                 snapshot.chatModel(),
                 snapshot.routingModel(),
                 snapshot.embeddingModel(),
@@ -1611,6 +1621,7 @@ public class ConfigBundleAdminService {
                     policyService.normalizeType(version.getAgentType()),
                     version.getStatus(),
                     Boolean.TRUE.equals(version.getPublished()),
+                    Boolean.TRUE.equals(version.getPublicDebug()),
                     version.getChatModel(),
                     version.getRoutingModel(),
                     version.getEmbeddingModel(),
@@ -2337,6 +2348,7 @@ public class ConfigBundleAdminService {
             AgentProfileVersionType agentType,
             ProfileStatus status,
             boolean published,
+            boolean publicDebug,
             String chatModel,
             String routingModel,
             String embeddingModel,
@@ -2374,6 +2386,7 @@ public class ConfigBundleAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -2398,6 +2411,7 @@ public class ConfigBundleAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -2431,6 +2445,7 @@ public class ConfigBundleAdminService {
             AgentProfileVersionType agentType,
             ProfileStatus status,
             boolean published,
+            boolean publicDebug,
             String chatModel,
             String routingModel,
             String embeddingModel,
@@ -2468,6 +2483,7 @@ public class ConfigBundleAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -2492,6 +2508,7 @@ public class ConfigBundleAdminService {
                     agentType,
                     status,
                     published,
+                    publicDebug,
                     chatModel,
                     routingModel,
                     embeddingModel,
@@ -2517,6 +2534,7 @@ public class ConfigBundleAdminService {
             AgentProfileVersionType agentType,
             ProfileStatus status,
             boolean published,
+            boolean publicDebug,
             String chatModel,
             String routingModel,
             String embeddingModel,

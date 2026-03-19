@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="056-001-agent-debug-entry" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS public_debug BOOLEAN NOT NULL DEFAULT FALSE;
+
+            CREATE INDEX IF NOT EXISTS idx_agent_profile_version_public_debug
+                ON agent_profile_version(public_debug, status, agent_type);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

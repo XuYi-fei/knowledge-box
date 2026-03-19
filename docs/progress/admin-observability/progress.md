@@ -9,6 +9,8 @@
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理，以及动态 Tool/MCP/Skill 绑定管理。
 - Agent Profile Version 现已支持 `MAIN / ENTRY / ORCHESTRATOR / ATOMIC` 四种类型，并可按“具体版本”绑定允许调用的原子子 Agent。
 - 管理端现已支持新增普通 Agent、删除非主入口 Agent，并对唯一 `MAIN` 主入口提供删除保护。
+- Agent 版本现已新增 `publicDebug` 开关；只有 `ENTRY + PUBLISHED + publicDebug=true` 的版本会暴露给用户侧 `Agent 调试` 页。
+- 删除非 MAIN Agent 时，系统现在会同步清理该 `profileCode` 关联的用户调试会话与 trace 数据；若仍有 `RUNNING` trace，则会拒绝删除以保护链路一致性。
 - 管理端 Agent 配置页现已支持导出全部 Agent JSON，以及“选择本地 JSON -> 导入预览 -> 冲突决策 -> 提交导入”的完整闭环。
 - 管理端现已支持统一配置 Bundle 导入导出，可在一份 JSON 中同时维护 Agent、Tool、MCP 与 Skill，并在预览阶段按资源类型展示冲突、现有配置和即将写入的快照。
 - 统一配置 Bundle 已升级到 `knowledge-box.config-bundle.v2`，可同时维护 Tool/MCP/Skill 的 `runtimeEnvRequirements` 与 Agent 的 `envVars`。
@@ -25,12 +27,14 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 Trace 管理页、后台布局滚动修复和相关运营页面。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 Agent 配置页导出 JSON、导入预览 Modal、冲突动作选择与提交调用链。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖统一配置 Bundle 的导入导出入口、通用资源预览表格、运行时环境变量 JSON 编辑与冲突处理。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖 Agent 管理页的 `publicDebug` 开关、调试入口标签与新的用户侧 `Agent 调试` tab。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖 Trace、Agent 配置与后台管理接口。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖 Agent 类型约束、子 Agent 绑定与运行时装配。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖 Agent 创建删除、`MAIN` 唯一性和主入口校验。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentConfigAdminServiceTests,AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests test` 可通过，已覆盖 Agent JSON 导入预览、覆盖提交与启动期跳过策略。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ChatOrchestratorTests test` 可通过，已覆盖统一配置 Bundle v2、运行时环境变量回显/导出以及 web-search 子 Agent 装配。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺失宿主环境变量告警与 fail-fast 启动保护。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖 `publicDebug` 约束、删除 Agent 时的聊天/trace 清理与调试会话停止链路。
 
 ## 待继续推进
 
@@ -48,3 +52,4 @@
 - Agent 配置导入/导出与启动 bootstrap 统一使用 `profileCode` 作为稳定业务标识；跨环境迁移不要依赖数据库自增 `id`。
 - 统一配置 Bundle 的 Skill 导入是服务端读取 `packageLocation` 对应目录并自动打包；管理端上传的 JSON 若引用本机客户端路径不会生效，需使用服务端可访问的 `file:` / `classpath:` 路径或约定目录。
 - 运行时环境变量的 secret inline 值在后台回显为 `********`，提交时若仍传掩码会保留原密文；非 secret inline 值允许明文导出，避免 Bundle 导出后丢配置。
+- `published` 继续只表示唯一 MAIN 公开主入口；用户侧可调试入口必须使用独立的 `publicDebug` 字段表达，避免把主入口语义和调试暴露语义混在一起。

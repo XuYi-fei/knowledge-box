@@ -46,6 +46,9 @@ public class AgentProfileVersionPolicyService {
         if (Boolean.TRUE.equals(version.getPublished()) && targetType != AgentProfileVersionType.MAIN) {
             throw new IllegalArgumentException("Only MAIN agent versions can stay published as the public chat entry");
         }
+        if (Boolean.TRUE.equals(version.getPublicDebug()) && targetType != AgentProfileVersionType.ENTRY) {
+            throw new IllegalArgumentException("Only ENTRY agent versions can stay publicDebug as debug chat entries");
+        }
         if (targetType == AgentProfileVersionType.ATOMIC
                 && agentBindingRepository.existsByParentProfileVersionId(version.getId())) {
             throw new IllegalArgumentException("ATOMIC agent versions cannot keep bound child agents");
@@ -53,6 +56,16 @@ public class AgentProfileVersionPolicyService {
         if (targetType != AgentProfileVersionType.ATOMIC
                 && agentBindingRepository.existsByChildProfileVersionId(version.getId())) {
             throw new IllegalArgumentException("Agent versions referenced as child agents must stay ATOMIC");
+        }
+    }
+
+    public void validatePublicDebugSetting(AgentProfileVersion version, Boolean requestedPublicDebug) {
+        if (!Boolean.TRUE.equals(requestedPublicDebug)) {
+            return;
+        }
+        AgentProfileVersionType targetType = normalizeType(version.getAgentType());
+        if (targetType != AgentProfileVersionType.ENTRY) {
+            throw new IllegalArgumentException("Only ENTRY agent versions can set publicDebug=true");
         }
     }
 

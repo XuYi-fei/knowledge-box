@@ -459,6 +459,10 @@ a {
   padding-right: 2px;
 }
 
+.chat-debug-trace-list {
+  max-height: 220px;
+}
+
 .chat-session-item {
   width: 100%;
   border-radius: 16px;

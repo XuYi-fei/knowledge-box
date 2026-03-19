@@ -20,11 +20,15 @@ import com.knowledgebox.api.ChatCitationView;
 import com.knowledgebox.api.ChatStreamEvent;
 import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
+import com.knowledgebox.domain.agent.AgentProfile;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
+import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.domain.chat.ChatMessageStatus;
+import com.knowledgebox.domain.chat.ChatSession;
 import com.knowledgebox.domain.chat.ChatTurn;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
+import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
 import io.agentscope.core.agent.Event;
 import io.agentscope.core.agent.EventType;
 import io.agentscope.core.agent.StreamOptions;
@@ -54,6 +58,7 @@ class ChatOrchestratorTests {
             "(?i).*(你是什么模型|你是(什么|哪个)|你用的什么模型|what model are you|which model are you|who are you|what are you).*";
 
     private KnowledgeBoxProperties properties;
+    private AgentProfileVersionRepository agentProfileVersionRepository;
     private ConversationMemoryService conversationMemoryService;
     private ChatStreamBroker chatStreamBroker;
     private AgentEventStreamService agentEventStreamService;
@@ -65,17 +70,27 @@ class ChatOrchestratorTests {
         properties = new KnowledgeBoxProperties();
         properties.getChat().setRetrievalTriggerMode(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED);
         properties.getChat().getKnowledgeBaseRouting().setForceDisableRegexes(List.of(FORCE_DISABLE_MODEL_QUERY_REGEX));
+        agentProfileVersionRepository = mock(AgentProfileVersionRepository.class);
         conversationMemoryService = mock(ConversationMemoryService.class);
         chatStreamBroker = mock(ChatStreamBroker.class);
+        AgentProfile profile = new AgentProfile();
+        profile.setCode("default-main");
+        profile.setName("Default Main");
+        AgentProfileVersion publishedMain = new AgentProfileVersion();
+        publishedMain.setProfile(profile);
+        publishedMain.setAgentType(AgentProfileVersionType.MAIN);
+        when(agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.MAIN))
+                .thenReturn(java.util.Optional.of(publishedMain));
         probeChatOrchestrator = new ProbeChatOrchestrator(
                 properties,
-                mock(AgentProfileVersionRepository.class),
+                agentProfileVersionRepository,
                 mock(ModelCatalogRepository.class),
                 conversationMemoryService,
                 mock(AgentExecutionTraceService.class),
                 mock(KnowledgeBaseRetrievalService.class),
                 emptyCapabilitiesAssembler(),
                 chatStreamBroker,
+                mock(AgentExecutionTraceQueryService.class),
                 "fake-api-key",
                 ""
         );
@@ -409,7 +424,11 @@ class ChatOrchestratorTests {
         );
 
         when(conversationMemoryService.loadMessage(1L, SESSION_ID, ASSISTANT_MESSAGE_ID)).thenReturn(assistantTurn);
-        when(conversationMemoryService.sessionDetail(1L, SESSION_ID))
+        ChatSession session = new ChatSession();
+        session.setSessionCode(SESSION_ID);
+        session.setActiveProfileCode("default-main");
+        when(conversationMemoryService.loadSession(1L, SESSION_ID)).thenReturn(session);
+        when(conversationMemoryService.sessionDetail(1L, SESSION_ID, "default-main"))
                 .thenReturn(new UserChatSessionDetailView(SESSION_ID, "新对话", "qwen-max", List.of(cancelledView)));
         when(conversationMemoryService.cancelAssistantMessage(
                 eq(1L),
@@ -445,7 +464,11 @@ class ChatOrchestratorTests {
         userTurn.setMessageCode("user-message-1");
         userTurn.setRole("user");
         userTurn.setStatus(ChatMessageStatus.COMPLETED);
+        ChatSession session = new ChatSession();
+        session.setSessionCode(SESSION_ID);
+        session.setActiveProfileCode("default-main");
 
+        when(conversationMemoryService.loadSession(1L, SESSION_ID)).thenReturn(session);
         when(conversationMemoryService.loadMessage(1L, SESSION_ID, "user-message-1")).thenReturn(userTurn);
 
         assertThatThrownBy(() -> orchestrator.stop(1L, SESSION_ID, "user-message-1"))
@@ -597,6 +620,7 @@ class ChatOrchestratorTests {
                 KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
                 AgentCapabilityAssemblyService agentCapabilityAssemblyService,
                 ChatStreamBroker chatStreamBroker,
+                AgentExecutionTraceQueryService agentExecutionTraceQueryService,
                 String dashScopeApiKey,
                 String dashScopeBaseUrl
         ) {
@@ -609,6 +633,7 @@ class ChatOrchestratorTests {
                     knowledgeBaseRetrievalService,
                     agentCapabilityAssemblyService,
                     chatStreamBroker,
+                    agentExecutionTraceQueryService,
                     dashScopeApiKey,
                     dashScopeBaseUrl
             );

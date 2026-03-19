@@ -27,6 +27,7 @@ type ProfileConfigFormValues = {
   temperature: number;
   retrievalTopK: number;
   reasoningBudget: number;
+  publicDebug: boolean;
 };
 
 type CreateProfileFormValues = ProfileConfigFormValues & {
@@ -500,6 +501,7 @@ export function ProfileVersionsPage() {
     temperature: 0.2,
     retrievalTopK: 6,
     reasoningBudget: 1,
+    publicDebug: false,
   }), [defaultChatModel, defaultEmbeddingModel, defaultRerankModel]);
 
   const toolCodeOptions = tools.map((item) => ({
@@ -683,8 +685,12 @@ export function ProfileVersionsPage() {
     { title: '版本', dataIndex: 'versionNumber' },
     {
       title: '类型',
-      dataIndex: 'agentType',
-      render: (value: AgentProfileVersion['agentType']) => <Tag color={agentTypeColor(value)}>{value}</Tag>,
+      render: (_, record) => (
+        <Space size={6} wrap>
+          <Tag color={agentTypeColor(record.agentType)}>{record.agentType}</Tag>
+          {record.publicDebug ? <Tag color="geekblue">调试公开</Tag> : null}
+        </Space>
+      ),
     },
     { title: '聊天模型', dataIndex: 'chatModel' },
     {
@@ -714,6 +720,7 @@ export function ProfileVersionsPage() {
                 temperature: record.temperature,
                 retrievalTopK: record.retrievalTopK,
                 reasoningBudget: record.reasoningBudget,
+                publicDebug: record.publicDebug,
               });
               setProfileModalOpen(true);
             }}
@@ -823,7 +830,7 @@ export function ProfileVersionsPage() {
         extra={
           <Space size={12} wrap>
             <Typography.Text type="secondary">
-              公开对话只会命中唯一的 `MAIN` 已发布版本；导入导出现在使用统一配置 Bundle，包含 Agent、Tool、MCP 和 Skill。
+              公开对话只会命中唯一的 `MAIN` 已发布版本；`ENTRY + PUBLISHED + 调试公开` 的版本会出现在用户侧 Agent 调试页。
             </Typography.Text>
             <Button onClick={() => exportProfilesMutation.mutate()} loading={exportProfilesMutation.isPending}>
               导出配置 Bundle
@@ -957,6 +964,9 @@ export function ProfileVersionsPage() {
           <Form.Item label="Agent 类型" name="agentType" rules={[{ required: true, message: '请选择 Agent 类型' }]}>
             <Select options={buildAgentTypeOptions()} />
           </Form.Item>
+          <Form.Item label="调试公开" name="publicDebug" valuePropName="checked" extra="仅 ENTRY 且已发布的版本会作为用户侧 Agent 调试入口可选。">
+            <Switch />
+          </Form.Item>
           <Form.Item label="聊天模型" name="chatModel" rules={[{ required: true, message: '请选择聊天模型' }]}>
             <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
@@ -997,6 +1007,9 @@ export function ProfileVersionsPage() {
         <Form layout="vertical" form={profileForm} onFinish={(values) => updateProfileMutation.mutate(values)}>
           <Form.Item label="Agent 类型" name="agentType" rules={[{ required: true, message: '请选择 Agent 类型' }]}>
             <Select options={buildAgentTypeOptions(editingProfile?.agentType)} />
+          </Form.Item>
+          <Form.Item label="调试公开" name="publicDebug" valuePropName="checked" extra="仅 ENTRY 且已发布的版本会作为用户侧 Agent 调试入口可选。">
+            <Switch />
           </Form.Item>
           <Form.Item label="聊天模型" name="chatModel" rules={[{ required: true, message: '请选择聊天模型' }]}>
             <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />

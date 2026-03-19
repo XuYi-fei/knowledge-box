@@ -7,10 +7,13 @@ import com.knowledgebox.domain.agent.AgentProfileVersion;
 import com.knowledgebox.domain.agent.AgentProfileVersionType;
 import com.knowledgebox.domain.agent.ModelCatalog;
 import com.knowledgebox.domain.agent.ModelType;
+import com.knowledgebox.domain.agent.ProfileStatus;
 import com.knowledgebox.domain.chat.ChatMessageStatus;
+import com.knowledgebox.domain.chat.ChatSession;
 import com.knowledgebox.domain.chat.ChatTurn;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
+import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
 import io.agentscope.core.ReActAgent;
 import io.agentscope.core.agent.EventType;
 import io.agentscope.core.agent.StreamOptions;
@@ -58,6 +61,7 @@ public class ChatOrchestrator {
     private final AgentEventStreamService agentEventStreamService;
     private final AssistantTurnAwaitService assistantTurnAwaitService;
     private final ChatMessagePayloadService chatMessagePayloadService;
+    private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
     private final Map<String, RunningTaskControl> runningTasks = new ConcurrentHashMap<>();
 
     public ChatOrchestrator(
@@ -69,6 +73,7 @@ public class ChatOrchestrator {
             KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
             AgentCapabilityAssemblyService agentCapabilityAssemblyService,
             ChatStreamBroker chatStreamBroker,
+            AgentExecutionTraceQueryService agentExecutionTraceQueryService,
             @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
             @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
     ) {
@@ -80,6 +85,7 @@ public class ChatOrchestrator {
         this.knowledgeBaseRetrievalService = knowledgeBaseRetrievalService;
         this.agentCapabilityAssemblyService = agentCapabilityAssemblyService;
         this.chatStreamBroker = chatStreamBroker;
+        this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
         this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
         this.routingService = new KnowledgeBaseRoutingService(properties, chatModelFactory);
         this.chatStreamDeltaService = new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker);
@@ -114,12 +120,12 @@ public class ChatOrchestrator {
 
     @Transactional(readOnly = true)
     public List<UserChatSessionSummaryView> sessions(Long userId) {
-        return conversationMemoryService.listSessions(userId);
+        return conversationMemoryService.listSessions(userId, publishedProfile().getProfile().getCode());
     }
 
     @Transactional(readOnly = true)
     public UserChatSessionDetailView sessionDetail(Long userId, String sessionId) {
-        return conversationMemoryService.sessionDetail(userId, sessionId);
+        return conversationMemoryService.sessionDetail(userId, sessionId, publishedProfile().getProfile().getCode());
     }
 
     @Transactional
@@ -161,11 +167,16 @@ public class ChatOrchestrator {
     @Transactional
     public void deleteSession(Long userId, String sessionId) {
         cancelSessionTasks(userId, sessionId);
-        conversationMemoryService.deleteSession(userId, sessionId);
+        conversationMemoryService.deleteSession(userId, sessionId, publishedProfile().getProfile().getCode());
     }
 
     @Transactional
     public UserChatMessageView stop(Long userId, String sessionId, String messageId) {
+        verifySessionProfile(userId, sessionId, publishedProfile().getProfile().getCode());
+        return stopInternal(userId, sessionId, messageId);
+    }
+
+    private UserChatMessageView stopInternal(Long userId, String sessionId, String messageId) {
         ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
         if (!"assistant".equals(assistantTurn.getRole())) {
             throw new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_NOT_ASSISTANT", "当前消息不是助手回答");
@@ -218,6 +229,133 @@ public class ChatOrchestrator {
                 this::sleep
         );
         return chatMessagePayloadService.toLegacyResponse(sessionId, assistantTurn);
+    }
+
+    public UserDebugChatOptionsView debugOptions(Long userId) {
+        List<ModelCatalog> publicChatModels = modelCatalogRepository
+                .findAllByModelTypeAndEnabledTrueAndPublicSelectableTrueOrderByDisplayNameAsc(ModelType.CHAT);
+        String defaultChatModel = publicChatModels.stream()
+                .filter(modelCatalog -> Boolean.TRUE.equals(modelCatalog.getDefaultForPublic()))
+                .map(ModelCatalog::getCode)
+                .findFirst()
+                .orElse(null);
+        Map<String, UserDebugChatEntryView> entries = new LinkedHashMap<>();
+        for (AgentProfileVersion version : agentProfileVersionRepository
+                .findAllByAgentTypeAndStatusAndPublicDebugTrueOrderByProfile_NameAscVersionNumberDesc(AgentProfileVersionType.ENTRY, ProfileStatus.PUBLISHED)) {
+            entries.putIfAbsent(version.getProfile().getCode(), new UserDebugChatEntryView(
+                    version.getProfile().getCode(),
+                    version.getProfile().getName(),
+                    version.getProfile().getDescription(),
+                    true,
+                    true,
+                    false
+            ));
+        }
+        for (String profileCode : conversationMemoryService.listActiveProfileCodes(userId)) {
+            AgentProfileVersion version = latestProfileVersion(profileCode);
+            if (version != null && policyAgentType(version) == AgentProfileVersionType.MAIN) {
+                continue;
+            }
+            if (entries.containsKey(profileCode)) {
+                UserDebugChatEntryView existing = entries.get(profileCode);
+                entries.put(profileCode, new UserDebugChatEntryView(
+                        existing.profileCode(),
+                        existing.profileName(),
+                        existing.description(),
+                        existing.available(),
+                        existing.canStartNewConversation(),
+                    true
+                ));
+                continue;
+            }
+            entries.put(profileCode, new UserDebugChatEntryView(
+                    profileCode,
+                    version == null ? profileCode : version.getProfile().getName(),
+                    version == null ? null : version.getProfile().getDescription(),
+                    false,
+                    false,
+                    true
+            ));
+        }
+        return new UserDebugChatOptionsView(
+                defaultChatModel,
+                publicChatModels.stream()
+                        .map(modelCatalog -> new PublicChatModelOptionView(
+                                modelCatalog.getCode(),
+                                modelCatalog.getDisplayName(),
+                                modelCatalog.getProvider(),
+                                modelCatalog.getDescription()
+                        ))
+                        .toList(),
+                List.copyOf(entries.values())
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserChatSessionSummaryView> debugSessions(Long userId, String profileCode) {
+        requireDebugEntryAccessible(userId, profileCode);
+        return conversationMemoryService.listSessions(userId, profileCode);
+    }
+
+    @Transactional(readOnly = true)
+    public UserChatSessionDetailView debugSessionDetail(Long userId, String profileCode, String sessionId) {
+        requireDebugEntryAccessible(userId, profileCode);
+        return conversationMemoryService.sessionDetail(userId, sessionId, profileCode);
+    }
+
+    @Transactional(readOnly = true)
+    public AgentExecutionTracePageView debugTraces(Long userId, String profileCode, String sessionId, int page, int pageSize) {
+        requireDebugEntryAccessible(userId, profileCode);
+        return agentExecutionTraceQueryService.traces(null, null, profileCode, sessionId, userId, null, page, pageSize);
+    }
+
+    @Transactional
+    public SseEmitter debugStream(Long userId, DebugChatMessageRequest request) {
+        AgentProfileVersion profile = requireAvailableDebugProfile(request.profileCode());
+        String chatModelCode = resolveChatModel(request.chatModel(), profile);
+        conversationMemoryService.ensureSession(
+                userId,
+                request.sessionId(),
+                request.profileCode(),
+                chatModelCode,
+                request.query()
+        );
+        conversationMemoryService.appendUserMessage(userId, request.sessionId(), request.clientMessageId(), request.query());
+
+        ChatTurn assistantTurn = findAssistantTurn(userId, request.sessionId(), request.clientMessageId(), chatModelCode);
+        SseEmitter emitter = subscribe(userId, request.sessionId(), assistantTurn.getMessageCode());
+        startGenerationIfNeeded(new StreamTask(
+                userId,
+                request.sessionId(),
+                request.clientMessageId(),
+                request.query(),
+                assistantTurn.getMessageCode(),
+                request.profileCode(),
+                profile,
+                chatModelCode
+        ));
+        return emitter;
+    }
+
+    @Transactional
+    public void debugDeleteSession(Long userId, String profileCode, String sessionId) {
+        verifySessionProfile(userId, sessionId, profileCode);
+        cancelSessionTasks(userId, sessionId);
+        conversationMemoryService.deleteSession(userId, sessionId, profileCode);
+    }
+
+    public SseEmitter debugResume(Long userId, String profileCode, String sessionId, String messageId) {
+        verifySessionProfile(userId, sessionId, profileCode);
+        ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
+        SseEmitter emitter = subscribe(sessionId, assistantTurn);
+        restartGenerationIfNeeded(userId, assistantTurn);
+        return emitter;
+    }
+
+    @Transactional
+    public UserChatMessageView debugStop(Long userId, String profileCode, String sessionId, String messageId) {
+        verifySessionProfile(userId, sessionId, profileCode);
+        return stopInternal(userId, sessionId, messageId);
     }
 
     private SseEmitter subscribe(Long userId, String sessionId, String messageId) {
@@ -884,7 +1022,18 @@ public class ChatOrchestrator {
         if (assistantTurn.getStatus() != ChatMessageStatus.PENDING && assistantTurn.getStatus() != ChatMessageStatus.STREAMING) {
             return;
         }
-        AgentProfileVersion profile = publishedProfile();
+        ChatSession session = conversationMemoryService.loadSession(userId, assistantTurn.getSessionCode());
+        AgentProfileVersion profile = latestProfileVersion(session.getActiveProfileCode());
+        if (profile == null) {
+            log.warn(
+                    "Skip restarting assistant stream because profile no longer exists. userId={}, sessionId={}, assistantMessageId={}, profileCode={}",
+                    userId,
+                    assistantTurn.getSessionCode(),
+                    assistantTurn.getMessageCode(),
+                    session.getActiveProfileCode()
+            );
+            return;
+        }
         String query = conversationMemoryService.findUserQueryForAssistantMessage(
                 userId,
                 assistantTurn.getSessionCode(),
@@ -908,7 +1057,7 @@ public class ChatOrchestrator {
                 "resume-" + assistantTurn.getMessageCode(),
                 query,
                 assistantTurn.getMessageCode(),
-                profile.getProfile().getCode(),
+                session.getActiveProfileCode(),
                 profile,
                 chatModelCode
         ));
@@ -1058,6 +1207,56 @@ public class ChatOrchestrator {
     private AgentProfileVersion publishedProfile() {
         return agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.MAIN)
                 .orElseThrow(() -> new IllegalStateException("No published agent profile version found"));
+    }
+
+    private AgentProfileVersion latestProfileVersion(String profileCode) {
+        if (profileCode == null || profileCode.isBlank()) {
+            return null;
+        }
+        return agentProfileVersionRepository.findByProfile_CodeOrderByVersionNumberDesc(profileCode.trim()).stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    private AgentProfileVersion requireAvailableDebugProfile(String profileCode) {
+        AgentProfileVersion profile = latestProfileVersion(profileCode);
+        if (!isAvailableDebugEntry(profile)) {
+            throw new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST, "DEBUG_AGENT_UNAVAILABLE", "当前 Agent 调试入口不可用，无法发起新对话");
+        }
+        return profile;
+    }
+
+    private void requireDebugEntryAccessible(Long userId, String profileCode) {
+        AgentProfileVersion profile = latestProfileVersion(profileCode);
+        if (profile != null && policyAgentType(profile) == AgentProfileVersionType.MAIN) {
+            throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND, "DEBUG_AGENT_NOT_FOUND", "调试入口不存在");
+        }
+        if (isAvailableDebugEntry(profile)) {
+            return;
+        }
+        boolean hasHistory = conversationMemoryService.listActiveProfileCodes(userId).stream()
+                .anyMatch(profileCode::equals);
+        if (!hasHistory) {
+            throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND, "DEBUG_AGENT_NOT_FOUND", "调试入口不存在");
+        }
+    }
+
+    private boolean isAvailableDebugEntry(AgentProfileVersion profile) {
+        return profile != null
+                && policyAgentType(profile) == AgentProfileVersionType.ENTRY
+                && profile.getStatus() == ProfileStatus.PUBLISHED
+                && Boolean.TRUE.equals(profile.getPublicDebug());
+    }
+
+    private AgentProfileVersionType policyAgentType(AgentProfileVersion profile) {
+        return profile == null ? null : profile.getAgentType();
+    }
+
+    private void verifySessionProfile(Long userId, String sessionId, String profileCode) {
+        ChatSession session = conversationMemoryService.loadSession(userId, sessionId);
+        if (!profileCode.equals(session.getActiveProfileCode())) {
+            throw new ApiException(org.springframework.http.HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "对话会话不存在");
+        }
     }
 
     private String resolveChatModel(String requestedChatModel, AgentProfileVersion profile) {

@@ -198,8 +198,8 @@ public class ConversationMemoryService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserChatSessionSummaryView> listSessions(Long userId) {
-        return chatSessionRepository.findAllByUserIdOrderByUpdatedAtDesc(userId).stream()
+    public List<UserChatSessionSummaryView> listSessions(Long userId, String profileCode) {
+        return chatSessionRepository.findAllByUserIdAndActiveProfileCodeOrderByUpdatedAtDesc(userId, profileCode).stream()
                 .map(session -> {
                     List<ChatTurn> turns = chatTurnRepository.findByUserIdAndSessionCodeOrderByIdAsc(userId, session.getSessionCode());
                     ChatTurn lastTurn = turns.isEmpty() ? null : turns.get(turns.size() - 1);
@@ -222,9 +222,12 @@ public class ConversationMemoryService {
     }
 
     @Transactional(readOnly = true)
-    public UserChatSessionDetailView sessionDetail(Long userId, String sessionCode) {
+    public UserChatSessionDetailView sessionDetail(Long userId, String sessionCode, String profileCode) {
         ChatSession session = chatSessionRepository.findByUserIdAndSessionCode(userId, sessionCode)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "对话会话不存在"));
+        if (!profileCode.equals(session.getActiveProfileCode())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "对话会话不存在");
+        }
         return new UserChatSessionDetailView(
                 session.getSessionCode(),
                 session.getTitle() == null || session.getTitle().isBlank() ? "新对话" : session.getTitle(),
@@ -236,11 +239,25 @@ public class ConversationMemoryService {
     }
 
     @Transactional
-    public void deleteSession(Long userId, String sessionCode) {
-        chatSessionRepository.findByUserIdAndSessionCode(userId, sessionCode)
+    public void deleteSession(Long userId, String sessionCode, String profileCode) {
+        ChatSession session = chatSessionRepository.findByUserIdAndSessionCode(userId, sessionCode)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "对话会话不存在"));
+        if (!profileCode.equals(session.getActiveProfileCode())) {
+            throw new ApiException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "对话会话不存在");
+        }
         chatTurnRepository.deleteByUserIdAndSessionCode(userId, sessionCode);
         chatSessionRepository.deleteByUserIdAndSessionCode(userId, sessionCode);
+    }
+
+    @Transactional(readOnly = true)
+    public ChatSession loadSession(Long userId, String sessionCode) {
+        return chatSessionRepository.findByUserIdAndSessionCode(userId, sessionCode)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "对话会话不存在"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> listActiveProfileCodes(Long userId) {
+        return chatSessionRepository.findDistinctActiveProfileCodesByUserId(userId);
     }
 
     @Transactional(readOnly = true)

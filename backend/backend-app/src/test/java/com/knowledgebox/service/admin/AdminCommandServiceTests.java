@@ -16,6 +16,9 @@ import com.knowledgebox.domain.agent.ModelCatalog;
 import com.knowledgebox.domain.agent.ModelType;
 import com.knowledgebox.repository.AgentProfileRepository;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
+import com.knowledgebox.repository.AgentExecutionTraceRepository;
+import com.knowledgebox.repository.ChatSessionRepository;
+import com.knowledgebox.repository.ChatTurnRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import com.knowledgebox.service.integration.AgentProfileVersionPolicyService;
 import java.lang.reflect.Field;
@@ -31,6 +34,9 @@ class AdminCommandServiceTests {
     private ModelCatalogRepository modelCatalogRepository;
     private AdminSecurityService adminSecurityService;
     private AgentProfileVersionPolicyService policyService;
+    private ChatSessionRepository chatSessionRepository;
+    private ChatTurnRepository chatTurnRepository;
+    private AgentExecutionTraceRepository agentExecutionTraceRepository;
     private AdminCommandService service;
 
     @BeforeEach
@@ -40,12 +46,18 @@ class AdminCommandServiceTests {
         modelCatalogRepository = mock(ModelCatalogRepository.class);
         adminSecurityService = mock(AdminSecurityService.class);
         policyService = mock(AgentProfileVersionPolicyService.class);
+        chatSessionRepository = mock(ChatSessionRepository.class);
+        chatTurnRepository = mock(ChatTurnRepository.class);
+        agentExecutionTraceRepository = mock(AgentExecutionTraceRepository.class);
         service = new AdminCommandService(
                 agentProfileRepository,
                 agentProfileVersionRepository,
                 modelCatalogRepository,
                 adminSecurityService,
-                policyService
+                policyService,
+                chatSessionRepository,
+                chatTurnRepository,
+                agentExecutionTraceRepository
         );
     }
 
@@ -81,7 +93,8 @@ class AdminCommandServiceTests {
                 "gte-rerank",
                 0.3,
                 8,
-                2
+                2,
+                false
         ));
 
         assertThat(created.profileCode()).isEqualTo("router-agent");
@@ -113,11 +126,14 @@ class AdminCommandServiceTests {
         when(agentProfileVersionRepository.findById(4L)).thenReturn(Optional.of(orchestratorVersion));
         when(agentProfileVersionRepository.findByProfile_IdOrderByVersionNumberDesc(3L)).thenReturn(List.of(orchestratorVersion));
         when(policyService.normalizeType(AgentProfileVersionType.ORCHESTRATOR)).thenReturn(AgentProfileVersionType.ORCHESTRATOR);
+        when(agentExecutionTraceRepository.existsByProfileCodeAndStatus("router-agent", com.knowledgebox.domain.chat.AgentExecutionStatus.RUNNING)).thenReturn(false);
+        when(chatSessionRepository.findAllByActiveProfileCode("router-agent")).thenReturn(List.of());
 
         service.deleteProfileVersion(4L);
 
         verify(agentProfileVersionRepository).deleteAllInBatch(List.of(orchestratorVersion));
         verify(agentProfileRepository).deleteById(3L);
+        verify(agentExecutionTraceRepository).deleteByProfileCode("router-agent");
     }
 
     private ModelCatalog model(String code) {

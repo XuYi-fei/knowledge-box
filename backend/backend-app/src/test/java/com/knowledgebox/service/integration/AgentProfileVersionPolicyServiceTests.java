@@ -65,6 +65,16 @@ class AgentProfileVersionPolicyServiceTests {
     }
 
     @Test
+    void shouldRejectKeepingPublicDebugOnNonEntryType() {
+        AgentProfileVersion version = version(6L, "debug-agent", "Debug Agent", 1, AgentProfileVersionType.ENTRY, false);
+        version.setPublicDebug(true);
+
+        assertThatThrownBy(() -> service.validateTypeTransition(version, AgentProfileVersionType.ORCHESTRATOR))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("publicDebug");
+    }
+
+    @Test
     void shouldResolveRequiredVersion() {
         AgentProfileVersion version = version(9L, "atomic-agent", "Atomic Agent", 1, AgentProfileVersionType.ATOMIC, false);
         when(agentProfileVersionRepository.findById(9L)).thenReturn(Optional.of(version));

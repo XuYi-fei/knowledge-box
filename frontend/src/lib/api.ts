@@ -49,6 +49,7 @@ import {
   UserChatMessage,
   UserChatSessionDetail,
   UserChatSessionSummary,
+  UserDebugChatOptions,
   UserView,
   UploadResult,
   WebhookSubscription,
@@ -73,6 +74,7 @@ type UpdateProfileVersionPayload = {
   temperature: number;
   retrievalTopK: number;
   reasoningBudget: number;
+  publicDebug?: boolean;
 };
 
 type CreateProfilePayload = {
@@ -87,6 +89,7 @@ type CreateProfilePayload = {
   temperature: number;
   retrievalTopK: number;
   reasoningBudget: number;
+  publicDebug?: boolean;
 };
 
 type UpdateProfileVersionBindingsPayload = {
@@ -495,6 +498,40 @@ export const api = {
   async userChatSessionDetail(sessionId: string) {
     return requestJson<UserChatSessionDetail>(`/api/app/chat/sessions/${sessionId}`, undefined, 'user');
   },
+  async userDebugChatOptions() {
+    return requestJson<UserDebugChatOptions>('/api/app/agent-debug/options', undefined, 'user');
+  },
+  async userDebugChatSessions(profileCode: string) {
+    return requestJson<UserChatSessionSummary[]>(
+      `/api/app/agent-debug/${encodeURIComponent(profileCode)}/sessions`,
+      undefined,
+      'user',
+    );
+  },
+  async userDebugChatSessionDetail(profileCode: string, sessionId: string) {
+    return requestJson<UserChatSessionDetail>(
+      `/api/app/agent-debug/${encodeURIComponent(profileCode)}/sessions/${encodeURIComponent(sessionId)}`,
+      undefined,
+      'user',
+    );
+  },
+  async userDebugChatTraces(profileCode: string, params?: { sessionId?: string; page?: number; pageSize?: number }) {
+    const query = new URLSearchParams();
+    if (params?.sessionId) {
+      query.set('sessionId', params.sessionId);
+    }
+    if (typeof params?.page === 'number') {
+      query.set('page', String(params.page));
+    }
+    if (typeof params?.pageSize === 'number') {
+      query.set('pageSize', String(params.pageSize));
+    }
+    return requestJson<AgentExecutionTracePage>(
+      `/api/app/agent-debug/${encodeURIComponent(profileCode)}/traces${query.toString() ? `?${query.toString()}` : ''}`,
+      undefined,
+      'user',
+    );
+  },
   async stopUserChatMessage(sessionId: string, messageId: string) {
     return requestJson<UserChatMessage>(
       `/api/app/chat/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/stop`,
@@ -507,6 +544,24 @@ export const api = {
   async deleteUserChatSession(sessionId: string) {
     return requestJson<void>(
       `/api/app/chat/sessions/${sessionId}`,
+      {
+        method: 'DELETE',
+      },
+      'user',
+    );
+  },
+  async stopUserDebugChatMessage(profileCode: string, sessionId: string, messageId: string) {
+    return requestJson<UserChatMessage>(
+      `/api/app/agent-debug/${encodeURIComponent(profileCode)}/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(messageId)}/stop`,
+      {
+        method: 'POST',
+      },
+      'user',
+    );
+  },
+  async deleteUserDebugChatSession(profileCode: string, sessionId: string) {
+    return requestJson<void>(
+      `/api/app/agent-debug/${encodeURIComponent(profileCode)}/sessions/${encodeURIComponent(sessionId)}`,
       {
         method: 'DELETE',
       },

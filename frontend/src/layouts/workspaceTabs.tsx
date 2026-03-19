@@ -1,4 +1,4 @@
-import { BookOutlined, InfoCircleOutlined, LoginOutlined, ReadOutlined, ToolOutlined } from '@ant-design/icons';
+import { BookOutlined, BugOutlined, InfoCircleOutlined, LoginOutlined, ReadOutlined, ToolOutlined } from '@ant-design/icons';
 import type { WorkspaceTab } from '../components/WorkspaceHeader';
 
 export function buildUserWorkspaceTabs(): WorkspaceTab[] {
@@ -23,6 +23,13 @@ export function buildUserWorkspaceTabs(): WorkspaceTab[] {
       path: '/tools',
       icon: <ToolOutlined />,
       matches: (pathname) => pathname === '/tools',
+    },
+    {
+      key: 'agent-debug',
+      label: 'Agent 调试',
+      path: '/agent-debug',
+      icon: <BugOutlined />,
+      matches: (pathname) => pathname.startsWith('/agent-debug'),
     },
     {
       key: 'about',

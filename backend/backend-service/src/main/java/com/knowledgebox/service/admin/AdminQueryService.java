@@ -109,6 +109,7 @@ public class AdminQueryService {
                 version.getVersionNumber(),
                 version.getStatus(),
                 Boolean.TRUE.equals(version.getPublished()),
+                Boolean.TRUE.equals(version.getPublicDebug()),
                 policyService.normalizeType(version.getAgentType()),
                 version.getChatModel(),
                 version.getRoutingModel(),

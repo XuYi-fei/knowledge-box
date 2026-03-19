@@ -53,6 +53,9 @@ public class AgentProfileVersion extends BaseEntity {
     @Column(nullable = false)
     private Boolean published = Boolean.FALSE;
 
+    @Column(name = "public_debug", nullable = false)
+    private Boolean publicDebug = Boolean.FALSE;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String systemPrompt;
 
@@ -159,6 +162,14 @@ public class AgentProfileVersion extends BaseEntity {
 
     public void setPublished(Boolean published) {
         this.published = published;
+    }
+
+    public Boolean getPublicDebug() {
+        return publicDebug;
+    }
+
+    public void setPublicDebug(Boolean publicDebug) {
+        this.publicDebug = publicDebug;
     }
 
     public String getSystemPrompt() {

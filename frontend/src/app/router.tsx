@@ -19,6 +19,7 @@ const HooksPage = lazy(() => import('../features/admin/HooksPage').then((module)
 const TracesPage = lazy(() => import('../features/admin/TracesPage').then((module) => ({ default: module.TracesPage })));
 const TraceDetailPage = lazy(() => import('../features/admin/TraceDetailPage').then((module) => ({ default: module.TraceDetailPage })));
 const AboutPage = lazy(() => import('../features/chat/AboutPage').then((module) => ({ default: module.AboutPage })));
+const AgentDebugPage = lazy(() => import('../features/chat/AgentDebugPage').then((module) => ({ default: module.AgentDebugPage })));
 const PublicChatPage = lazy(() => import('../features/chat/PublicChatPage').then((module) => ({ default: module.PublicChatPage })));
 const PublicArticlesPage = lazy(() => import('../features/chat/PublicArticlesPage').then((module) => ({ default: module.PublicArticlesPage })));
 const UserToolsPage = lazy(() => import('../features/chat/UserToolsPage').then((module) => ({ default: module.UserToolsPage })));
@@ -63,6 +64,8 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: withSuspense(<PublicChatPage />) },
+      { path: 'agent-debug', element: withSuspense(<AgentDebugPage />) },
+      { path: 'agent-debug/:profileCode', element: withSuspense(<AgentDebugPage />) },
       { path: 'tools', element: withSuspense(<UserToolsPage />) },
       { path: 'about', element: withSuspense(<AboutPage />) },
       { path: 'documents/:documentId', element: withSuspense(<UserDocumentDetailPage />) },

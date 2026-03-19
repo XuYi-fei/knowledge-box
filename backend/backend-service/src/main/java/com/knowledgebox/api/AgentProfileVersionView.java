@@ -10,6 +10,7 @@ public record AgentProfileVersionView(
         int versionNumber,
         ProfileStatus status,
         boolean published,
+        boolean publicDebug,
         AgentProfileVersionType agentType,
         String chatModel,
         String routingModel,

@@ -20,6 +20,7 @@
 - 当调试入口 Agent 下线、改为非公开或改成非 `ENTRY` 时，旧调试会话仍可查看，但前端与后端都会禁止继续创建新调试对话。
 - 聊天回答中的 Markdown 代码块右上角现已支持一键复制，可直接把示例代码写入剪贴板。
 - 聊天回答中的代码块复制入口已升级为双按钮工具条，支持“复制纯代码”和“复制 Markdown fenced code block”，复制成功后会给出更明确的按钮态和提示反馈。
+- 助手消息现已新增“回复过程”时间线，用竖向步骤卡片展示思考、工具调用和最终回答，每一步都可展开查看简略信息，不再只显示单行思考摘要。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
@@ -35,6 +36,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天消息代码块复制按钮，以及与公开文档/后台 Markdown 预览共用的代码块渲染组件。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖代码块双按钮复制工具条、更明确的复制成功反馈，以及 fenced code block 复制能力。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖新增的 `Agent 调试` tab、独立调试页、按入口隔离的会话恢复键与 trace 摘要侧栏。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖主页与 Agent 调试页新增的助手消息“回复过程”时间线组件。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖知识库 Tool 绑定判定、Prompt 模板拼接和相关 Liquibase 字段迁移。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。

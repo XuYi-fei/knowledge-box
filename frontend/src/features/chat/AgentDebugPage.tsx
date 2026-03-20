@@ -1,6 +1,5 @@
 import {
   ApiOutlined,
-  BulbOutlined,
   DeleteOutlined,
   HistoryOutlined,
   LogoutOutlined,
@@ -11,7 +10,7 @@ import {
   StopOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Card, Collapse, Empty, Input, List, Popconfirm, Select, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, App, Button, Card, Empty, Input, List, Popconfirm, Select, Space, Spin, Tag, Typography } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, buildApiUrl, buildUserAuthHeaders } from '../../lib/api';
@@ -27,6 +26,7 @@ import type {
   UserChatSessionDetail,
   UserChatSessionSummary,
 } from '../../lib/types';
+import { AssistantMessageProcessTimeline } from './AssistantMessageProcessTimeline';
 import { MarkdownMessage } from './MarkdownMessage';
 
 type SessionSummaryState = UserChatSessionSummary & { localOnly?: boolean };
@@ -292,16 +292,6 @@ function normalizeStreamEvent(eventName: string, raw: ChatStreamEvent): Normaliz
     errorMessage: raw.errorMessage ?? null,
     extraReasoningStep,
   };
-}
-
-function compactReasoningLabel(steps: string[]) {
-  const latest = steps[steps.length - 1]?.trim();
-  if (!latest) {
-    return '思考摘要';
-  }
-  const compact = latest.replace(/\s+/g, ' ');
-  const preview = compact.length > 44 ? `${compact.slice(0, 44)}...` : compact;
-  return `思考摘要 · ${preview}`;
 }
 
 function buildCitationDetailPath(citation: ChatCitation) {
@@ -1237,10 +1227,6 @@ export function AgentDebugPage() {
                       <List.Item className={`chat-message-list-item chat-message-list-item-${item.role}`}>
                         {(() => {
                           const normalizedReasoningSteps = dedupeReasoningSteps(item.reasoningSteps);
-                          const visibleReasoningSteps =
-                            item.status === 'STREAMING'
-                              ? normalizedReasoningSteps.slice(-1)
-                              : normalizedReasoningSteps;
                           return (
                             <div className={`chat-message-row chat-message-row-${item.role}`}>
                               {item.role === 'assistant' ? (
@@ -1278,43 +1264,15 @@ export function AgentDebugPage() {
                                   </Typography.Paragraph>
                                 ) : null}
 
-                                {visibleReasoningSteps.length && item.role === 'assistant' ? (
-                                  <Collapse
-                                    ghost
-                                    size="small"
-                                    className="reasoning-collapse"
-                                    collapsible="icon"
-                                    items={[
-                                      {
-                                        key: `${item.messageId}-reasoning`,
-                                        label: (
-                                          <span className="reasoning-trigger">
-                                            <BulbOutlined />
-                                            {compactReasoningLabel(visibleReasoningSteps)}
-                                          </span>
-                                        ),
-                                        children: (
-                                          <div className="reasoning-steps">
-                                            {visibleReasoningSteps.map((step, index) => (
-                                              <div key={`${item.messageId}-step-${index}`} className="reasoning-step">
-                                                {step}
-                                              </div>
-                                            ))}
-                                          </div>
-                                        ),
-                                      },
-                                    ]}
+                                {item.role === 'assistant' ? (
+                                  <AssistantMessageProcessTimeline
+                                    messageId={item.messageId}
+                                    reasoningSteps={normalizedReasoningSteps}
+                                    toolCalls={item.toolCalls}
+                                    status={item.status}
+                                    content={item.content}
+                                    errorMessage={item.errorMessage}
                                   />
-                                ) : null}
-
-                                {item.toolCalls.length ? (
-                                  <Space wrap className="message-tools">
-                                    {item.toolCalls.map((tool) => (
-                                      <Tag key={tool} color="cyan" bordered={false}>
-                                        {tool}
-                                      </Tag>
-                                    ))}
-                                  </Space>
                                 ) : null}
 
                                 {item.role === 'assistant' && item.citations.length ? (

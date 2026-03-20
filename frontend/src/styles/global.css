@@ -1044,53 +1044,138 @@ a {
   color: rgba(16, 42, 43, 0.62);
 }
 
-.reasoning-collapse.ant-collapse {
-  margin-top: 8px;
-  border: 0;
-  background: transparent;
+.message-process-timeline {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(15, 118, 110, 0.08);
+  display: grid;
+  gap: 10px;
 }
 
-.reasoning-collapse .ant-collapse-item {
-  border-bottom: 0;
-}
-
-.reasoning-collapse .ant-collapse-header {
-  padding: 0 !important;
-  align-items: center !important;
-}
-
-.reasoning-collapse .ant-collapse-content-box {
-  padding: 8px 0 0 !important;
-}
-
-.reasoning-trigger {
+.message-process-title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  max-width: 100%;
-  padding: 6px 10px;
-  border-radius: 12px;
-  background: rgba(15, 118, 110, 0.06);
-  color: rgba(16, 42, 43, 0.74);
   font-size: 11px;
-  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(16, 42, 43, 0.62);
 }
 
-.reasoning-steps {
+.message-process-list {
   display: grid;
-  gap: 6px;
+  gap: 10px;
 }
 
-.reasoning-step {
-  padding-left: 10px;
-  border-left: 2px solid rgba(15, 118, 110, 0.16);
-  color: rgba(16, 42, 43, 0.74);
+.message-process-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.message-process-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 24px;
+  bottom: -10px;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.2), rgba(15, 118, 110, 0.06));
+}
+
+.message-process-marker {
+  position: relative;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.18);
+}
+
+.message-process-marker-thinking {
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+}
+
+.message-process-marker-tool {
+  background: linear-gradient(135deg, #0891b2, #22d3ee);
+}
+
+.message-process-marker-done {
+  background: linear-gradient(135deg, #15803d, #22c55e);
+}
+
+.message-process-marker-error {
+  background: linear-gradient(135deg, #b42318, #f97316);
+}
+
+.message-process-card {
+  min-width: 0;
+  border: 1px solid rgba(15, 118, 110, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(247, 251, 250, 0.96), rgba(240, 247, 245, 0.96));
+  overflow: hidden;
+}
+
+.message-process-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.message-process-summary::-webkit-details-marker {
+  display: none;
+}
+
+.message-process-summary-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.message-process-step-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #102a2b;
+}
+
+.message-process-step-summary {
   font-size: 12px;
   line-height: 1.45;
+  color: rgba(16, 42, 43, 0.72);
+  overflow-wrap: anywhere;
 }
 
-.message-tools {
-  margin-top: 8px;
+.message-process-status.ant-tag {
+  margin-inline-end: 0;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+.message-process-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid rgba(15, 118, 110, 0.08);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.message-process-detail.ant-typography {
+  margin: 10px 0 0;
+  color: rgba(16, 42, 43, 0.78);
+  white-space: pre-wrap;
+}
+
+.message-process-detail-stack {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
 }
 
 .message-citations {
@@ -2264,7 +2349,7 @@ a {
     flex-basis: 20px;
   }
 
-  .reasoning-trigger {
+  .message-process-summary {
     width: 100%;
   }
 

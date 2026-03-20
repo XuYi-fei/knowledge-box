@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="060-001-chat-process-timeline-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.20',
+                '聊天消息新增回复过程时间线',
+                '聊天页和 Agent 调试页的助手消息现在会用竖向时间线展示思考、工具调用和最终回答过程，并支持逐步展开查看。',
+                E'## 本次更新\n\n- 聊天主页和 Agent 调试页的助手消息新增“回复过程”时间线视图\n- 思考过程、工具调用、最终回答会按步骤纵向排列，不再只显示成一条简短摘要\n- 每一步都支持展开查看简略说明，方便理解当前回答的生成过程\n- 保留原有正文与引用展示，时间线只负责补充过程可读性',
+                TIMESTAMPTZ '2026-03-20 23:59:30+08',
+                -19,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.20'
+                   AND title = '聊天消息新增回复过程时间线'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

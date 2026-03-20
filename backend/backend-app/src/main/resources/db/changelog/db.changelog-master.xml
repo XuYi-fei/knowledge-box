@@ -65,4 +65,6 @@
     <include file="db/changelog/db.changelog-058-agent-prompt-templates.xml"/>
     <include file="db/changelog/db.changelog-059-agent-prompt-templates-release-note.xml"/>
     <include file="db/changelog/db.changelog-060-chat-process-timeline-release-note.xml"/>
+    <include file="db/changelog/db.changelog-061-chat-process-details.xml"/>
+    <include file="db/changelog/db.changelog-062-chat-process-details-release-note.xml"/>
 </databaseChangeLog>

@@ -22,6 +22,7 @@ import { streamJsonSse } from '../../lib/sse';
 import type {
   ChatCitation,
   ChatMessageStatus,
+  ChatProcessDetail,
   ChatStreamEvent,
   UserChatMessage,
   UserChatSessionDetail,
@@ -38,6 +39,7 @@ type NormalizedStreamEvent = {
   messageId: string | null;
   content: string | null;
   reasoningSteps: string[] | null;
+  processDetails: ChatProcessDetail[] | null;
   citations: ChatCitation[] | null;
   toolCalls: string[] | null;
   status: ChatMessageStatus | null;
@@ -126,6 +128,7 @@ function createOptimisticUserMessage(query: string, clientMessageId: string): Us
     content: query,
     status: 'COMPLETED',
     reasoningSteps: [],
+    processDetails: [],
     citations: [],
     toolCalls: [],
     chatModel: null,
@@ -143,6 +146,7 @@ function createOptimisticAssistantMessage(messageId: string, chatModel?: string 
     content: '',
     status: 'PENDING',
     reasoningSteps: ['已接收问题，正在创建回答流'],
+    processDetails: [],
     citations: [],
     toolCalls: [],
     chatModel: chatModel ?? null,
@@ -171,6 +175,22 @@ function sameCitations(left: ChatCitation[], right: ChatCitation[]) {
       value.headingPath === candidate.headingPath &&
       value.anchor === candidate.anchor &&
       value.snippet === candidate.snippet
+    );
+  });
+}
+
+function sameProcessDetails(left: ChatProcessDetail[], right: ChatProcessDetail[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => {
+    const candidate = right[index];
+    return (
+      value.kind === candidate.kind &&
+      value.summary === candidate.summary &&
+      value.detail === candidate.detail &&
+      value.statusLabel === candidate.statusLabel &&
+      value.statusTone === candidate.statusTone
     );
   });
 }
@@ -229,6 +249,7 @@ function sameAssistantMessage(left: UserChatMessage, right: UserChatMessage) {
     left.errorMessage === right.errorMessage &&
     left.completedAt === right.completedAt &&
     sameStringArray(left.reasoningSteps, right.reasoningSteps) &&
+    sameProcessDetails(left.processDetails, right.processDetails) &&
     sameStringArray(left.toolCalls, right.toolCalls) &&
     sameCitations(left.citations, right.citations)
   );
@@ -286,6 +307,18 @@ function normalizeStreamEvent(eventName: string, raw: ChatStreamEvent): Normaliz
     messageId: typeof raw.messageId === 'string' ? raw.messageId : null,
     content: fullContent,
     reasoningSteps: Array.isArray(raw.reasoningSteps) ? raw.reasoningSteps.filter((item) => typeof item === 'string') : null,
+    processDetails: Array.isArray(raw.processDetails)
+      ? raw.processDetails.filter(
+          (item): item is ChatProcessDetail =>
+            Boolean(item) &&
+            typeof item === 'object' &&
+            typeof item.kind === 'string' &&
+            typeof item.summary === 'string' &&
+            typeof item.detail === 'string' &&
+            typeof item.statusLabel === 'string' &&
+            typeof item.statusTone === 'string',
+        )
+      : null,
     citations: Array.isArray(raw.citations) ? mergeCitationsByDocument(raw.citations as ChatCitation[]) : null,
     toolCalls: Array.isArray(raw.toolCalls) ? raw.toolCalls.filter((item) => typeof item === 'string') : null,
     status: raw.status ?? statusFromType,
@@ -610,6 +643,7 @@ export function PublicChatPage() {
 
       const baseReasoningSteps = normalized.reasoningSteps ?? previous.reasoningSteps;
       const nextReasoningSteps = normalized.extraReasoningStep ? [...baseReasoningSteps, normalized.extraReasoningStep] : baseReasoningSteps;
+      const nextProcessDetails = normalized.processDetails ?? previous.processDetails;
 
       const nextCitations = normalized.citations ?? previous.citations;
       const nextToolCalls = normalized.toolCalls ?? previous.toolCalls;
@@ -632,6 +666,7 @@ export function PublicChatPage() {
         content: nextContent,
         status: nextStatus,
         reasoningSteps: nextReasoningSteps,
+        processDetails: nextProcessDetails,
         citations: nextCitations,
         toolCalls: nextToolCalls,
         chatModel: normalized.chatModel ?? previous.chatModel,
@@ -1140,6 +1175,7 @@ export function PublicChatPage() {
                                   <AssistantMessageProcessTimeline
                                     messageId={item.messageId}
                                     reasoningSteps={normalizedReasoningSteps}
+                                    processDetails={item.processDetails}
                                     toolCalls={item.toolCalls}
                                     status={item.status}
                                     content={item.content}

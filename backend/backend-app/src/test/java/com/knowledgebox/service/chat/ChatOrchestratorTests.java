@@ -14,6 +14,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knowledgebox.api.ChatProcessDetailView;
 import com.knowledgebox.api.UserChatMessageView;
 import com.knowledgebox.api.UserChatSessionDetailView;
 import com.knowledgebox.api.ChatCitationView;
@@ -37,6 +39,7 @@ import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.message.ToolResultBlock;
+import io.agentscope.core.message.ToolUseBlock;
 import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.tool.Toolkit;
 import java.lang.reflect.Field;
@@ -91,12 +94,14 @@ class ChatOrchestratorTests {
                 emptyCapabilitiesAssembler(),
                 chatStreamBroker,
                 mock(AgentExecutionTraceQueryService.class),
+                new ObjectMapper(),
                 "fake-api-key",
                 ""
         );
         agentEventStreamService = new AgentEventStreamService(
                 new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker),
-                mock(AgentExecutionTraceService.class)
+                mock(AgentExecutionTraceService.class),
+                new ChatProcessDetailFormatter(new ObjectMapper())
         );
         orchestrator = probeChatOrchestrator;
     }
@@ -310,39 +315,49 @@ class ChatOrchestratorTests {
         );
         AgentStreamState streamState = new AgentStreamState();
         List<String> reasoningSteps = new ArrayList<>();
+        List<ChatProcessDetailView> processDetails = new ArrayList<>();
         StringBuilder answerBuilder = new StringBuilder();
         AgentExecutionTraceContext traceContext = traceContext();
 
-        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, reasoningEvent("先分析问题"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, reasoningEvent("先分析问题"), (task, steps, details, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, toolResultEvent("searchKnowledgeBase"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, allEventWithToolUse("searchKnowledgeBase", Map.of("query", "mcp")), (task, steps, details, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, hintEvent("优先参考已有上下文"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, toolResultEvent("searchKnowledgeBase"), (task, steps, details, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, summaryEvent("这是总结输出"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, hintEvent("优先参考已有上下文"), (task, steps, details, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, agentResultEvent("这是最终答案"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, summaryEvent("这是总结输出"), (task, steps, details, full, delta) -> {
         });
-        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, answerBuilder, streamState, allEvent("all marker"), (task, steps, full, delta) -> {
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, agentResultEvent("这是最终答案"), (task, steps, details, full, delta) -> {
+        });
+        agentEventStreamService.consumeAgentEvent(streamTask, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, allEvent("all marker"), (task, steps, details, full, delta) -> {
         });
 
         assertThat(reasoningSteps).anyMatch(step -> step.startsWith("思考中："));
         assertThat(reasoningSteps).anyMatch(step -> step.startsWith("上下文提示："));
         assertThat(answerBuilder).hasToString("这是总结输出");
         assertThat(streamState.toolCalls).contains("searchKnowledgeBase");
+        assertThat(processDetails).anyMatch(detail ->
+                "tool".equals(detail.kind())
+                        && detail.detail().contains("调用参数：")
+                        && detail.detail().contains("mcp")
+                        && detail.detail().contains("执行结果：")
+                        && detail.detail().contains("hit"));
         assertThat(streamState.finalMessage).isNotNull();
         assertThat(streamState.eventTypeCounts.getOrDefault(EventType.REASONING, 0)).isEqualTo(1);
         assertThat(streamState.eventTypeCounts.getOrDefault(EventType.TOOL_RESULT, 0)).isEqualTo(1);
         assertThat(streamState.eventTypeCounts.getOrDefault(EventType.HINT, 0)).isEqualTo(1);
         assertThat(streamState.eventTypeCounts.getOrDefault(EventType.SUMMARY, 0)).isEqualTo(1);
         assertThat(streamState.eventTypeCounts.getOrDefault(EventType.AGENT_RESULT, 0)).isEqualTo(1);
-        assertThat(streamState.eventTypeCounts.getOrDefault(EventType.ALL, 0)).isEqualTo(1);
+        assertThat(streamState.eventTypeCounts.getOrDefault(EventType.ALL, 0)).isEqualTo(2);
 
         verify(conversationMemoryService, atLeastOnce()).markAssistantStreaming(
                 eq(1L),
                 eq(SESSION_ID),
                 eq(ASSISTANT_MESSAGE_ID),
                 anyString(),
+                anyList(),
                 anyList()
         );
         verify(chatStreamBroker, atLeastOnce()).publish(
@@ -393,10 +408,11 @@ class ChatOrchestratorTests {
                 streamTask,
                 traceContext,
                 reasoningSteps,
+                List.of(),
                 answerBuilder,
                 streamState,
                 agentResultEvent("这是最终答案"),
-                (task, steps, full, delta) -> {
+                (task, steps, details, full, delta) -> {
                 }
         );
 
@@ -446,6 +462,7 @@ class ChatOrchestratorTests {
                 "部分回答",
                 ChatMessageStatus.CANCELLED.name(),
                 List.of("已接收问题", "已停止回答"),
+                List.of(new ChatProcessDetailView("reasoning", "已接收问题", "系统阶段记录：\n已接收问题", "已完成", "done")),
                 List.of(),
                 List.of(),
                 "qwen-max",
@@ -467,6 +484,7 @@ class ChatOrchestratorTests {
                 eq(ASSISTANT_MESSAGE_ID),
                 eq("部分回答"),
                 anyList(),
+                anyList(),
                 eq("已停止回答")
         )).thenReturn(assistantTurn);
         when(conversationMemoryService.messageView(1L, SESSION_ID, ASSISTANT_MESSAGE_ID)).thenReturn(cancelledView);
@@ -480,6 +498,7 @@ class ChatOrchestratorTests {
                 eq(SESSION_ID),
                 eq(ASSISTANT_MESSAGE_ID),
                 eq("部分回答"),
+                anyList(),
                 anyList(),
                 eq("已停止回答")
         );
@@ -627,6 +646,15 @@ class ChatOrchestratorTests {
         return new Event(EventType.ALL, message, false);
     }
 
+    private Event allEventWithToolUse(String toolName, Map<String, Object> toolInput) {
+        Msg message = Msg.builder()
+                .name("assistant")
+                .role(MsgRole.ASSISTANT)
+                .content(new ToolUseBlock("tool-call-1", toolName, toolInput))
+                .build();
+        return new Event(EventType.ALL, message, false);
+    }
+
     private AgentCapabilityAssemblyService emptyCapabilitiesAssembler() {
         AgentCapabilityAssemblyService assemblyService = mock(AgentCapabilityAssemblyService.class);
         when(assemblyService.assemble(nullable(Long.class), anyBoolean(), any(), any()))
@@ -662,6 +690,7 @@ class ChatOrchestratorTests {
                 AgentCapabilityAssemblyService agentCapabilityAssemblyService,
                 ChatStreamBroker chatStreamBroker,
                 AgentExecutionTraceQueryService agentExecutionTraceQueryService,
+                ObjectMapper objectMapper,
                 String dashScopeApiKey,
                 String dashScopeBaseUrl
         ) {
@@ -675,6 +704,7 @@ class ChatOrchestratorTests {
                     agentCapabilityAssemblyService,
                     chatStreamBroker,
                     agentExecutionTraceQueryService,
+                    objectMapper,
                     dashScopeApiKey,
                     dashScopeBaseUrl
             );

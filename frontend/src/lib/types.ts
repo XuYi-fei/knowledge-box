@@ -54,6 +54,14 @@ export type PublicChatOptions = {
 
 export type ChatMessageStatus = 'PENDING' | 'STREAMING' | 'CANCELLED' | 'COMPLETED' | 'FAILED';
 
+export type ChatProcessDetail = {
+  kind: 'reasoning' | 'tool' | (string & {});
+  summary: string;
+  detail: string;
+  statusLabel: string;
+  statusTone: 'thinking' | 'tool' | 'done' | 'error' | (string & {});
+};
+
 export type UserChatMessage = {
   messageId: string;
   clientMessageId: string | null;
@@ -61,6 +69,7 @@ export type UserChatMessage = {
   content: string;
   status: ChatMessageStatus;
   reasoningSteps: string[];
+  processDetails: ChatProcessDetail[];
   citations: ChatCitation[];
   toolCalls: string[];
   chatModel: string | null;
@@ -112,6 +121,7 @@ export type ChatStreamEvent = {
   delta?: string;
   fullContent?: string;
   reasoningSteps?: string[];
+  processDetails?: ChatProcessDetail[];
   citations?: ChatCitation[];
   toolCalls?: string[];
   status?: ChatMessageStatus;

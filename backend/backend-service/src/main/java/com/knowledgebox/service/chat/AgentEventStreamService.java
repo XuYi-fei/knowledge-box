@@ -1,5 +1,6 @@
 package com.knowledgebox.service.chat;
 
+import com.knowledgebox.api.ChatProcessDetailView;
 import io.agentscope.core.agent.Event;
 import io.agentscope.core.agent.EventType;
 import io.agentscope.core.message.Msg;
@@ -10,6 +11,7 @@ import io.agentscope.core.message.ToolUseBlock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +19,7 @@ final class AgentEventStreamService {
 
     @FunctionalInterface
     interface ProgressUpdater {
-        void update(StreamTask task, List<String> reasoningSteps, String fullContent, String delta);
+        void update(StreamTask task, List<String> reasoningSteps, List<ChatProcessDetailView> processDetails, String fullContent, String delta);
     }
 
     private static final Logger log = LoggerFactory.getLogger(AgentEventStreamService.class);
@@ -26,16 +28,23 @@ final class AgentEventStreamService {
 
     private final ChatStreamDeltaService chatStreamDeltaService;
     private final AgentExecutionTraceService agentExecutionTraceService;
+    private final ChatProcessDetailFormatter processDetailFormatter;
 
-    AgentEventStreamService(ChatStreamDeltaService chatStreamDeltaService, AgentExecutionTraceService agentExecutionTraceService) {
+    AgentEventStreamService(
+            ChatStreamDeltaService chatStreamDeltaService,
+            AgentExecutionTraceService agentExecutionTraceService,
+            ChatProcessDetailFormatter processDetailFormatter
+    ) {
         this.chatStreamDeltaService = chatStreamDeltaService;
         this.agentExecutionTraceService = agentExecutionTraceService;
+        this.processDetailFormatter = processDetailFormatter;
     }
 
     void consumeAgentEvent(
             StreamTask task,
             AgentExecutionTraceContext traceContext,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             StringBuilder answerBuilder,
             AgentStreamState streamState,
             Event event,
@@ -43,6 +52,7 @@ final class AgentEventStreamService {
     ) {
         EventType eventType = event.getType();
         streamState.recordEvent(eventType);
+        captureToolUses(streamState, event.getMessage());
         switch (eventType) {
             case REASONING -> {
                 String reasoningChunk = extractThinkingOnly(event.getMessage());
@@ -53,11 +63,11 @@ final class AgentEventStreamService {
                             "reasoning.chunk",
                             java.util.Map.of("text", reasoningChunk)
                     );
-                    updateReasoningProgress(task, reasoningSteps, answerBuilder, streamState, reasoningChunk, false, progressUpdater);
+                    updateReasoningProgress(task, reasoningSteps, processDetails, answerBuilder, streamState, reasoningChunk, false, progressUpdater);
                 }
             }
-            case TOOL_RESULT -> updateToolProgress(task, traceContext, reasoningSteps, answerBuilder, streamState, event.getMessage(), progressUpdater);
-            case HINT -> updateHintProgress(task, traceContext, reasoningSteps, answerBuilder, event.getMessage(), progressUpdater);
+            case TOOL_RESULT -> updateToolProgress(task, traceContext, reasoningSteps, processDetails, answerBuilder, streamState, event.getMessage(), progressUpdater);
+            case HINT -> updateHintProgress(task, traceContext, reasoningSteps, processDetails, answerBuilder, event.getMessage(), progressUpdater);
             case SUMMARY -> {
                 String incomingText = event.getMessage() == null ? "" : event.getMessage().getTextContent();
                 if (!incomingText.isBlank()) {
@@ -71,6 +81,7 @@ final class AgentEventStreamService {
                 chatStreamDeltaService.streamTextDelta(
                         task,
                         reasoningSteps,
+                        processDetails,
                         answerBuilder,
                         incomingText,
                         SYNTHETIC_STREAM_DELAY,
@@ -94,6 +105,7 @@ final class AgentEventStreamService {
                 updateReasoningProgress(
                         task,
                         reasoningSteps,
+                        processDetails,
                         answerBuilder,
                         streamState,
                         extractThinkingOnly(event.getMessage()),
@@ -132,6 +144,7 @@ final class AgentEventStreamService {
     private void flushPendingReasoningChunk(
             StreamTask task,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             StringBuilder answerBuilder,
             AgentStreamState streamState,
             ProgressUpdater progressUpdater
@@ -148,12 +161,14 @@ final class AgentEventStreamService {
         streamState.lastReasoningEmittedAt = System.currentTimeMillis();
         streamState.pendingReasoningChunk = "";
         reasoningSteps.add("思考中：" + pending);
-        progressUpdater.update(task, reasoningSteps, answerBuilder.toString(), "thinking");
+        processDetailFormatter.appendReasoning(processDetails, "思考中：" + pending);
+        progressUpdater.update(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
     }
 
     private void updateReasoningProgress(
             StreamTask task,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             StringBuilder answerBuilder,
             AgentStreamState streamState,
             String reasoningChunk,
@@ -163,9 +178,10 @@ final class AgentEventStreamService {
         String selected = maybeSelectReasoningChunk(streamState, reasoningChunk, forcePush);
         if (!selected.isBlank()) {
             reasoningSteps.add("思考中：" + selected);
-            progressUpdater.update(task, reasoningSteps, answerBuilder.toString(), "thinking");
+            processDetailFormatter.appendReasoning(processDetails, "思考中：" + selected);
+            progressUpdater.update(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
         } else if (forcePush) {
-            flushPendingReasoningChunk(task, reasoningSteps, answerBuilder, streamState, progressUpdater);
+            flushPendingReasoningChunk(task, reasoningSteps, processDetails, answerBuilder, streamState, progressUpdater);
         }
     }
 
@@ -173,6 +189,7 @@ final class AgentEventStreamService {
             StreamTask task,
             AgentExecutionTraceContext traceContext,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             StringBuilder answerBuilder,
             Msg response,
             ProgressUpdater progressUpdater
@@ -186,7 +203,8 @@ final class AgentEventStreamService {
                     java.util.Map.of("text", hintText)
             );
             reasoningSteps.add("上下文提示：" + hintText);
-            progressUpdater.update(task, reasoningSteps, answerBuilder.toString(), "thinking");
+            processDetailFormatter.appendReasoning(processDetails, "上下文提示：" + hintText);
+            progressUpdater.update(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
         }
     }
 
@@ -194,6 +212,7 @@ final class AgentEventStreamService {
             StreamTask task,
             AgentExecutionTraceContext traceContext,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             StringBuilder answerBuilder,
             AgentStreamState streamState,
             Msg response,
@@ -203,21 +222,30 @@ final class AgentEventStreamService {
         if (toolNames.isEmpty()) {
             toolNames = extractToolCalls(response);
         }
+        List<ToolResultBlock> toolResults = extractToolResultBlocks(response);
         boolean changed = false;
-        for (String toolName : toolNames) {
-            if (streamState.toolCalls.add(toolName)) {
-                agentExecutionTraceService.recordEvent(
-                        traceContext,
-                        traceContext.answerStreamSpanId(),
-                        "tool.result",
-                        java.util.Map.of("toolName", toolName)
-                );
-                reasoningSteps.add("工具执行：" + toolName);
-                changed = true;
-            }
+        for (int index = 0; index < toolNames.size(); index++) {
+            String toolName = toolNames.get(index);
+            streamState.toolCalls.add(toolName);
+            agentExecutionTraceService.recordEvent(
+                    traceContext,
+                    traceContext.answerStreamSpanId(),
+                    "tool.result",
+                    java.util.Map.of("toolName", toolName)
+            );
+            reasoningSteps.add("工具执行：" + toolName);
+            ToolResultBlock toolResult = index < toolResults.size() ? toolResults.get(index) : null;
+            AgentStreamState.PendingToolCall pendingToolCall = streamState.consumeToolCall(toolResult);
+            processDetailFormatter.appendTool(
+                    processDetails,
+                    toolName,
+                    pendingToolCall == null ? Map.of() : pendingToolCall.toolInput(),
+                    toolResult
+            );
+            changed = true;
         }
         if (changed) {
-            progressUpdater.update(task, reasoningSteps, answerBuilder.toString(), "thinking");
+            progressUpdater.update(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
         }
     }
 
@@ -256,6 +284,19 @@ final class AgentEventStreamService {
         return toolNames;
     }
 
+    private List<ToolResultBlock> extractToolResultBlocks(Msg message) {
+        if (message == null || message.getContent() == null) {
+            return List.of();
+        }
+        List<ToolResultBlock> toolResults = new ArrayList<>();
+        for (var block : message.getContent()) {
+            if (block instanceof ToolResultBlock resultBlock) {
+                toolResults.add(resultBlock);
+            }
+        }
+        return toolResults;
+    }
+
     private List<String> extractToolCalls(Msg response) {
         if (response == null || response.getContent() == null) {
             return List.of();
@@ -270,6 +311,17 @@ final class AgentEventStreamService {
             }
         }
         return calls;
+    }
+
+    private void captureToolUses(AgentStreamState streamState, Msg response) {
+        if (response == null || response.getContent() == null) {
+            return;
+        }
+        for (var block : response.getContent()) {
+            if (block instanceof ToolUseBlock toolUseBlock) {
+                streamState.rememberToolUse(toolUseBlock);
+            }
+        }
     }
 
     private String extractThinkingOnly(Msg response) {

@@ -10,6 +10,7 @@ public record UserChatMessageView(
         String content,
         String status,
         List<String> reasoningSteps,
+        List<ChatProcessDetailView> processDetails,
         List<ChatCitationView> citations,
         List<String> toolCalls,
         String chatModel,

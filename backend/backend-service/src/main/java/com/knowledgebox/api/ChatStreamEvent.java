@@ -9,6 +9,7 @@ public record ChatStreamEvent(
         String delta,
         String fullContent,
         List<String> reasoningSteps,
+        List<ChatProcessDetailView> processDetails,
         List<ChatCitationView> citations,
         List<String> toolCalls,
         String status,

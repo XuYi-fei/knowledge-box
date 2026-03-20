@@ -1,5 +1,6 @@
 package com.knowledgebox.service.chat;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.api.*;
 import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
@@ -62,6 +63,7 @@ public class ChatOrchestrator {
     private final AssistantTurnAwaitService assistantTurnAwaitService;
     private final ChatMessagePayloadService chatMessagePayloadService;
     private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
+    private final ChatProcessDetailFormatter chatProcessDetailFormatter;
     private final Map<String, RunningTaskControl> runningTasks = new ConcurrentHashMap<>();
 
     public ChatOrchestrator(
@@ -74,6 +76,7 @@ public class ChatOrchestrator {
             AgentCapabilityAssemblyService agentCapabilityAssemblyService,
             ChatStreamBroker chatStreamBroker,
             AgentExecutionTraceQueryService agentExecutionTraceQueryService,
+            ObjectMapper objectMapper,
             @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
             @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
     ) {
@@ -89,7 +92,8 @@ public class ChatOrchestrator {
         this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
         this.routingService = new KnowledgeBaseRoutingService(properties, chatModelFactory);
         this.chatStreamDeltaService = new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker);
-        this.agentEventStreamService = new AgentEventStreamService(chatStreamDeltaService, agentExecutionTraceService);
+        this.chatProcessDetailFormatter = new ChatProcessDetailFormatter(objectMapper);
+        this.agentEventStreamService = new AgentEventStreamService(chatStreamDeltaService, agentExecutionTraceService, chatProcessDetailFormatter);
         this.assistantTurnAwaitService = new AssistantTurnAwaitService(conversationMemoryService);
         this.chatMessagePayloadService = new ChatMessagePayloadService(conversationMemoryService);
     }
@@ -194,12 +198,16 @@ public class ChatOrchestrator {
                 worker.interrupt();
             }
         }
+        ChatMessagePayload existingPayload = chatMessagePayloadService.resolvePayload(assistantTurn);
+        List<ChatProcessDetailView> processDetails = new ArrayList<>(existingPayload.processDetails());
+        chatProcessDetailFormatter.completeOpenReasoning(processDetails);
         ChatTurn cancelledTurn = conversationMemoryService.cancelAssistantMessage(
                 userId,
                 sessionId,
                 messageId,
                 assistantTurn.getContent(),
-                chatMessagePayloadService.resolvePayload(assistantTurn).reasoningSteps(),
+                existingPayload.reasoningSteps(),
+                processDetails,
                 "已停止回答"
         );
         chatStreamBroker.publish(
@@ -409,6 +417,7 @@ public class ChatOrchestrator {
 
     private void generate(StreamTask task, RunningTaskControl control) {
         List<String> reasoningSteps = new ArrayList<>();
+        List<ChatProcessDetailView> processDetails = new ArrayList<>();
         StringBuilder answerBuilder = new StringBuilder();
         AgentExecutionTraceContext traceContext = null;
         ChatExchangeRuntime exchangeRuntime = new ChatExchangeRuntime(task.sessionId());
@@ -426,8 +435,8 @@ public class ChatOrchestrator {
                     requestInput(task),
                     traceContext.requestSpanId()
             );
-            reasoningSteps.add("已接收用户问题，正在分析检索意图");
-            updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
+            appendReasoningStep(reasoningSteps, processDetails, "已接收用户问题，正在分析检索意图");
+            updateProgress(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
 
             String historyCallId = startBackendCall(
                     traceContext,
@@ -466,7 +475,7 @@ public class ChatOrchestrator {
                         knowledgeBaseToolBound
                 );
                 completeBackendCall(traceContext, stubbedAnswerCallId, Map.of("answerLength", stubbed.answer().length(), "toolCalls", stubbed.toolCalls()));
-                reasoningSteps.add("测试桩模式已完成检索，正在按流式方式输出答案");
+                appendReasoningStep(reasoningSteps, processDetails, "测试桩模式已完成检索，正在按流式方式输出答案");
                 String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
                 traceContext.setAnswerStreamSpanId(answerStreamSpanId);
                 agentExecutionTraceService.startSpan(
@@ -481,6 +490,7 @@ public class ChatOrchestrator {
                 chatStreamDeltaService.streamTextDelta(
                         task,
                         reasoningSteps,
+                        processDetails,
                         answerBuilder,
                         stubbed.answer(),
                         properties.getChat().getStreamDelay(),
@@ -492,6 +502,7 @@ public class ChatOrchestrator {
                         traceContext,
                         answerBuilder.toString(),
                         reasoningSteps,
+                        processDetails,
                         stubbed.citations(),
                         stubbed.toolCalls(),
                         new java.util.EnumMap<>(EventType.class),
@@ -509,20 +520,28 @@ public class ChatOrchestrator {
                 return;
             }
 
-            reasoningSteps.add("已装载历史上下文，准备执行 ReAct Agent");
-            updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
+            appendReasoningStep(reasoningSteps, processDetails, "已装载历史上下文，准备执行 ReAct Agent");
+            updateProgress(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
 
             QueryExecutionPlan executionPlan = prepareExecutionPlan(task, traceContext, rootBackendCallId);
             QueryRoutingDecision routingDecision = executionPlan.routingDecision();
             if (executionPlan.retrievalAttempted()) {
-                reasoningSteps.add(executionPlan.retrievedChunks().isEmpty()
-                        ? "已执行前置知识库检索，但未命中足够相关的公开文档"
-                        : "已执行前置知识库检索，命中 " + executionPlan.retrievedChunks().size() + " 条公开知识片段");
+                appendReasoningStep(
+                        reasoningSteps,
+                        processDetails,
+                        executionPlan.retrievedChunks().isEmpty()
+                                ? "已执行前置知识库检索，但未命中足够相关的公开文档"
+                                : "已执行前置知识库检索，命中 " + executionPlan.retrievedChunks().size() + " 条公开知识片段"
+                );
             } else {
-                reasoningSteps.add("查询路由[" + routingDecision.source() + "]："
-                        + (routingDecision.enableKnowledgeBase() ? "启用知识库工具" : "跳过知识库工具"));
+                appendReasoningStep(
+                        reasoningSteps,
+                        processDetails,
+                        "查询路由[" + routingDecision.source() + "]："
+                                + (routingDecision.enableKnowledgeBase() ? "启用知识库工具" : "跳过知识库工具")
+                );
             }
-            updateProgress(task, reasoningSteps, answerBuilder.toString(), "thinking");
+            updateProgress(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
 
             String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
             traceContext.setAnswerStreamSpanId(answerStreamSpanId);
@@ -593,6 +612,7 @@ public class ChatOrchestrator {
                                 task,
                                 activeTraceContext,
                                 reasoningSteps,
+                                processDetails,
                                 answerBuilder,
                                 streamState,
                                 event,
@@ -609,6 +629,7 @@ public class ChatOrchestrator {
                     chatStreamDeltaService.streamTextDelta(
                             task,
                             reasoningSteps,
+                            processDetails,
                             answerBuilder,
                             fallbackAnswer,
                             Duration.ofMillis(12),
@@ -648,6 +669,7 @@ public class ChatOrchestrator {
             List<String> completedReasoningSteps = buildReasoningSteps(streamState.finalMessage, toolCalls, retrievedChunks);
             reasoningSteps.clear();
             reasoningSteps.addAll(completedReasoningSteps);
+            chatProcessDetailFormatter.completeOpenReasoning(processDetails);
             throwIfCancelled(control);
             String finalAnswer = finalizeAnswer(answerBuilder.toString(), executionPlan, retrievedChunks);
             if (!finalAnswer.equals(answerBuilder.toString())) {
@@ -671,6 +693,7 @@ public class ChatOrchestrator {
                     traceContext,
                     finalAnswer,
                     reasoningSteps,
+                    processDetails,
                     toCitations(retrievedChunks),
                     toolCalls,
                     streamState.eventTypeCounts,
@@ -728,6 +751,7 @@ public class ChatOrchestrator {
                     exception
             );
             try {
+                chatProcessDetailFormatter.completeOpenReasoning(processDetails);
                 String failPersistCallId = startBackendCall(
                         traceContext,
                         rootBackendCallId,
@@ -743,6 +767,7 @@ public class ChatOrchestrator {
                         task.assistantMessageId(),
                         answerBuilder.toString(),
                         reasoningSteps,
+                        processDetails,
                         "回答生成失败，请稍后重试"
                 );
                 completeBackendCall(traceContext, failPersistCallId, Map.of("status", ChatMessageStatus.FAILED.name()));
@@ -765,6 +790,7 @@ public class ChatOrchestrator {
                                 "",
                                 answerBuilder.toString(),
                                 List.copyOf(reasoningSteps),
+                                List.copyOf(processDetails),
                                 List.of(),
                                 List.of(),
                                 ChatMessageStatus.FAILED.name(),
@@ -801,6 +827,7 @@ public class ChatOrchestrator {
             AgentExecutionTraceContext traceContext,
             String answer,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             List<ChatCitationView> citations,
             List<String> toolCalls,
             Map<EventType, Integer> eventTypeCounts,
@@ -822,6 +849,7 @@ public class ChatOrchestrator {
                 task.assistantMessageId(),
                 answer,
                 reasoningSteps,
+                processDetails,
                 citations,
                 toolCalls
         );
@@ -883,6 +911,7 @@ public class ChatOrchestrator {
                         "",
                         answer,
                         reasoningSteps,
+                        processDetails,
                         citations,
                         toolCalls,
                         ChatMessageStatus.COMPLETED.name(),
@@ -967,6 +996,7 @@ public class ChatOrchestrator {
     private void updateProgress(
             StreamTask task,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             String fullContent,
             String delta
     ) {
@@ -975,7 +1005,8 @@ public class ChatOrchestrator {
                 task.sessionId(),
                 task.assistantMessageId(),
                 fullContent,
-                reasoningSteps
+                reasoningSteps,
+                processDetails
         );
         chatStreamBroker.publish(
                 task.assistantMessageId(),
@@ -987,6 +1018,7 @@ public class ChatOrchestrator {
                         delta,
                         fullContent,
                         List.copyOf(reasoningSteps),
+                        List.copyOf(processDetails),
                         List.of(),
                         List.of(),
                         ChatMessageStatus.STREAMING.name(),
@@ -1005,6 +1037,7 @@ public class ChatOrchestrator {
                 delta,
                 assistantTurn.getContent(),
                 payload.reasoningSteps(),
+                payload.processDetails(),
                 payload.citations(),
                 payload.toolCalls(),
                 assistantTurn.getStatus().name(),
@@ -1025,7 +1058,17 @@ public class ChatOrchestrator {
         return assistantTurn.getStatus() != ChatMessageStatus.PENDING
                 || (assistantTurn.getContent() != null && !assistantTurn.getContent().isBlank())
                 || (assistantTurn.getReasoningStepsJson() != null && !assistantTurn.getReasoningStepsJson().isBlank())
+                || (assistantTurn.getProcessDetailsJson() != null && !assistantTurn.getProcessDetailsJson().isBlank())
                 || (assistantTurn.getErrorMessage() != null && !assistantTurn.getErrorMessage().isBlank());
+    }
+
+    private void appendReasoningStep(
+            List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
+            String step
+    ) {
+        reasoningSteps.add(step);
+        chatProcessDetailFormatter.appendReasoning(processDetails, step);
     }
 
     private void restartGenerationIfNeeded(Long userId, ChatTurn assistantTurn) {

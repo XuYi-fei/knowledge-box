@@ -1,5 +1,6 @@
 package com.knowledgebox.service.chat;
 
+import com.knowledgebox.api.ChatProcessDetailView;
 import com.knowledgebox.api.ChatStreamEvent;
 import com.knowledgebox.domain.chat.ChatMessageStatus;
 import java.time.Duration;
@@ -22,6 +23,7 @@ final class ChatStreamDeltaService {
     void pushAnswerDelta(
             StreamTask task,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             String fullContent,
             String delta
     ) {
@@ -30,7 +32,8 @@ final class ChatStreamDeltaService {
                 task.sessionId(),
                 task.assistantMessageId(),
                 fullContent,
-                reasoningSteps
+                reasoningSteps,
+                processDetails
         );
         chatStreamBroker.publish(
                 task.assistantMessageId(),
@@ -42,6 +45,7 @@ final class ChatStreamDeltaService {
                         delta,
                         fullContent,
                         List.copyOf(reasoningSteps),
+                        List.copyOf(processDetails),
                         List.of(),
                         List.of(),
                         ChatMessageStatus.STREAMING.name(),
@@ -54,6 +58,7 @@ final class ChatStreamDeltaService {
     void streamTextDelta(
             StreamTask task,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             StringBuilder answerBuilder,
             String incomingText,
             Duration paceDelay,
@@ -72,7 +77,7 @@ final class ChatStreamDeltaService {
                 cancellationCheck.run();
             }
             answerBuilder.append(chunk);
-            pushAnswerDelta(task, reasoningSteps, answerBuilder.toString(), chunk);
+            pushAnswerDelta(task, reasoningSteps, processDetails, answerBuilder.toString(), chunk);
             if (paceDelay != null && chunks.size() > 1) {
                 sleep(paceDelay);
             }

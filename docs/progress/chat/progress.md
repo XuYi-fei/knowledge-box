@@ -20,8 +20,9 @@
 - 当调试入口 Agent 下线、改为非公开或改成非 `ENTRY` 时，旧调试会话仍可查看，但前端与后端都会禁止继续创建新调试对话。
 - 聊天回答中的 Markdown 代码块右上角现已支持一键复制，可直接把示例代码写入剪贴板。
 - 聊天回答中的代码块复制入口已升级为双按钮工具条，支持“复制纯代码”和“复制 Markdown fenced code block”，复制成功后会给出更明确的按钮态和提示反馈。
-- 助手消息现已新增“回复过程”时间线，用竖向步骤卡片展示思考、工具调用和最终回答，每一步都可展开查看简略信息，不再只显示单行思考摘要。
+- 助手消息现已新增“回复过程”时间线，用竖向步骤卡片展示思考、工具调用和最终回答，不再只显示单行思考摘要。
 - 助手消息“回复过程”时间线中的思考步骤图标现已区分进行中与已完成；流式期间仅当前思考步骤保持旋转，思考完成后会切换为完成态图标。
+- 助手消息“回复过程”展开态现已优先展示后端结构化 `processDetails`；思考步骤会显示更完整的阶段说明，工具调用会展示调用参数、调用 ID 和执行结果，不再与折叠摘要重复。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
@@ -39,9 +40,12 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖新增的 `Agent 调试` tab、独立调试页、按入口隔离的会话恢复键与 trace 摘要侧栏。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖主页与 Agent 调试页新增的助手消息“回复过程”时间线组件。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖“回复过程”时间线中思考步骤图标由进行中切换为完成态的前端改动。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页与 Agent 调试页对结构化 `processDetails` 的消费，以及展开态思考/工具详情展示。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖知识库 Tool 绑定判定、Prompt 模板拼接和相关 Liquibase 字段迁移。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖 `process_details_json` 持久化、SSE/会话详情透传与时间线结构化详情格式化。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 `ALL/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT` 事件消费及工具详情展开回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 可通过，已覆盖运行时环境变量注入、web-search Tool 装配与配置 Bundle v2 相关回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺少宿主环境变量与 requirement 缺失告警。

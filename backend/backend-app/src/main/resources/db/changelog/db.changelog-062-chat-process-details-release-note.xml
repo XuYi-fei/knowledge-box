@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="062-001-chat-process-details-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.20',
+                '回复过程展开支持详细思考与工具结果',
+                '聊天时间线展开后现在会展示更完整的思考说明，以及工具调用的入参、调用 ID 和执行结果。',
+                E'## 本次更新\n\n- 聊天消息与 Agent 调试消息会把思考/工具节点持久化为结构化 `processDetails`，SSE 与历史恢复都能拿到同一份详情数据\n- 时间线展开态不再重复展示折叠摘要，思考节点会给出更完整的阶段说明\n- 工具调用节点会展示调用参数、调用 ID 和执行结果，排查模型调用链路时不必再只看工具名\n- 修复 `ALL` 事件先记录工具调用时，后续 `TOOL_RESULT` 详情可能被去重吞掉的问题',
+                TIMESTAMPTZ '2026-03-20 23:59:40+08',
+                -20,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.20'
+                   AND title = '回复过程展开支持详细思考与工具结果'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

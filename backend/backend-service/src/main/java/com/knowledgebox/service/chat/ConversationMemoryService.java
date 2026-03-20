@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.api.ChatCitationView;
+import com.knowledgebox.api.ChatProcessDetailView;
 import com.knowledgebox.api.UserChatMessageView;
 import com.knowledgebox.api.UserChatSessionDetailView;
 import com.knowledgebox.api.UserChatSessionSummaryView;
@@ -25,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class ConversationMemoryService {
 
     private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() {
+    };
+    private static final TypeReference<List<ChatProcessDetailView>> PROCESS_DETAIL_LIST = new TypeReference<>() {
     };
     private static final TypeReference<List<ChatCitationView>> CITATION_LIST = new TypeReference<>() {
     };
@@ -111,7 +114,8 @@ public class ConversationMemoryService {
             String sessionCode,
             String messageCode,
             String content,
-            List<String> reasoningSteps
+            List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails
     ) {
         ChatTurn turn = loadMessage(userId, sessionCode, messageCode);
         if (!isStreamWritable(turn)) {
@@ -120,6 +124,7 @@ public class ConversationMemoryService {
         turn.setStatus(ChatMessageStatus.STREAMING);
         turn.setContent(content);
         turn.setReasoningStepsJson(writeJson(reasoningSteps));
+        turn.setProcessDetailsJson(writeJson(processDetails));
         touchSession(userId, sessionCode, turn.getModelCode(), null);
         return chatTurnRepository.save(turn);
     }
@@ -131,6 +136,7 @@ public class ConversationMemoryService {
             String messageCode,
             String content,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             List<ChatCitationView> citations,
             List<String> toolCalls
     ) {
@@ -141,6 +147,7 @@ public class ConversationMemoryService {
         turn.setStatus(ChatMessageStatus.COMPLETED);
         turn.setContent(content);
         turn.setReasoningStepsJson(writeJson(reasoningSteps));
+        turn.setProcessDetailsJson(writeJson(processDetails));
         turn.setCitationsJson(writeJson(citations));
         turn.setToolCallsJson(writeJson(toolCalls));
         turn.setCompletedAt(OffsetDateTime.now());
@@ -155,6 +162,7 @@ public class ConversationMemoryService {
             String messageCode,
             String partialContent,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             String errorMessage
     ) {
         ChatTurn turn = loadMessage(userId, sessionCode, messageCode);
@@ -164,6 +172,7 @@ public class ConversationMemoryService {
         turn.setStatus(ChatMessageStatus.FAILED);
         turn.setContent(partialContent);
         turn.setReasoningStepsJson(writeJson(reasoningSteps));
+        turn.setProcessDetailsJson(writeJson(processDetails));
         turn.setErrorMessage(errorMessage);
         turn.setCompletedAt(OffsetDateTime.now());
         touchSession(userId, sessionCode, turn.getModelCode(), null);
@@ -177,6 +186,7 @@ public class ConversationMemoryService {
             String messageCode,
             String partialContent,
             List<String> reasoningSteps,
+            List<ChatProcessDetailView> processDetails,
             String stopMessage
     ) {
         ChatTurn turn = loadMessage(userId, sessionCode, messageCode);
@@ -191,6 +201,7 @@ public class ConversationMemoryService {
         turn.setStatus(ChatMessageStatus.CANCELLED);
         turn.setContent(partialContent == null ? turn.getContent() : partialContent);
         turn.setReasoningStepsJson(writeJson(reasoningSteps == null ? readStringList(turn.getReasoningStepsJson()) : reasoningSteps));
+        turn.setProcessDetailsJson(writeJson(processDetails == null ? readProcessDetails(turn.getProcessDetailsJson()) : processDetails));
         turn.setErrorMessage(stopMessage);
         turn.setCompletedAt(OffsetDateTime.now());
         touchSession(userId, sessionCode, turn.getModelCode(), null);
@@ -342,6 +353,7 @@ public class ConversationMemoryService {
                 turn.getContent(),
                 turn.getStatus().name(),
                 readStringList(turn.getReasoningStepsJson()),
+                readProcessDetails(turn.getProcessDetailsJson()),
                 readCitations(turn.getCitationsJson()),
                 readStringList(turn.getToolCallsJson()),
                 turn.getModelCode(),
@@ -380,6 +392,10 @@ public class ConversationMemoryService {
 
     private List<ChatCitationView> readCitations(String value) {
         return readJson(value, CITATION_LIST);
+    }
+
+    private List<ChatProcessDetailView> readProcessDetails(String value) {
+        return readJson(value, PROCESS_DETAIL_LIST);
     }
 
     private <T> T readJson(String value, TypeReference<T> typeReference) {

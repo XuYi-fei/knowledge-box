@@ -7,11 +7,12 @@ import {
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import { Tag, Typography } from 'antd';
-import type { ChatMessageStatus } from '../../lib/types';
+import type { ChatMessageStatus, ChatProcessDetail } from '../../lib/types';
 
 type AssistantMessageProcessTimelineProps = {
   messageId: string;
   reasoningSteps: string[];
+  processDetails?: ChatProcessDetail[];
   toolCalls: string[];
   status: ChatMessageStatus;
   content: string;
@@ -126,6 +127,44 @@ function statusTagColor(tone: ProcessItem['statusTone']) {
   return 'processing';
 }
 
+function buildProcessItemsFromDetails(
+  messageId: string,
+  processDetails: ChatProcessDetail[],
+): ProcessItem[] {
+  let reasoningIndex = 0;
+  let toolIndex = 0;
+  const isKnownStatusTone = (
+    tone: ChatProcessDetail['statusTone'],
+  ): tone is ProcessItem['statusTone'] =>
+    tone === 'tool' || tone === 'done' || tone === 'error' || tone === 'thinking';
+  const resolveStatusTone = (
+    detail: ChatProcessDetail,
+    kind: 'reasoning' | 'tool',
+  ): ProcessItem['statusTone'] => {
+    if (isKnownStatusTone(detail.statusTone)) {
+      return detail.statusTone;
+    }
+    return kind === 'tool' ? 'tool' : 'thinking';
+  };
+  return processDetails.map((detail, index) => {
+    const kind = detail.kind === 'tool' ? 'tool' : 'reasoning';
+    if (kind === 'tool') {
+      toolIndex += 1;
+    } else {
+      reasoningIndex += 1;
+    }
+    return {
+      key: `${messageId}-process-${index}`,
+      kind,
+      title: kind === 'tool' ? `工具调用 ${toolIndex}` : `思考 ${reasoningIndex}`,
+      summary: detail.summary || '处理中',
+      detail: <Typography.Paragraph className="message-process-detail">{detail.detail || detail.summary}</Typography.Paragraph>,
+      statusLabel: detail.statusLabel || (kind === 'tool' ? '已执行' : '已记录'),
+      statusTone: resolveStatusTone(detail, kind),
+    };
+  });
+}
+
 function buildProcessItems(
   messageId: string,
   reasoningSteps: string[],
@@ -196,12 +235,39 @@ function buildProcessItems(
 export function AssistantMessageProcessTimeline({
   messageId,
   reasoningSteps,
+  processDetails,
   toolCalls,
   status,
   content,
   errorMessage,
 }: AssistantMessageProcessTimelineProps) {
-  const items = buildProcessItems(messageId, reasoningSteps, toolCalls, status, content, errorMessage);
+  const baseItems = processDetails && processDetails.length ? buildProcessItemsFromDetails(messageId, processDetails) : buildProcessItems(messageId, reasoningSteps, toolCalls, status, content, errorMessage);
+  const items = [...baseItems];
+  if (processDetails && processDetails.length) {
+    if (content || errorMessage || status !== 'PENDING') {
+      items.push({
+        key: `${messageId}-answer`,
+        kind: 'answer',
+        title: answerTitle(status),
+        summary: summarizeStep(
+          errorMessage && status !== 'COMPLETED'
+            ? errorMessage
+            : content || (status === 'STREAMING' ? '回答仍在流式输出中' : '等待生成回答'),
+        ),
+        detail: (
+          <div className="message-process-detail-stack">
+            {content ? <Typography.Paragraph className="message-process-detail">回答摘要：{previewText(content)}</Typography.Paragraph> : null}
+            {errorMessage ? <Typography.Paragraph className="message-process-detail">状态说明：{previewText(errorMessage, 180)}</Typography.Paragraph> : null}
+            <Typography.Text type="secondary">
+              {content ? `回答长度约 ${content.length} 个字符。` : '当前还没有可展示的回答正文。'}
+            </Typography.Text>
+          </div>
+        ),
+        statusLabel: answerStatusLabel(status),
+        statusTone: answerStatusTone(status),
+      });
+    }
+  }
   if (!items.length) {
     return null;
   }

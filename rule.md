@@ -42,6 +42,7 @@
 - AgentScope 的 `@ToolParam` 注解必须显式提供 `name`，否则会在编译期报错。
 - AgentScope 事件消费在 `switch` 中需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`，避免版本升级后被默认分支静默忽略。
 - AgentScope `StreamOptions.eventTypes(...)` 里的 `EventType.ALL` 不是“订阅全部事件”的通配符；聊天主链路若要保留正文流式输出与 thinking/tool 展示，需显式订阅 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`。
+- 聊天流里若先通过 `ALL` 事件捕获 `ToolUseBlock`，后续 `TOOL_RESULT` 的展示去重不能只按工具名处理；否则会把真正的工具入参/结果详情吞掉，前端展开态只剩重复摘要。
 - AgentScope 1.0.9 的 DashScope 原生端点自动路由对 `qwen3.5-*` 覆盖不完整，相关模型需走 `knowledge-box.chat.dashscope-compatible.*` 兼容端点策略。
 - 已发布 `agent_profile_version.routing_model` 必须指向已启用的 CHAT 模型；启动期会进行强校验，不满足会直接启动失败。
 - 已发布公开聊天入口版本必须保持 `agent_profile_version.agent_type=MAIN`，且 `MAIN` 在库内必须唯一；子 Agent 绑定仅允许 `MAIN/ENTRY/ORCHESTRATOR -> ATOMIC`，且绑定目标固定到具体版本。

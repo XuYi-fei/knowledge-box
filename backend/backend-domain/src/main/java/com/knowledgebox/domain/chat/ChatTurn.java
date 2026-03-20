@@ -43,6 +43,9 @@ public class ChatTurn extends BaseEntity {
     @Column(name = "reasoning_steps_json", columnDefinition = "TEXT")
     private String reasoningStepsJson;
 
+    @Column(name = "process_details_json", columnDefinition = "TEXT")
+    private String processDetailsJson;
+
     @Column(name = "model_code", length = 64)
     private String modelCode;
 
@@ -130,6 +133,14 @@ public class ChatTurn extends BaseEntity {
 
     public void setReasoningStepsJson(String reasoningStepsJson) {
         this.reasoningStepsJson = reasoningStepsJson;
+    }
+
+    public String getProcessDetailsJson() {
+        return processDetailsJson;
+    }
+
+    public void setProcessDetailsJson(String processDetailsJson) {
+        this.processDetailsJson = processDetailsJson;
     }
 
     public String getModelCode() {

@@ -1,6 +1,7 @@
 package com.knowledgebox.service.chat;
 
 import com.knowledgebox.api.ChatCitationView;
+import com.knowledgebox.api.ChatProcessDetailView;
 import com.knowledgebox.api.ChatResponse;
 import com.knowledgebox.api.UserChatMessageView;
 import com.knowledgebox.domain.chat.ChatTurn;
@@ -17,12 +18,13 @@ final class ChatMessagePayloadService {
     ChatMessagePayload resolvePayload(ChatTurn assistantTurn) {
         UserChatMessageView messageView = findMessageView(assistantTurn);
         if (messageView == null) {
-            return new ChatMessagePayload(List.of(), List.of(), List.of());
+            return new ChatMessagePayload(List.of(), List.of(), List.of(), List.of());
         }
         List<String> reasoningSteps = messageView.reasoningSteps() == null ? List.of() : List.copyOf(messageView.reasoningSteps());
+        List<ChatProcessDetailView> processDetails = messageView.processDetails() == null ? List.of() : List.copyOf(messageView.processDetails());
         List<ChatCitationView> citations = messageView.citations() == null ? List.of() : List.copyOf(messageView.citations());
         List<String> toolCalls = messageView.toolCalls() == null ? List.of() : List.copyOf(messageView.toolCalls());
-        return new ChatMessagePayload(reasoningSteps, citations, toolCalls);
+        return new ChatMessagePayload(reasoningSteps, processDetails, citations, toolCalls);
     }
 
     ChatResponse toLegacyResponse(String sessionId, ChatTurn assistantTurn) {

@@ -86,6 +86,20 @@ function answerStatusTone(status: ChatMessageStatus): ProcessItem['statusTone'] 
   return 'thinking';
 }
 
+function reasoningStatus(index: number, total: number, status: ChatMessageStatus) {
+  const isActiveStep = index === total - 1 && (status === 'STREAMING' || status === 'PENDING');
+  if (isActiveStep) {
+    return {
+      statusLabel: '进行中',
+      statusTone: 'thinking' as const,
+    };
+  }
+  return {
+    statusLabel: '已完成',
+    statusTone: 'done' as const,
+  };
+}
+
 function statusIcon(tone: ProcessItem['statusTone']) {
   if (tone === 'tool') {
     return <ToolOutlined />;
@@ -123,14 +137,15 @@ function buildProcessItems(
   const items: ProcessItem[] = [];
 
   reasoningSteps.forEach((step, index) => {
+    const reasoningStepStatus = reasoningStatus(index, reasoningSteps.length, status);
     items.push({
       key: `${messageId}-reasoning-${index}`,
       kind: 'reasoning',
       title: `思考 ${index + 1}`,
       summary: summarizeStep(step),
       detail: <Typography.Paragraph className="message-process-detail">{step}</Typography.Paragraph>,
-      statusLabel: index === reasoningSteps.length - 1 && (status === 'STREAMING' || status === 'PENDING') ? '进行中' : '已记录',
-      statusTone: 'thinking',
+      statusLabel: reasoningStepStatus.statusLabel,
+      statusTone: reasoningStepStatus.statusTone,
     });
   });
 

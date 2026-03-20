@@ -24,6 +24,7 @@
 - 助手消息“回复过程”时间线中的思考步骤图标现已区分进行中与已完成；流式期间仅当前思考步骤保持旋转，思考完成后会切换为完成态图标。
 - 助手消息“回复过程”展开态现已优先展示后端结构化 `processDetails`；思考步骤会显示更完整的阶段说明，工具调用会展示调用参数、调用 ID 和执行结果，不再与折叠摘要重复。
 - 普通聊天页现已默认隐藏内部路由类思考节点（如 `查询路由[binding]`）；这类编排状态仅在 `Agent 调试` 页继续完整展示，避免用户侧时间线噪声过高。
+- 子 Agent Tool 现已兼容 `query`/`message` 两种入参；像 `web-search-agent` 这类原子 Agent 即使被父 Agent 以 `query` 调用，也会自动映射到 AgentScope 原生要求的 `message`，避免报参数校验失败。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
@@ -48,6 +49,8 @@
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖 `process_details_json` 持久化、SSE/会话详情透传与时间线结构化详情格式化。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 `ALL/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT` 事件消费及工具详情展开回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖子 Agent Tool 的 `query -> message` 兼容包装与注册链路。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=CompatibleSubAgentToolTests,AgentCapabilityAssemblyServiceTests test` 可通过，已覆盖子 Agent Tool 接受 `query` 别名、缺少参数时报清晰错误，以及工具装配回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 可通过，已覆盖运行时环境变量注入、web-search Tool 装配与配置 Bundle v2 相关回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺少宿主环境变量与 requirement 缺失告警。

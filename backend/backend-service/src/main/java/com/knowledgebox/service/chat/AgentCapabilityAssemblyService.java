@@ -34,7 +34,6 @@ import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.ToolExecutionContext;
 import io.agentscope.core.tool.mcp.McpClientBuilder;
 import io.agentscope.core.tool.subagent.SubAgentConfig;
-import io.agentscope.core.tool.subagent.SubAgentTool;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -297,7 +296,7 @@ public class AgentCapabilityAssemblyService {
         for (AgentProfileVersion childVersion : childVersions) {
             try {
                 String toolName = subAgentToolName(childVersion);
-                toolkit.registerAgentTool(new SubAgentTool(
+                toolkit.registerAgentTool(new CompatibleSubAgentTool(
                         () -> createChildAgent(childVersion, traceContext, exchangeRuntime),
                         SubAgentConfig.builder()
                                 .toolName(toolName)

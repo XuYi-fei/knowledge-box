@@ -457,7 +457,14 @@ public class ChatOrchestrator {
                         Map.of("query", task.query(), "chatModel", task.chatModelCode()),
                         null
                 );
-                ChatResponse stubbed = stubbedAnswer(task.sessionId(), task.profile(), task.query(), task.chatModelCode());
+                boolean knowledgeBaseToolBound = agentCapabilityAssemblyService.hasKnowledgeBaseToolBound(task.profile().getId());
+                ChatResponse stubbed = stubbedAnswer(
+                        task.sessionId(),
+                        task.profile(),
+                        task.query(),
+                        task.chatModelCode(),
+                        knowledgeBaseToolBound
+                );
                 completeBackendCall(traceContext, stubbedAnswerCallId, Map.of("answerLength", stubbed.answer().length(), "toolCalls", stubbed.toolCalls()));
                 reasoningSteps.add("测试桩模式已完成检索，正在按流式方式输出答案");
                 String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
@@ -527,6 +534,7 @@ public class ChatOrchestrator {
                     com.knowledgebox.domain.chat.AgentExecutionSpanType.STREAM,
                     Map.of(
                             "chatModel", task.chatModelCode(),
+                            "knowledgeBaseToolBound", executionPlan.knowledgeBaseToolBound(),
                             "enableKnowledgeBase", executionPlan.enableKnowledgeBaseTool(),
                             "historyTurns", history.size(),
                             "retrievalTriggerMode", resolveRetrievalTriggerMode().name(),
@@ -544,6 +552,7 @@ public class ChatOrchestrator {
                     "createReActAgent",
                     Map.of(
                             "chatModel", task.chatModelCode(),
+                            "knowledgeBaseToolBound", executionPlan.knowledgeBaseToolBound(),
                             "enableKnowledgeBase", executionPlan.enableKnowledgeBaseTool(),
                             "preRetrievedHits", executionPlan.retrievedChunks().size(),
                             "retrievalAttempted", executionPlan.retrievalAttempted()
@@ -571,6 +580,7 @@ public class ChatOrchestrator {
                     Map.of(
                             "historyTurns", history.size(),
                             "chatModel", task.chatModelCode(),
+                            "knowledgeBaseToolBound", executionPlan.knowledgeBaseToolBound(),
                             "preRetrievedHits", executionPlan.retrievedChunks().size()
                     ),
                     answerStreamSpanId
@@ -1342,6 +1352,25 @@ public class ChatOrchestrator {
     }
 
     private ChatResponse stubbedAnswer(String sessionId, AgentProfileVersion profile, String query, String chatModelCode) {
+        return stubbedAnswer(sessionId, profile, query, chatModelCode, true);
+    }
+
+    private ChatResponse stubbedAnswer(
+            String sessionId,
+            AgentProfileVersion profile,
+            String query,
+            String chatModelCode,
+            boolean knowledgeBaseToolBound
+    ) {
+        if (!knowledgeBaseToolBound) {
+            return new ChatResponse(
+                    sessionId,
+                    "当前测试模式下该 Agent 未绑定知识库检索工具，因此不会执行知识库查询。",
+                    List.of(),
+                    List.of(),
+                    chatModelCode
+            );
+        }
         List<RetrievedChunk> retrievedChunks = knowledgeBaseRetrievalService.search(query, profile.getRetrievalTopK());
         List<String> toolCalls = retrievedChunks.isEmpty() ? List.of() : List.of("searchKnowledgeBase");
         String answer;
@@ -1474,16 +1503,42 @@ public class ChatOrchestrator {
             AgentExecutionTraceContext traceContext,
             String rootBackendCallId
     ) {
-        if (resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE) {
-            return prepareAlwaysPreRetrievePlan(task, traceContext, rootBackendCallId);
+        boolean knowledgeBaseToolBound = agentCapabilityAssemblyService.hasKnowledgeBaseToolBound(task.profile().getId());
+        if (!knowledgeBaseToolBound) {
+            return prepareKnowledgeBaseDisabledPlan(task, traceContext);
         }
-        return prepareModelRoutedPlan(task, traceContext, rootBackendCallId);
+        if (resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE) {
+            return prepareAlwaysPreRetrievePlan(task, traceContext, rootBackendCallId, true);
+        }
+        return prepareModelRoutedPlan(task, traceContext, rootBackendCallId, true);
+    }
+
+    private QueryExecutionPlan prepareKnowledgeBaseDisabledPlan(
+            StreamTask task,
+            AgentExecutionTraceContext traceContext
+    ) {
+        QueryRoutingDecision routingDecision = new QueryRoutingDecision(
+                false,
+                "TOOL_NOT_BOUND",
+                "searchKnowledgeBase tool is not bound to the current agent version",
+                "binding",
+                null,
+                null,
+                resolveRetrievalTriggerMode()
+        );
+        Map<String, Object> routePayload = routingPayload(routingDecision);
+        routePayload.put("query", task.query());
+        routePayload.put("knowledgeBaseToolBound", false);
+        routePayload.put("retrievalAttempted", false);
+        agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
+        return new QueryExecutionPlan(routingDecision, List.of(), false, false, false);
     }
 
     private QueryExecutionPlan prepareAlwaysPreRetrievePlan(
             StreamTask task,
             AgentExecutionTraceContext traceContext,
-            String rootBackendCallId
+            String rootBackendCallId,
+            boolean knowledgeBaseToolBound
     ) {
         String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
         agentExecutionTraceService.startSpan(
@@ -1494,6 +1549,7 @@ public class ChatOrchestrator {
                 com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
                 Map.of(
                         "query", task.query(),
+                        "knowledgeBaseToolBound", knowledgeBaseToolBound,
                         "retrievalTriggerMode", KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name()
                 ),
                 Map.of()
@@ -1530,6 +1586,7 @@ public class ChatOrchestrator {
         Map<String, Object> routePayload = routingPayload(routingDecision);
         routePayload.put("retrievalTriggerMode", KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name());
         routePayload.put("preRetrievedHits", retrievedChunks.size());
+        routePayload.put("knowledgeBaseToolBound", knowledgeBaseToolBound);
         agentExecutionTraceService.endSpan(
                 traceContext,
                 routingSpanId,
@@ -1539,13 +1596,14 @@ public class ChatOrchestrator {
                 null
         );
         agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
-        return new QueryExecutionPlan(routingDecision, retrievedChunks, false, true);
+        return new QueryExecutionPlan(routingDecision, retrievedChunks, false, true, knowledgeBaseToolBound);
     }
 
     private QueryExecutionPlan prepareModelRoutedPlan(
             StreamTask task,
             AgentExecutionTraceContext traceContext,
-            String rootBackendCallId
+            String rootBackendCallId,
+            boolean knowledgeBaseToolBound
     ) {
         String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
         agentExecutionTraceService.startSpan(
@@ -1554,7 +1612,10 @@ public class ChatOrchestrator {
                 routingSpanId,
                 "query.route",
                 com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
-                Map.of("query", task.query()),
+                Map.of(
+                        "query", task.query(),
+                        "knowledgeBaseToolBound", knowledgeBaseToolBound
+                ),
                 Map.of()
         );
         String routeCallId = startBackendCall(
@@ -1578,8 +1639,9 @@ public class ChatOrchestrator {
         );
         Map<String, Object> routePayload = routingPayload(routingDecision);
         routePayload.put("query", task.query());
+        routePayload.put("knowledgeBaseToolBound", knowledgeBaseToolBound);
         agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
-        return new QueryExecutionPlan(routingDecision, List.of(), routingDecision.enableKnowledgeBase(), false);
+        return new QueryExecutionPlan(routingDecision, List.of(), routingDecision.enableKnowledgeBase(), false, knowledgeBaseToolBound);
     }
 
     private KnowledgeBoxProperties.RetrievalTriggerMode resolveRetrievalTriggerMode() {
@@ -1722,7 +1784,8 @@ public class ChatOrchestrator {
             QueryRoutingDecision routingDecision,
             List<RetrievedChunk> retrievedChunks,
             boolean enableKnowledgeBaseTool,
-            boolean retrievalAttempted
+            boolean retrievalAttempted,
+            boolean knowledgeBaseToolBound
     ) {
     }
 

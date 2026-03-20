@@ -24,6 +24,11 @@ public record CreateAgentProfileRequest(
         @NotNull @DecimalMin("0.0") @DecimalMax("2.0") Double temperature,
         @NotNull @Min(1) Integer retrievalTopK,
         @NotNull @Min(0) Integer reasoningBudget,
-        Boolean publicDebug
+        Boolean publicDebug,
+        @Size(max = 20000) String systemPrompt,
+        @Size(max = 20000) String knowledgeBaseToolPromptTemplate,
+        @Size(max = 20000) String knowledgeBaseInjectedContextPromptTemplate,
+        @Size(max = 20000) String knowledgeBaseNoEvidencePromptTemplate,
+        @Size(max = 20000) String knowledgeBaseDisabledPromptTemplate
 ) {
 }

@@ -281,6 +281,10 @@ public class AgentConfigAdminService {
         int retrievalTopK = readInt(node.get("retrievalTopK"), 6);
         int reasoningBudget = readInt(node.get("reasoningBudget"), 1);
         String systemPrompt = readRequiredText(node.get("systemPrompt"), "systemPrompt", index);
+        String knowledgeBaseToolPromptTemplate = normalizeOptionalText(readOptionalText(node.get("knowledgeBaseToolPromptTemplate"), null));
+        String knowledgeBaseInjectedContextPromptTemplate = normalizeOptionalText(readOptionalText(node.get("knowledgeBaseInjectedContextPromptTemplate"), null));
+        String knowledgeBaseNoEvidencePromptTemplate = normalizeOptionalText(readOptionalText(node.get("knowledgeBaseNoEvidencePromptTemplate"), null));
+        String knowledgeBaseDisabledPromptTemplate = normalizeOptionalText(readOptionalText(node.get("knowledgeBaseDisabledPromptTemplate"), null));
         List<String> toolCodes = normalizeCodeList(node.get("toolCodes"));
         List<String> skillCodes = normalizeCodeList(node.get("skillCodes"));
         List<AgentConfigMcpBindingView> mcpBindings = normalizeMcpBindings(node.get("mcpBindings"));
@@ -301,6 +305,10 @@ public class AgentConfigAdminService {
                 retrievalTopK,
                 reasoningBudget,
                 systemPrompt,
+                knowledgeBaseToolPromptTemplate,
+                knowledgeBaseInjectedContextPromptTemplate,
+                knowledgeBaseNoEvidencePromptTemplate,
+                knowledgeBaseDisabledPromptTemplate,
                 toolCodes,
                 skillCodes,
                 mcpBindings,
@@ -778,6 +786,10 @@ public class AgentConfigAdminService {
         version.setRetrievalTopK(snapshot.retrievalTopK());
         version.setReasoningBudget(snapshot.reasoningBudget());
         version.setSystemPrompt(snapshot.systemPrompt());
+        version.setKnowledgeBaseToolPromptTemplate(snapshot.knowledgeBaseToolPromptTemplate());
+        version.setKnowledgeBaseInjectedContextPromptTemplate(snapshot.knowledgeBaseInjectedContextPromptTemplate());
+        version.setKnowledgeBaseNoEvidencePromptTemplate(snapshot.knowledgeBaseNoEvidencePromptTemplate());
+        version.setKnowledgeBaseDisabledPromptTemplate(snapshot.knowledgeBaseDisabledPromptTemplate());
         version.setToolBindings("[]");
         version.setMcpBindings("[]");
         version.setSkillBindings("[]");
@@ -801,6 +813,10 @@ public class AgentConfigAdminService {
                 snapshot.retrievalTopK(),
                 snapshot.reasoningBudget(),
                 snapshot.systemPrompt(),
+                snapshot.knowledgeBaseToolPromptTemplate(),
+                snapshot.knowledgeBaseInjectedContextPromptTemplate(),
+                snapshot.knowledgeBaseNoEvidencePromptTemplate(),
+                snapshot.knowledgeBaseDisabledPromptTemplate(),
                 snapshot.toolCodes(),
                 snapshot.skillCodes(),
                 snapshot.mcpBindings(),
@@ -834,6 +850,10 @@ public class AgentConfigAdminService {
         version.setRetrievalTopK(operation.snapshot().retrievalTopK());
         version.setReasoningBudget(operation.snapshot().reasoningBudget());
         version.setSystemPrompt(operation.snapshot().systemPrompt());
+        version.setKnowledgeBaseToolPromptTemplate(operation.snapshot().knowledgeBaseToolPromptTemplate());
+        version.setKnowledgeBaseInjectedContextPromptTemplate(operation.snapshot().knowledgeBaseInjectedContextPromptTemplate());
+        version.setKnowledgeBaseNoEvidencePromptTemplate(operation.snapshot().knowledgeBaseNoEvidencePromptTemplate());
+        version.setKnowledgeBaseDisabledPromptTemplate(operation.snapshot().knowledgeBaseDisabledPromptTemplate());
         version = agentProfileVersionRepository.save(version);
 
         return new StoredAgentSnapshot(
@@ -855,6 +875,10 @@ public class AgentConfigAdminService {
                 operation.snapshot().retrievalTopK(),
                 operation.snapshot().reasoningBudget(),
                 operation.snapshot().systemPrompt(),
+                operation.snapshot().knowledgeBaseToolPromptTemplate(),
+                operation.snapshot().knowledgeBaseInjectedContextPromptTemplate(),
+                operation.snapshot().knowledgeBaseNoEvidencePromptTemplate(),
+                operation.snapshot().knowledgeBaseDisabledPromptTemplate(),
                 operation.snapshot().toolCodes(),
                 operation.snapshot().skillCodes(),
                 operation.snapshot().mcpBindings(),
@@ -890,6 +914,10 @@ public class AgentConfigAdminService {
                     version.getRetrievalTopK(),
                     version.getReasoningBudget(),
                     version.getSystemPrompt(),
+                    version.getKnowledgeBaseToolPromptTemplate(),
+                    version.getKnowledgeBaseInjectedContextPromptTemplate(),
+                    version.getKnowledgeBaseNoEvidencePromptTemplate(),
+                    version.getKnowledgeBaseDisabledPromptTemplate(),
                     bindings.toolCodes(),
                     bindings.skillCodes(),
                     toConfigMcpBindings(bindings.mcpBindings()),
@@ -1095,6 +1123,10 @@ public class AgentConfigAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
+            String knowledgeBaseToolPromptTemplate,
+            String knowledgeBaseInjectedContextPromptTemplate,
+            String knowledgeBaseNoEvidencePromptTemplate,
+            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
@@ -1117,6 +1149,10 @@ public class AgentConfigAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -1142,6 +1178,10 @@ public class AgentConfigAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -1170,6 +1210,10 @@ public class AgentConfigAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
+            String knowledgeBaseToolPromptTemplate,
+            String knowledgeBaseInjectedContextPromptTemplate,
+            String knowledgeBaseNoEvidencePromptTemplate,
+            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
@@ -1192,6 +1236,10 @@ public class AgentConfigAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -1217,6 +1265,10 @@ public class AgentConfigAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -1242,6 +1294,10 @@ public class AgentConfigAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
+            String knowledgeBaseToolPromptTemplate,
+            String knowledgeBaseInjectedContextPromptTemplate,
+            String knowledgeBaseNoEvidencePromptTemplate,
+            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,

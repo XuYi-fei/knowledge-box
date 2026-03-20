@@ -18,6 +18,11 @@ public record AgentProfileVersionView(
         String rerankModel,
         double temperature,
         int retrievalTopK,
-        int reasoningBudget
+        int reasoningBudget,
+        String systemPrompt,
+        String knowledgeBaseToolPromptTemplate,
+        String knowledgeBaseInjectedContextPromptTemplate,
+        String knowledgeBaseNoEvidencePromptTemplate,
+        String knowledgeBaseDisabledPromptTemplate
 ) {
 }

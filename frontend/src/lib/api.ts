@@ -75,6 +75,11 @@ type UpdateProfileVersionPayload = {
   retrievalTopK: number;
   reasoningBudget: number;
   publicDebug?: boolean;
+  systemPrompt?: string | null;
+  knowledgeBaseToolPromptTemplate?: string | null;
+  knowledgeBaseInjectedContextPromptTemplate?: string | null;
+  knowledgeBaseNoEvidencePromptTemplate?: string | null;
+  knowledgeBaseDisabledPromptTemplate?: string | null;
 };
 
 type CreateProfilePayload = {
@@ -90,6 +95,11 @@ type CreateProfilePayload = {
   retrievalTopK: number;
   reasoningBudget: number;
   publicDebug?: boolean;
+  systemPrompt?: string | null;
+  knowledgeBaseToolPromptTemplate?: string | null;
+  knowledgeBaseInjectedContextPromptTemplate?: string | null;
+  knowledgeBaseNoEvidencePromptTemplate?: string | null;
+  knowledgeBaseDisabledPromptTemplate?: string | null;
 };
 
 type UpdateProfileVersionBindingsPayload = {

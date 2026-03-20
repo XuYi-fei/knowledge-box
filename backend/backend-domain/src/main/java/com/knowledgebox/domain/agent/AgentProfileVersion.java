@@ -59,6 +59,18 @@ public class AgentProfileVersion extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String systemPrompt;
 
+    @Column(columnDefinition = "TEXT")
+    private String knowledgeBaseToolPromptTemplate;
+
+    @Column(columnDefinition = "TEXT")
+    private String knowledgeBaseInjectedContextPromptTemplate;
+
+    @Column(columnDefinition = "TEXT")
+    private String knowledgeBaseNoEvidencePromptTemplate;
+
+    @Column(columnDefinition = "TEXT")
+    private String knowledgeBaseDisabledPromptTemplate;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String toolBindings = "[]";
 
@@ -178,6 +190,38 @@ public class AgentProfileVersion extends BaseEntity {
 
     public void setSystemPrompt(String systemPrompt) {
         this.systemPrompt = systemPrompt;
+    }
+
+    public String getKnowledgeBaseToolPromptTemplate() {
+        return knowledgeBaseToolPromptTemplate;
+    }
+
+    public void setKnowledgeBaseToolPromptTemplate(String knowledgeBaseToolPromptTemplate) {
+        this.knowledgeBaseToolPromptTemplate = knowledgeBaseToolPromptTemplate;
+    }
+
+    public String getKnowledgeBaseInjectedContextPromptTemplate() {
+        return knowledgeBaseInjectedContextPromptTemplate;
+    }
+
+    public void setKnowledgeBaseInjectedContextPromptTemplate(String knowledgeBaseInjectedContextPromptTemplate) {
+        this.knowledgeBaseInjectedContextPromptTemplate = knowledgeBaseInjectedContextPromptTemplate;
+    }
+
+    public String getKnowledgeBaseNoEvidencePromptTemplate() {
+        return knowledgeBaseNoEvidencePromptTemplate;
+    }
+
+    public void setKnowledgeBaseNoEvidencePromptTemplate(String knowledgeBaseNoEvidencePromptTemplate) {
+        this.knowledgeBaseNoEvidencePromptTemplate = knowledgeBaseNoEvidencePromptTemplate;
+    }
+
+    public String getKnowledgeBaseDisabledPromptTemplate() {
+        return knowledgeBaseDisabledPromptTemplate;
+    }
+
+    public void setKnowledgeBaseDisabledPromptTemplate(String knowledgeBaseDisabledPromptTemplate) {
+        this.knowledgeBaseDisabledPromptTemplate = knowledgeBaseDisabledPromptTemplate;
     }
 
     public String getToolBindings() {

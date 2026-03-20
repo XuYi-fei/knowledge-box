@@ -477,6 +477,10 @@ public class ConfigBundleAdminService {
             int retrievalTopK = readInt(item.get("retrievalTopK"), 6);
             int reasoningBudget = readInt(item.get("reasoningBudget"), 1);
             String systemPrompt = readRequiredText(item.get("systemPrompt"), "agents[%s].systemPrompt".formatted(index));
+            String knowledgeBaseToolPromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseToolPromptTemplate"), null));
+            String knowledgeBaseInjectedContextPromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseInjectedContextPromptTemplate"), null));
+            String knowledgeBaseNoEvidencePromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseNoEvidencePromptTemplate"), null));
+            String knowledgeBaseDisabledPromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseDisabledPromptTemplate"), null));
             List<String> toolCodes = normalizeCodeList(item.get("toolCodes"));
             List<String> skillCodes = normalizeCodeList(item.get("skillCodes"));
             List<AgentConfigMcpBindingView> mcpBindings = normalizeMcpBindings(item.get("mcpBindings"));
@@ -498,6 +502,10 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -1348,6 +1356,10 @@ public class ConfigBundleAdminService {
         version.setRetrievalTopK(snapshot.retrievalTopK());
         version.setReasoningBudget(snapshot.reasoningBudget());
         version.setSystemPrompt(snapshot.systemPrompt());
+        version.setKnowledgeBaseToolPromptTemplate(snapshot.knowledgeBaseToolPromptTemplate());
+        version.setKnowledgeBaseInjectedContextPromptTemplate(snapshot.knowledgeBaseInjectedContextPromptTemplate());
+        version.setKnowledgeBaseNoEvidencePromptTemplate(snapshot.knowledgeBaseNoEvidencePromptTemplate());
+        version.setKnowledgeBaseDisabledPromptTemplate(snapshot.knowledgeBaseDisabledPromptTemplate());
         version.setToolBindings("[]");
         version.setMcpBindings("[]");
         version.setSkillBindings("[]");
@@ -1371,6 +1383,10 @@ public class ConfigBundleAdminService {
                 snapshot.retrievalTopK(),
                 snapshot.reasoningBudget(),
                 snapshot.systemPrompt(),
+                snapshot.knowledgeBaseToolPromptTemplate(),
+                snapshot.knowledgeBaseInjectedContextPromptTemplate(),
+                snapshot.knowledgeBaseNoEvidencePromptTemplate(),
+                snapshot.knowledgeBaseDisabledPromptTemplate(),
                 snapshot.toolCodes(),
                 snapshot.skillCodes(),
                 snapshot.mcpBindings(),
@@ -1640,6 +1656,10 @@ public class ConfigBundleAdminService {
                     version.getRetrievalTopK(),
                     version.getReasoningBudget(),
                     version.getSystemPrompt(),
+                    version.getKnowledgeBaseToolPromptTemplate(),
+                    version.getKnowledgeBaseInjectedContextPromptTemplate(),
+                    version.getKnowledgeBaseNoEvidencePromptTemplate(),
+                    version.getKnowledgeBaseDisabledPromptTemplate(),
                     bindings.toolCodes(),
                     bindings.skillCodes(),
                     bindings.mcpBindings().stream()
@@ -2368,6 +2388,10 @@ public class ConfigBundleAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
+            String knowledgeBaseToolPromptTemplate,
+            String knowledgeBaseInjectedContextPromptTemplate,
+            String knowledgeBaseNoEvidencePromptTemplate,
+            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
@@ -2406,6 +2430,10 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2431,6 +2459,10 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2465,6 +2497,10 @@ public class ConfigBundleAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
+            String knowledgeBaseToolPromptTemplate,
+            String knowledgeBaseInjectedContextPromptTemplate,
+            String knowledgeBaseNoEvidencePromptTemplate,
+            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
@@ -2503,6 +2539,10 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2528,6 +2568,10 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
+                    knowledgeBaseToolPromptTemplate,
+                    knowledgeBaseInjectedContextPromptTemplate,
+                    knowledgeBaseNoEvidencePromptTemplate,
+                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2554,6 +2598,10 @@ public class ConfigBundleAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
+            String knowledgeBaseToolPromptTemplate,
+            String knowledgeBaseInjectedContextPromptTemplate,
+            String knowledgeBaseNoEvidencePromptTemplate,
+            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,

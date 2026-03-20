@@ -62,4 +62,6 @@
     <include file="db/changelog/db.changelog-055-markdown-copy-toolbar-release-note.xml"/>
     <include file="db/changelog/db.changelog-056-agent-debug-entry.xml"/>
     <include file="db/changelog/db.changelog-057-agent-debug-entry-release-note.xml"/>
+    <include file="db/changelog/db.changelog-058-agent-prompt-templates.xml"/>
+    <include file="db/changelog/db.changelog-059-agent-prompt-templates-release-note.xml"/>
 </databaseChangeLog>

@@ -143,6 +143,11 @@ export type AgentProfileVersion = {
   temperature: number;
   retrievalTopK: number;
   reasoningBudget: number;
+  systemPrompt: string | null;
+  knowledgeBaseToolPromptTemplate: string | null;
+  knowledgeBaseInjectedContextPromptTemplate: string | null;
+  knowledgeBaseNoEvidencePromptTemplate: string | null;
+  knowledgeBaseDisabledPromptTemplate: string | null;
 };
 
 export type ModelType = 'CHAT' | 'EMBEDDING' | 'RERANK';

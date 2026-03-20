@@ -82,3 +82,4 @@
 - `published` 只保留给唯一 `MAIN` 公开主入口；用户侧可调试的 Entry Agent 必须使用单独的 `publicDebug` 字段表达，不要复用 `published` 承担两种语义。
 - 统一配置 Bundle 导入里的 Skill `packageLocation` 由服务端解析；后台上传的 JSON 不能引用管理员本机路径，需使用服务端可访问的 `file:` / `classpath:` 路径或约定的 `classpath:bootstrap/skills/<code>` 目录。
 - 用户主动停止对话回答时，助手消息必须持久化为独立 `CANCELLED` 终态并禁止自动 resume；不要把这种情况混入 `FAILED`。
+- 聊天链路中的知识库能力不是默认内建能力；只有当前 Agent 版本实际绑定了 `KnowledgeBaseSearchTool`，才允许执行知识库路由、检索和相关 Prompt 注入。

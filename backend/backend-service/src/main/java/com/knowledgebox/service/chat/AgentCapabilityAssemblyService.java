@@ -52,7 +52,8 @@ import org.springframework.util.StringUtils;
 public class AgentCapabilityAssemblyService {
 
     private static final Logger log = LoggerFactory.getLogger(AgentCapabilityAssemblyService.class);
-    private static final String BUILTIN_KB_GROUP = "builtin-kb";
+    private static final String KNOWLEDGE_BASE_TOOL_CLASS = KnowledgeBaseSearchTool.class.getName();
+    private static final String KNOWLEDGE_BASE_TOOL_BEAN = "knowledgeBaseSearchTool";
 
     private final AgentProfileVersionRepository agentProfileVersionRepository;
     private final AgentProfileVersionAgentBindingRepository agentBindingRepository;
@@ -120,6 +121,16 @@ public class AgentCapabilityAssemblyService {
         return assemble(profileVersionId, includeKnowledgeBaseTool, null, null);
     }
 
+    public boolean hasKnowledgeBaseToolBound(Long profileVersionId) {
+        if (profileVersionId == null) {
+            return false;
+        }
+        return toolBindingRepository.findByProfileVersionId(profileVersionId).stream()
+                .map(binding -> toolDefinitionRepository.findById(binding.getToolId()).orElse(null))
+                .filter(definition -> definition != null && Boolean.TRUE.equals(definition.getEnabled()))
+                .anyMatch(this::isKnowledgeBaseToolDefinition);
+    }
+
     public AgentRuntimeCapabilities assemble(
             Long profileVersionId,
             boolean includeKnowledgeBaseTool,
@@ -138,29 +149,36 @@ public class AgentCapabilityAssemblyService {
     ) {
         Toolkit toolkit = new Toolkit();
         Map<String, Map<String, Object>> subAgentToolMetadata = new LinkedHashMap<>();
-        if (includeKnowledgeBaseTool) {
-            ensureToolGroup(toolkit, BUILTIN_KB_GROUP, "Built-in Knowledge Box tools");
-            toolkit.registration()
-                    .tool(knowledgeBaseSearchTool)
-                    .group(BUILTIN_KB_GROUP)
-                    .apply();
-        }
         if (profileVersionId == null) {
-            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata, AgentRuntimeEnvironment.empty());
+            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata, AgentRuntimeEnvironment.empty(), false);
         }
 
         AgentProfileVersion profileVersion = policyService.requireVersion(profileVersionId);
         AgentRuntimeEnvironment runtimeEnvironment = environmentResolver.resolve(profileVersionId);
-        registerDynamicTools(profileVersionId, toolkit);
+        ToolRegistrationResult toolRegistration = registerDynamicTools(profileVersionId, toolkit, includeKnowledgeBaseTool);
         registerDynamicMcpClients(profileVersionId, toolkit, runtimeEnvironment);
         if (includeChildAgents && canBindChildAgents(profileVersion)) {
             registerChildAgents(profileVersion, toolkit, subAgentToolMetadata, traceContext, exchangeRuntime);
         }
         SkillBox skillBox = registerDynamicSkills(profileVersionId, toolkit);
         if (skillBox == null) {
-            return new AgentRuntimeCapabilities(toolkit, null, List.of(), subAgentToolMetadata, runtimeEnvironment);
+            return new AgentRuntimeCapabilities(
+                    toolkit,
+                    null,
+                    List.of(),
+                    subAgentToolMetadata,
+                    runtimeEnvironment,
+                    toolRegistration.knowledgeBaseToolBound()
+            );
         }
-        return new AgentRuntimeCapabilities(toolkit, skillBox, List.of(new SkillHook(skillBox)), subAgentToolMetadata, runtimeEnvironment);
+        return new AgentRuntimeCapabilities(
+                toolkit,
+                skillBox,
+                List.of(new SkillHook(skillBox)),
+                subAgentToolMetadata,
+                runtimeEnvironment,
+                toolRegistration.knowledgeBaseToolBound()
+        );
     }
 
     private boolean canBindChildAgents(AgentProfileVersion profileVersion) {
@@ -170,12 +188,20 @@ public class AgentCapabilityAssemblyService {
                 || agentType == AgentProfileVersionType.ORCHESTRATOR;
     }
 
-    private void registerDynamicTools(Long profileVersionId, Toolkit toolkit) {
+    private ToolRegistrationResult registerDynamicTools(Long profileVersionId, Toolkit toolkit, boolean includeKnowledgeBaseTool) {
         List<AgentProfileVersionToolBinding> bindings = toolBindingRepository.findByProfileVersionId(profileVersionId);
+        boolean knowledgeBaseToolBound = false;
         for (AgentProfileVersionToolBinding binding : bindings) {
             ToolDefinition definition = toolDefinitionRepository.findById(binding.getToolId()).orElse(null);
             if (definition == null || !Boolean.TRUE.equals(definition.getEnabled())) {
                 continue;
+            }
+            boolean knowledgeBaseTool = isKnowledgeBaseToolDefinition(definition);
+            if (knowledgeBaseTool) {
+                knowledgeBaseToolBound = true;
+                if (!includeKnowledgeBaseTool) {
+                    continue;
+                }
             }
             if (!StringUtils.hasText(definition.getClassName())) {
                 log.warn("Skip tool {} because className is blank", definition.getCode());
@@ -184,7 +210,9 @@ public class AgentCapabilityAssemblyService {
             try {
                 String groupName = "tool-" + definition.getCode();
                 ensureToolGroup(toolkit, groupName, "Dynamic tool group for " + definition.getCode());
-                Object toolObject = toolRuntimeFactoryService.createToolObject(definition.getClassName(), definition.getBeanName());
+                Object toolObject = knowledgeBaseTool
+                        ? knowledgeBaseSearchTool
+                        : toolRuntimeFactoryService.createToolObject(definition.getClassName(), definition.getBeanName());
                 Toolkit.ToolRegistration registration = toolkit.registration()
                         .tool(toolObject)
                         .group(groupName);
@@ -197,6 +225,7 @@ public class AgentCapabilityAssemblyService {
                 log.warn("Skip dynamic tool registration for code={}", definition.getCode(), exception);
             }
         }
+        return new ToolRegistrationResult(knowledgeBaseToolBound);
     }
 
     private void registerDynamicMcpClients(Long profileVersionId, Toolkit toolkit, AgentRuntimeEnvironment runtimeEnvironment) {
@@ -303,7 +332,7 @@ public class AgentCapabilityAssemblyService {
     ) {
         AgentRuntimeCapabilities childCapabilities = assembleInternal(
                 childVersion.getId(),
-                false,
+                true,
                 false,
                 traceContext,
                 exchangeRuntime
@@ -352,7 +381,7 @@ public class AgentCapabilityAssemblyService {
         return chatModelFactory.createReActAgent(
                 childVersion,
                 childVersion.getChatModel(),
-                false,
+                childCapabilities.knowledgeBaseToolBound(),
                 false,
                 false,
                 childCapabilities.toolkit(),
@@ -490,6 +519,15 @@ public class AgentCapabilityAssemblyService {
         }
     }
 
+    private boolean isKnowledgeBaseToolDefinition(ToolDefinition definition) {
+        if (definition == null) {
+            return false;
+        }
+        String className = definition.getClassName() == null ? "" : definition.getClassName().trim();
+        String beanName = definition.getBeanName() == null ? "" : definition.getBeanName().trim();
+        return KNOWLEDGE_BASE_TOOL_CLASS.equals(className) || KNOWLEDGE_BASE_TOOL_BEAN.equals(beanName);
+    }
+
     private void ensureToolGroup(Toolkit toolkit, String groupName, String description) {
         if (!StringUtils.hasText(groupName)) {
             return;
@@ -505,7 +543,11 @@ public class AgentCapabilityAssemblyService {
             SkillBox skillBox,
             List<Hook> hooks,
             Map<String, Map<String, Object>> subAgentToolMetadataByName,
-            AgentRuntimeEnvironment runtimeEnvironment
+            AgentRuntimeEnvironment runtimeEnvironment,
+            boolean knowledgeBaseToolBound
     ) {
+    }
+
+    private record ToolRegistrationResult(boolean knowledgeBaseToolBound) {
     }
 }

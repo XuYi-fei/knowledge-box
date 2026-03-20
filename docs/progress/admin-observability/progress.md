@@ -15,6 +15,7 @@
 - 管理端现已支持统一配置 Bundle 导入导出，可在一份 JSON 中同时维护 Agent、Tool、MCP 与 Skill，并在预览阶段按资源类型展示冲突、现有配置和即将写入的快照。
 - 统一配置 Bundle 已升级到 `knowledge-box.config-bundle.v2`，可同时维护 Tool/MCP/Skill 的 `runtimeEnvRequirements` 与 Agent 的 `envVars`。
 - Agent Profile Version 绑定页现已支持编辑运行时环境变量，区分 `INLINE / PROCESS_ENV` 两种来源；非 secret inline 值会正常回显，secret inline 值以掩码保留。
+- Agent Profile Version 现已支持直接编辑基础 `systemPrompt` 与四类知识库 Prompt 模板；管理端可以按不同运行场景分别配置，留空时自动回退后端默认模板。
 - 系统启动期现已支持通过 `knowledge-box.agent.runtime-env-check.*` 做 Agent 运行时环境变量自检，并可按 `fail-fast` 决定是否阻止启动。
 - 运行时环境变量解析现已支持从 Spring `Environment` 回退取值，本地可直接在 `application-local.yml` 配置与 `sourceRef` 同名的 key 做联调，无需额外导出 shell 环境变量。
 - 系统启动期 bootstrap 现已支持统一配置 Bundle schema；Skill 可按约定从 `classpath:bootstrap/skills/<code>` 或显式 `packageLocation` 目录自动打包并上传到 OSS。
@@ -39,6 +40,8 @@
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺失宿主环境变量告警与 fail-fast 启动保护。
 - 后端：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证不再触发 bootstrap skip 异常；当前沙箱下仅因 PostgreSQL 连接受限而停止，说明启动链路已越过本次回归点。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖 `publicDebug` 约束、删除 Agent 时的聊天/trace 清理与调试会话停止链路。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests test` 可通过，已覆盖 Agent 版本级 Prompt 模板字段、配置 Bundle 导入导出以及知识库 Tool 绑定启用策略。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖管理端 Agent 配置页新增的 Prompt 模板编辑表单与提交回填链路。
 
 ## 待继续推进
 

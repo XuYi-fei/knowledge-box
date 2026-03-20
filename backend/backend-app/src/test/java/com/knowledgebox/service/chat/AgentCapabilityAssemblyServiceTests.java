@@ -102,11 +102,33 @@ class AgentCapabilityAssemblyServiceTests {
     }
 
     @Test
-    void shouldCreateBuiltinGroupBeforeRegisteringKnowledgeBaseTool() {
-        AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = service.assemble(null, true);
+    void shouldNotRegisterKnowledgeBaseToolWhenCurrentVersionDoesNotBindIt() {
+        when(environmentResolver.resolve(org.mockito.ArgumentMatchers.any())).thenReturn(AgentRuntimeEnvironment.empty());
+        when(mcpBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(skillBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(agentBindingRepository.findByParentProfileVersionId(1L)).thenReturn(List.of());
 
-        assertThat(capabilities.toolkit().getToolGroup("builtin-kb")).isNotNull();
-        assertThat(capabilities.toolkit().getToolNames()).contains("searchKnowledgeBase");
+        AgentProfile profile = new AgentProfile();
+        profile.setCode("entry-agent");
+        profile.setName("Entry Agent");
+        AgentProfileVersion version = new AgentProfileVersion();
+        version.setProfile(profile);
+        version.setVersionNumber(1);
+        try {
+            java.lang.reflect.Field versionIdField = com.knowledgebox.common.BaseEntity.class.getDeclaredField("id");
+            versionIdField.setAccessible(true);
+            versionIdField.set(version, 1L);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+        when(policyService.requireVersion(1L)).thenReturn(version);
+        when(policyService.normalizeType(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(toolBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+
+        AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = service.assemble(1L, true);
+
+        assertThat(capabilities.toolkit().getToolNames()).doesNotContain("searchKnowledgeBase");
+        assertThat(capabilities.knowledgeBaseToolBound()).isFalse();
     }
 
     @Test
@@ -149,6 +171,50 @@ class AgentCapabilityAssemblyServiceTests {
 
         assertThat(capabilities.toolkit().getToolGroup("tool-http-search")).isNotNull();
         assertThat(capabilities.toolkit().getToolNames()).contains("dynamicRuntimeEcho");
+    }
+
+    @Test
+    void shouldRecognizeKnowledgeBaseToolByBeanNameAndRegisterOnlyWhenEnabledForRound() {
+        when(environmentResolver.resolve(org.mockito.ArgumentMatchers.any())).thenReturn(AgentRuntimeEnvironment.empty());
+        when(mcpBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(skillBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of());
+        when(agentBindingRepository.findByParentProfileVersionId(1L)).thenReturn(List.of());
+
+        AgentProfile profile = new AgentProfile();
+        profile.setCode("main-agent");
+        profile.setName("Main Agent");
+        AgentProfileVersion version = new AgentProfileVersion();
+        version.setProfile(profile);
+        version.setVersionNumber(1);
+        try {
+            java.lang.reflect.Field versionIdField = com.knowledgebox.common.BaseEntity.class.getDeclaredField("id");
+            versionIdField.setAccessible(true);
+            versionIdField.set(version, 1L);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+        when(policyService.requireVersion(1L)).thenReturn(version);
+        when(policyService.normalizeType(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AgentProfileVersionToolBinding binding = new AgentProfileVersionToolBinding();
+        binding.setProfileVersionId(1L);
+        binding.setToolId(201L);
+        when(toolBindingRepository.findByProfileVersionId(1L)).thenReturn(List.of(binding));
+
+        ToolDefinition definition = new ToolDefinition();
+        definition.setCode("http-search");
+        definition.setEnabled(true);
+        definition.setBeanName("knowledgeBaseSearchTool");
+        definition.setClassName(KnowledgeBaseSearchTool.class.getName());
+        when(toolDefinitionRepository.findById(201L)).thenReturn(Optional.of(definition));
+
+        AgentCapabilityAssemblyService.AgentRuntimeCapabilities disabledCapabilities = service.assemble(1L, false);
+        AgentCapabilityAssemblyService.AgentRuntimeCapabilities enabledCapabilities = service.assemble(1L, true);
+
+        assertThat(disabledCapabilities.knowledgeBaseToolBound()).isTrue();
+        assertThat(disabledCapabilities.toolkit().getToolNames()).doesNotContain("searchKnowledgeBase");
+        assertThat(enabledCapabilities.knowledgeBaseToolBound()).isTrue();
+        assertThat(enabledCapabilities.toolkit().getToolNames()).contains("searchKnowledgeBase");
     }
 
     static class DynamicRuntimeTool {

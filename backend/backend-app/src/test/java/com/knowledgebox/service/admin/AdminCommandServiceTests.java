@@ -94,7 +94,12 @@ class AdminCommandServiceTests {
                 0.3,
                 8,
                 2,
-                false
+                false,
+                "base prompt",
+                "kb tool prompt",
+                "kb injected prompt",
+                "kb no evidence prompt",
+                "kb disabled prompt"
         ));
 
         assertThat(created.profileCode()).isEqualTo("router-agent");

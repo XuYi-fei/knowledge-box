@@ -221,6 +221,37 @@ class ChatOrchestratorTests {
     }
 
     @Test
+    void shouldSkipKnowledgeBaseRoutingWhenAgentDoesNotBindKnowledgeBaseTool() throws Exception {
+        AgentProfile profile = new AgentProfile();
+        profile.setCode("entry-agent");
+        AgentProfileVersion version = new AgentProfileVersion();
+        version.setProfile(profile);
+        version.setRoutingModel("qwen-plus");
+        java.lang.reflect.Field idField = com.knowledgebox.common.BaseEntity.class.getDeclaredField("id");
+        idField.setAccessible(true);
+        idField.set(version, 9L);
+
+        AgentCapabilityAssemblyService assemblyService = (AgentCapabilityAssemblyService) readField(orchestrator, "agentCapabilityAssemblyService");
+        when(assemblyService.hasKnowledgeBaseToolBound(9L)).thenReturn(false);
+
+        Object executionPlan = invokePrivateMethod(
+                "prepareExecutionPlan",
+                new Class<?>[]{StreamTask.class, AgentExecutionTraceContext.class, String.class},
+                new StreamTask(1L, SESSION_ID, "client-message-1", "mcp 是什么", ASSISTANT_MESSAGE_ID, "entry-agent", version, "qwen-plus"),
+                traceContext(),
+                "backend-call-1"
+        );
+        Object routingDecision = invokeNoArg(executionPlan, "routingDecision");
+
+        assertThat(invokeNoArg(executionPlan, "knowledgeBaseToolBound")).isEqualTo(false);
+        assertThat(invokeNoArg(executionPlan, "enableKnowledgeBaseTool")).isEqualTo(false);
+        assertThat(invokeNoArg(executionPlan, "retrievalAttempted")).isEqualTo(false);
+        assertThat(invokeNoArg(routingDecision, "source")).isEqualTo("binding");
+        assertThat(invokeNoArg(routingDecision, "matchedRule")).isEqualTo("TOOL_NOT_BOUND");
+        assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isZero();
+    }
+
+    @Test
     void shouldNotSetThinkingBudgetForDashScopeRoutingClassifierOptions() throws Exception {
         GenerateOptions options = (GenerateOptions) invokePrivateMethod(
                 "buildRoutingClassifierGenerateOptions",
@@ -524,9 +555,17 @@ class ChatOrchestratorTests {
     }
 
     private Object readField(Object target, String fieldName) throws Exception {
-        Field field = target.getClass().getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return field.get(target);
+        Class<?> type = target.getClass();
+        while (type != null) {
+            try {
+                Field field = type.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.get(target);
+            } catch (NoSuchFieldException ignored) {
+                type = type.getSuperclass();
+            }
+        }
+        throw new NoSuchFieldException(fieldName);
     }
 
     private Event reasoningEvent(String thinking) {
@@ -596,8 +635,10 @@ class ChatOrchestratorTests {
                         null,
                         List.of(),
                         Map.of(),
-                        AgentRuntimeEnvironment.empty()
+                        AgentRuntimeEnvironment.empty(),
+                        false
                 ));
+        when(assemblyService.hasKnowledgeBaseToolBound(nullable(Long.class))).thenReturn(false);
         return assemblyService;
     }
 

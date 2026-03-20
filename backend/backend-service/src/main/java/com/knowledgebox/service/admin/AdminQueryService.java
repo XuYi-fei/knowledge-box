@@ -117,7 +117,12 @@ public class AdminQueryService {
                 version.getRerankModel(),
                 version.getTemperature(),
                 version.getRetrievalTopK(),
-                version.getReasoningBudget()
+                version.getReasoningBudget(),
+                version.getSystemPrompt(),
+                version.getKnowledgeBaseToolPromptTemplate(),
+                version.getKnowledgeBaseInjectedContextPromptTemplate(),
+                version.getKnowledgeBaseNoEvidencePromptTemplate(),
+                version.getKnowledgeBaseDisabledPromptTemplate()
         );
     }
 

@@ -28,6 +28,11 @@ type ProfileConfigFormValues = {
   retrievalTopK: number;
   reasoningBudget: number;
   publicDebug: boolean;
+  systemPrompt?: string;
+  knowledgeBaseToolPromptTemplate?: string;
+  knowledgeBaseInjectedContextPromptTemplate?: string;
+  knowledgeBaseNoEvidencePromptTemplate?: string;
+  knowledgeBaseDisabledPromptTemplate?: string;
 };
 
 type CreateProfileFormValues = ProfileConfigFormValues & {
@@ -269,6 +274,11 @@ export function ProfileVersionsPage() {
         ...values,
         rerankModel: values.rerankModel ?? null,
         description: values.description?.trim() || undefined,
+        systemPrompt: values.systemPrompt?.trim() || null,
+        knowledgeBaseToolPromptTemplate: values.knowledgeBaseToolPromptTemplate?.trim() || null,
+        knowledgeBaseInjectedContextPromptTemplate: values.knowledgeBaseInjectedContextPromptTemplate?.trim() || null,
+        knowledgeBaseNoEvidencePromptTemplate: values.knowledgeBaseNoEvidencePromptTemplate?.trim() || null,
+        knowledgeBaseDisabledPromptTemplate: values.knowledgeBaseDisabledPromptTemplate?.trim() || null,
       }),
     onSuccess: () => {
       message.success('Agent 已创建');
@@ -293,6 +303,11 @@ export function ProfileVersionsPage() {
       return api.updateProfileVersion(editingProfile.id, {
         ...values,
         rerankModel: values.rerankModel ?? null,
+        systemPrompt: values.systemPrompt?.trim() || null,
+        knowledgeBaseToolPromptTemplate: values.knowledgeBaseToolPromptTemplate?.trim() || null,
+        knowledgeBaseInjectedContextPromptTemplate: values.knowledgeBaseInjectedContextPromptTemplate?.trim() || null,
+        knowledgeBaseNoEvidencePromptTemplate: values.knowledgeBaseNoEvidencePromptTemplate?.trim() || null,
+        knowledgeBaseDisabledPromptTemplate: values.knowledgeBaseDisabledPromptTemplate?.trim() || null,
       });
     },
     onSuccess: () => {
@@ -502,6 +517,11 @@ export function ProfileVersionsPage() {
     retrievalTopK: 6,
     reasoningBudget: 1,
     publicDebug: false,
+    systemPrompt: '',
+    knowledgeBaseToolPromptTemplate: '',
+    knowledgeBaseInjectedContextPromptTemplate: '',
+    knowledgeBaseNoEvidencePromptTemplate: '',
+    knowledgeBaseDisabledPromptTemplate: '',
   }), [defaultChatModel, defaultEmbeddingModel, defaultRerankModel]);
 
   const toolCodeOptions = tools.map((item) => ({
@@ -721,6 +741,11 @@ export function ProfileVersionsPage() {
                 retrievalTopK: record.retrievalTopK,
                 reasoningBudget: record.reasoningBudget,
                 publicDebug: record.publicDebug,
+                systemPrompt: record.systemPrompt ?? '',
+                knowledgeBaseToolPromptTemplate: record.knowledgeBaseToolPromptTemplate ?? '',
+                knowledgeBaseInjectedContextPromptTemplate: record.knowledgeBaseInjectedContextPromptTemplate ?? '',
+                knowledgeBaseNoEvidencePromptTemplate: record.knowledgeBaseNoEvidencePromptTemplate ?? '',
+                knowledgeBaseDisabledPromptTemplate: record.knowledgeBaseDisabledPromptTemplate ?? '',
               });
               setProfileModalOpen(true);
             }}
@@ -990,6 +1015,43 @@ export function ProfileVersionsPage() {
               <InputNumber min={0} max={32} style={{ width: 140 }} />
             </Form.Item>
           </Space>
+          <Form.Item
+            label="系统提示词"
+            name="systemPrompt"
+            extra="作为该 Agent 的基础系统提示词；知识库相关模板会按运行场景在其后追加。"
+          >
+            <Input.TextArea rows={6} placeholder="留空则使用后端默认系统提示词" />
+          </Form.Item>
+          <Card size="small" title="知识库提示词模板" styles={{ body: { paddingBottom: 0 } }}>
+            <Form.Item
+              label="知识库工具启用模板"
+              name="knowledgeBaseToolPromptTemplate"
+              extra="当该轮允许 Agent 主动调用知识库检索 Tool 时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+            <Form.Item
+              label="已注入知识片段模板"
+              name="knowledgeBaseInjectedContextPromptTemplate"
+              extra="当后端已预先检索并把知识片段注入上下文时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+            <Form.Item
+              label="未命中知识库模板"
+              name="knowledgeBaseNoEvidencePromptTemplate"
+              extra="当已经尝试检索但没有拿到足够证据时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+            <Form.Item
+              label="知识库关闭模板"
+              name="knowledgeBaseDisabledPromptTemplate"
+              extra="当当前 Agent 未绑定知识库工具或该轮明确关闭知识库时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+          </Card>
         </Form>
       </Modal>
 
@@ -1034,6 +1096,43 @@ export function ProfileVersionsPage() {
               <InputNumber min={0} max={32} style={{ width: 140 }} />
             </Form.Item>
           </Space>
+          <Form.Item
+            label="系统提示词"
+            name="systemPrompt"
+            extra="作为该 Agent 的基础系统提示词；知识库相关模板会按运行场景在其后追加。"
+          >
+            <Input.TextArea rows={6} placeholder="留空则使用后端默认系统提示词" />
+          </Form.Item>
+          <Card size="small" title="知识库提示词模板" styles={{ body: { paddingBottom: 0 } }}>
+            <Form.Item
+              label="知识库工具启用模板"
+              name="knowledgeBaseToolPromptTemplate"
+              extra="当该轮允许 Agent 主动调用知识库检索 Tool 时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+            <Form.Item
+              label="已注入知识片段模板"
+              name="knowledgeBaseInjectedContextPromptTemplate"
+              extra="当后端已预先检索并把知识片段注入上下文时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+            <Form.Item
+              label="未命中知识库模板"
+              name="knowledgeBaseNoEvidencePromptTemplate"
+              extra="当已经尝试检索但没有拿到足够证据时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+            <Form.Item
+              label="知识库关闭模板"
+              name="knowledgeBaseDisabledPromptTemplate"
+              extra="当当前 Agent 未绑定知识库工具或该轮明确关闭知识库时追加。留空则使用默认模板。"
+            >
+              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
+            </Form.Item>
+          </Card>
         </Form>
       </Modal>
 

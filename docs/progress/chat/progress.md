@@ -11,6 +11,8 @@
 - 聊天链路现已支持通过 AgentScope `SubAgentTool` 调用绑定的原子子 Agent；子 Agent 自身仍可装配 Tool / MCP / Skill，并在统一 trace 中留下独立执行过程。
 - 聊天链路现已支持 Agent 版本级运行时环境变量；Tool 执行、MCP 占位符解析和子 Agent 装配都可按当前 Agent 版本注入 `INLINE / PROCESS_ENV` 配置。
 - 新增 `web-search` Tool、`tavily-search` Skill 与 `web-search-agent` bootstrap 配置；当 Agent 需要公网信息时可优先走 Tavily，缺少密钥时自动回退直接网页搜索。
+- 聊天主链路已把知识库能力切换为“按 Tool 绑定启用”：只有当前 Agent 版本实际绑定了 `KnowledgeBaseSearchTool`，才会执行知识库路由、前置检索、兜底检索和对应 Prompt 注入；未绑定的 Entry Agent 会直接走通用回答链路。
+- Agent 版本现已支持配置基础 `systemPrompt` 与四类知识库场景模板（启用 Tool、注入上下文、无证据、禁用知识库）；运行时会按当前场景拼接对应模板，留空则回退默认文案。
 - 现已支持通过 `knowledge-box.agent.runtime-env-check.*` 在启动期扫描 Agent envVars 与绑定依赖的必填 requirement，提前发现缺 key 配置。
 - `PROCESS_ENV` 现在会优先读宿主环境变量，缺失时再回退读取 Spring `Environment`；因此本地开发可直接在 `application-local.yml` 中配置 `KB_TAVILY_API_KEY` 这类值。
 - 对话主界面现已支持“停止回答”；用户主动中止后会立即截断当前流式输出，并把已有部分回答持久化为 `CANCELLED`，不会在刷新或会话恢复时被误续跑。
@@ -32,11 +34,13 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖代码块双按钮复制工具条、更明确的复制成功反馈，以及 fenced code block 复制能力。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖新增的 `Agent 调试` tab、独立调试页、按入口隔离的会话恢复键与 trace 摘要侧栏。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖知识库 Tool 绑定判定、Prompt 模板拼接和相关 Liquibase 字段迁移。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 可通过，已覆盖运行时环境变量注入、web-search Tool 装配与配置 Bundle v2 相关回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖启动期 env 自检、缺少宿主环境变量与 requirement 缺失告警。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,ChatOrchestratorTests test` 可通过，已覆盖调试入口约束、按入口停止回答与删除 Agent 时的聊天/trace 清理回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests test` 可通过，已覆盖知识库 Tool 绑定装配、无知识库绑定入口跳过路由/检索、Prompt 模板导入导出回归。
 
 ## 待继续推进
 

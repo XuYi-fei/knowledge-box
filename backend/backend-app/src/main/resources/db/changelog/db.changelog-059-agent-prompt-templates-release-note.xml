@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="059-001-agent-prompt-templates-release-note" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.20',
+                'Agent 提示词模板与知识库能力改为版本级配置',
+                'Agent 版本现在可直接配置基础 system prompt 和四类知识库提示模板，知识库检索也改成按 Tool 绑定决定是否启用。',
+                E'## 本次更新\n\n- Agent 版本新增基础 `systemPrompt` 与四类知识库提示模板，可按不同运行场景分别配置\n- 聊天主链路改为根据当前 Agent 是否绑定知识库 Tool 决定是否做路由、预检索和兜底检索，不再把知识库行为写死在所有入口中\n- 未绑定知识库 Tool 的 Entry Agent 将直接走通用回答链路，避免额外的知识库路由和提示词污染\n- 管理端新增这些提示词字段的可视化编辑入口，配置 Bundle 导入导出也同步支持',
+                TIMESTAMPTZ '2026-03-20 23:59:00+08',
+                -18,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.20'
+                   AND title = 'Agent 提示词模板与知识库能力改为版本级配置'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

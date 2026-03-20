@@ -83,7 +83,11 @@ public class AdminCommandService {
         version.setVersionNumber(1);
         version.setStatus(ProfileStatus.DRAFT);
         version.setPublished(Boolean.FALSE);
-        version.setSystemPrompt(defaultSystemPrompt(savedProfile.getName(), targetType));
+        version.setSystemPrompt(resolveSystemPrompt(request.systemPrompt(), savedProfile.getName(), targetType));
+        version.setKnowledgeBaseToolPromptTemplate(blankToNull(request.knowledgeBaseToolPromptTemplate()));
+        version.setKnowledgeBaseInjectedContextPromptTemplate(blankToNull(request.knowledgeBaseInjectedContextPromptTemplate()));
+        version.setKnowledgeBaseNoEvidencePromptTemplate(blankToNull(request.knowledgeBaseNoEvidencePromptTemplate()));
+        version.setKnowledgeBaseDisabledPromptTemplate(blankToNull(request.knowledgeBaseDisabledPromptTemplate()));
         version.setToolBindings("[]");
         version.setMcpBindings("[]");
         version.setSkillBindings("[]");
@@ -98,6 +102,11 @@ public class AdminCommandService {
         version.setTemperature(request.temperature());
         version.setRetrievalTopK(request.retrievalTopK());
         version.setReasoningBudget(request.reasoningBudget());
+        version.setSystemPrompt(resolveSystemPrompt(request.systemPrompt(), version.getProfile().getName(), targetType));
+        version.setKnowledgeBaseToolPromptTemplate(blankToNull(request.knowledgeBaseToolPromptTemplate()));
+        version.setKnowledgeBaseInjectedContextPromptTemplate(blankToNull(request.knowledgeBaseInjectedContextPromptTemplate()));
+        version.setKnowledgeBaseNoEvidencePromptTemplate(blankToNull(request.knowledgeBaseNoEvidencePromptTemplate()));
+        version.setKnowledgeBaseDisabledPromptTemplate(blankToNull(request.knowledgeBaseDisabledPromptTemplate()));
         return toProfileVersionView(agentProfileVersionRepository.save(version));
     }
 
@@ -204,6 +213,11 @@ public class AdminCommandService {
         return "You are agent " + profileName + " in the knowledge box system.";
     }
 
+    private String resolveSystemPrompt(String configuredPrompt, String profileName, AgentProfileVersionType agentType) {
+        String normalized = blankToNull(configuredPrompt);
+        return normalized != null ? normalized : defaultSystemPrompt(profileName, agentType);
+    }
+
     private void applyPublicChatSettings(ModelCatalog modelCatalog, boolean publicSelectable, boolean defaultForPublic) {
         if (modelCatalog.getModelType() != ModelType.CHAT) {
             if (publicSelectable || defaultForPublic) {
@@ -267,7 +281,12 @@ public class AdminCommandService {
                 version.getRerankModel(),
                 version.getTemperature(),
                 version.getRetrievalTopK(),
-                version.getReasoningBudget()
+                version.getReasoningBudget(),
+                version.getSystemPrompt(),
+                version.getKnowledgeBaseToolPromptTemplate(),
+                version.getKnowledgeBaseInjectedContextPromptTemplate(),
+                version.getKnowledgeBaseNoEvidencePromptTemplate(),
+                version.getKnowledgeBaseDisabledPromptTemplate()
         );
     }
 

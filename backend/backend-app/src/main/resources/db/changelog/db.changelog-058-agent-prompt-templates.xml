@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="058-001-agent-prompt-templates" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS knowledge_base_tool_prompt_template TEXT;
+
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS knowledge_base_injected_context_prompt_template TEXT;
+
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS knowledge_base_no_evidence_prompt_template TEXT;
+
+            ALTER TABLE agent_profile_version
+                ADD COLUMN IF NOT EXISTS knowledge_base_disabled_prompt_template TEXT;
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

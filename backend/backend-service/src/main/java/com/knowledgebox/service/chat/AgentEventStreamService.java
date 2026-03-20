@@ -202,9 +202,6 @@ final class AgentEventStreamService {
                     "hint",
                     java.util.Map.of("text", hintText)
             );
-            reasoningSteps.add("上下文提示：" + hintText);
-            processDetailFormatter.appendReasoning(processDetails, "上下文提示：" + hintText);
-            progressUpdater.update(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
         }
     }
 
@@ -233,7 +230,6 @@ final class AgentEventStreamService {
                     "tool.result",
                     java.util.Map.of("toolName", toolName)
             );
-            reasoningSteps.add("工具执行：" + toolName);
             ToolResultBlock toolResult = index < toolResults.size() ? toolResults.get(index) : null;
             AgentStreamState.PendingToolCall pendingToolCall = streamState.consumeToolCall(toolResult);
             processDetailFormatter.appendTool(

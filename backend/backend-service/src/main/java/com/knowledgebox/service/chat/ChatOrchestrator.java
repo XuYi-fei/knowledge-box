@@ -20,7 +20,6 @@ import io.agentscope.core.agent.EventType;
 import io.agentscope.core.agent.StreamOptions;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
-import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.message.ToolUseBlock;
 import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.tool.ToolExecutionContext;
@@ -435,9 +434,6 @@ public class ChatOrchestrator {
                     requestInput(task),
                     traceContext.requestSpanId()
             );
-            appendReasoningStep(reasoningSteps, processDetails, "已接收用户问题，正在分析检索意图");
-            updateProgress(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
-
             String historyCallId = startBackendCall(
                     traceContext,
                     rootBackendCallId,
@@ -475,7 +471,6 @@ public class ChatOrchestrator {
                         knowledgeBaseToolBound
                 );
                 completeBackendCall(traceContext, stubbedAnswerCallId, Map.of("answerLength", stubbed.answer().length(), "toolCalls", stubbed.toolCalls()));
-                appendReasoningStep(reasoningSteps, processDetails, "测试桩模式已完成检索，正在按流式方式输出答案");
                 String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
                 traceContext.setAnswerStreamSpanId(answerStreamSpanId);
                 agentExecutionTraceService.startSpan(
@@ -520,28 +515,8 @@ public class ChatOrchestrator {
                 return;
             }
 
-            appendReasoningStep(reasoningSteps, processDetails, "已装载历史上下文，准备执行 ReAct Agent");
-            updateProgress(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
-
             QueryExecutionPlan executionPlan = prepareExecutionPlan(task, traceContext, rootBackendCallId);
             QueryRoutingDecision routingDecision = executionPlan.routingDecision();
-            if (executionPlan.retrievalAttempted()) {
-                appendReasoningStep(
-                        reasoningSteps,
-                        processDetails,
-                        executionPlan.retrievedChunks().isEmpty()
-                                ? "已执行前置知识库检索，但未命中足够相关的公开文档"
-                                : "已执行前置知识库检索，命中 " + executionPlan.retrievedChunks().size() + " 条公开知识片段"
-                );
-            } else {
-                appendReasoningStep(
-                        reasoningSteps,
-                        processDetails,
-                        "查询路由[" + routingDecision.source() + "]："
-                                + (routingDecision.enableKnowledgeBase() ? "启用知识库工具" : "跳过知识库工具")
-                );
-            }
-            updateProgress(task, reasoningSteps, processDetails, answerBuilder.toString(), "thinking");
 
             String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
             traceContext.setAnswerStreamSpanId(answerStreamSpanId);
@@ -666,9 +641,6 @@ public class ChatOrchestrator {
                 );
                 completeBackendCall(traceContext, fallbackRetrievalCallId, Map.of("hits", retrievedChunks.size(), "mode", "fallback"));
             }
-            List<String> completedReasoningSteps = buildReasoningSteps(streamState.finalMessage, toolCalls, retrievedChunks);
-            reasoningSteps.clear();
-            reasoningSteps.addAll(completedReasoningSteps);
             chatProcessDetailFormatter.completeOpenReasoning(processDetails);
             throwIfCancelled(control);
             String finalAnswer = finalizeAnswer(answerBuilder.toString(), executionPlan, retrievedChunks);
@@ -1062,15 +1034,6 @@ public class ChatOrchestrator {
                 || (assistantTurn.getErrorMessage() != null && !assistantTurn.getErrorMessage().isBlank());
     }
 
-    private void appendReasoningStep(
-            List<String> reasoningSteps,
-            List<ChatProcessDetailView> processDetails,
-            String step
-    ) {
-        reasoningSteps.add(step);
-        chatProcessDetailFormatter.appendReasoning(processDetails, step);
-    }
-
     private void restartGenerationIfNeeded(Long userId, ChatTurn assistantTurn) {
         if (assistantTurn.getStatus() != ChatMessageStatus.PENDING && assistantTurn.getStatus() != ChatMessageStatus.STREAMING) {
             return;
@@ -1175,24 +1138,6 @@ public class ChatOrchestrator {
         return false;
     }
 
-    private List<String> buildReasoningSteps(Msg response, List<String> toolCalls, List<RetrievedChunk> retrievedChunks) {
-        List<String> reasoningSteps = new ArrayList<>();
-        reasoningSteps.add("已分析问题并构建回答计划");
-        String thinkingSummary = extractThinkingSummary(response);
-        if (!thinkingSummary.isBlank()) {
-            reasoningSteps.add("模型思考摘要：" + thinkingSummary);
-        }
-        if (!toolCalls.isEmpty()) {
-            reasoningSteps.add("已调用工具：" + String.join("、", toolCalls));
-        }
-        if (!retrievedChunks.isEmpty()) {
-            reasoningSteps.add("已检索到 " + retrievedChunks.size() + " 条知识片段并用于生成答案");
-        } else {
-            reasoningSteps.add("未命中知识片段，答案基于当前可用上下文生成");
-        }
-        return reasoningSteps;
-    }
-
     private StreamOptions buildStreamOptions() {
         return StreamOptions.builder()
                 .eventTypes(
@@ -1226,36 +1171,6 @@ public class ChatOrchestrator {
                 .distinct()
                 .toList();
     }
-
-    private String extractThinkingSummary(Msg response) {
-        if (response == null) {
-            return "";
-        }
-        List<ThinkingBlock> thinkingBlocks = response.getContentBlocks(ThinkingBlock.class);
-        if (thinkingBlocks.isEmpty()) {
-            return "";
-        }
-        StringBuilder summaryBuilder = new StringBuilder();
-        for (ThinkingBlock block : thinkingBlocks) {
-            String thinking = block.getThinking();
-            if (thinking == null || thinking.isBlank()) {
-                continue;
-            }
-            if (summaryBuilder.length() > 0) {
-                summaryBuilder.append(' ');
-            }
-            summaryBuilder.append(thinking.strip());
-            if (summaryBuilder.length() >= 120) {
-                break;
-            }
-        }
-        String summary = summaryBuilder.toString().trim();
-        if (summary.length() <= 120) {
-            return summary;
-        }
-        return summary.substring(0, 120) + "...";
-    }
-
 
     private AgentProfileVersion publishedProfile() {
         return agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.MAIN)

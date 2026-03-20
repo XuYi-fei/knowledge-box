@@ -335,7 +335,7 @@ class ChatOrchestratorTests {
         });
 
         assertThat(reasoningSteps).anyMatch(step -> step.startsWith("思考中："));
-        assertThat(reasoningSteps).anyMatch(step -> step.startsWith("上下文提示："));
+        assertThat(reasoningSteps).allMatch(step -> step.startsWith("思考中："));
         assertThat(answerBuilder).hasToString("这是总结输出");
         assertThat(streamState.toolCalls).contains("searchKnowledgeBase");
         assertThat(processDetails).anyMatch(detail ->
@@ -344,6 +344,7 @@ class ChatOrchestratorTests {
                         && detail.detail().contains("mcp")
                         && detail.detail().contains("执行结果：")
                         && detail.detail().contains("hit"));
+        assertThat(processDetails).noneMatch(detail -> "reasoning".equals(detail.kind()) && detail.summary().startsWith("上下文提示："));
         assertThat(streamState.finalMessage).isNotNull();
         assertThat(streamState.eventTypeCounts.getOrDefault(EventType.REASONING, 0)).isEqualTo(1);
         assertThat(streamState.eventTypeCounts.getOrDefault(EventType.TOOL_RESULT, 0)).isEqualTo(1);

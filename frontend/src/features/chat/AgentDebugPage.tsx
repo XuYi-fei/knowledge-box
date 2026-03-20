@@ -144,7 +144,7 @@ function createOptimisticAssistantMessage(messageId: string, chatModel?: string 
     role: 'assistant',
     content: '',
     status: 'PENDING',
-    reasoningSteps: ['已接收问题，正在创建回答流'],
+    reasoningSteps: [],
     processDetails: [],
     citations: [],
     toolCalls: [],

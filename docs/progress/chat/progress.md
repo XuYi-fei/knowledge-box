@@ -23,7 +23,7 @@
 - 助手消息现已新增“回复过程”时间线，用竖向步骤卡片展示思考、工具调用和最终回答，不再只显示单行思考摘要。
 - 助手消息“回复过程”时间线中的思考步骤图标现已区分进行中与已完成；流式期间仅当前思考步骤保持旋转，思考完成后会切换为完成态图标。
 - 助手消息“回复过程”展开态现已优先展示后端结构化 `processDetails`；思考步骤会显示更完整的阶段说明，工具调用会展示调用参数、调用 ID 和执行结果，不再与折叠摘要重复。
-- 普通聊天页现已默认隐藏内部路由类思考节点（如 `查询路由[binding]`）；这类编排状态仅在 `Agent 调试` 页继续完整展示，避免用户侧时间线噪声过高。
+- 聊天消息的过程持久化现已只保留真实模型 reasoning 与工具调用详情；编排层注入的“已接收/已装载/查询路由/上下文提示”等系统节点不再写入消息过程，也不会在历史恢复时反复出现。
 - 子 Agent Tool 现已兼容 `query`/`message` 两种入参；像 `web-search-agent` 这类原子 Agent 即使被父 Agent 以 `query` 调用，也会自动映射到 AgentScope 原生要求的 `message`，避免报参数校验失败。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
@@ -43,12 +43,14 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖主页与 Agent 调试页新增的助手消息“回复过程”时间线组件。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖“回复过程”时间线中思考步骤图标由进行中切换为完成态的前端改动。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页与 Agent 调试页对结构化 `processDetails` 的消费，以及展开态思考/工具详情展示。
-- 前端：`npm --prefix frontend run build` 可通过，已覆盖普通聊天页隐藏内部路由节点、`Agent 调试` 页保留完整内部过程的差异化时间线展示。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖移除 optimistic 假思考节点后，聊天页与 `Agent 调试` 页只展示真实 reasoning/tool 过程。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖知识库 Tool 绑定判定、Prompt 模板拼接和相关 Liquibase 字段迁移。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖 `process_details_json` 持久化、SSE/会话详情透传与时间线结构化详情格式化。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 `ALL/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT` 事件消费及工具详情展开回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖去除编排层注入 reasoning 节点、移除 `HINT` 落库，以及仅保留真实 reasoning/tool 的消息过程持久化。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 `HINT` 不再写入消息过程、工具详情仍保留，以及聊天取消态回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖子 Agent Tool 的 `query -> message` 兼容包装与注册链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=CompatibleSubAgentToolTests,AgentCapabilityAssemblyServiceTests test` 可通过，已覆盖子 Agent Tool 接受 `query` 别名、缺少参数时报清晰错误，以及工具装配回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖主链路对子 Agent 装配与约束校验的回归。

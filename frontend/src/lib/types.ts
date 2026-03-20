@@ -147,17 +147,12 @@ export type AgentProfileVersion = {
   publicDebug: boolean;
   agentType: 'MAIN' | 'ENTRY' | 'ORCHESTRATOR' | 'ATOMIC';
   chatModel: string;
-  routingModel: string | null;
   embeddingModel: string;
   rerankModel: string | null;
   temperature: number;
   retrievalTopK: number;
   reasoningBudget: number;
   systemPrompt: string | null;
-  knowledgeBaseToolPromptTemplate: string | null;
-  knowledgeBaseInjectedContextPromptTemplate: string | null;
-  knowledgeBaseNoEvidencePromptTemplate: string | null;
-  knowledgeBaseDisabledPromptTemplate: string | null;
 };
 
 export type ModelType = 'CHAT' | 'EMBEDDING' | 'RERANK';
@@ -462,7 +457,6 @@ export type AgentConfigSnapshot = {
   status: AgentProfileVersion['status'];
   published: boolean;
   chatModel: string;
-  routingModel: string;
   embeddingModel: string;
   rerankModel: string | null;
   temperature: number;

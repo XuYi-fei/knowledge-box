@@ -13,16 +13,11 @@ public record AgentProfileVersionView(
         boolean publicDebug,
         AgentProfileVersionType agentType,
         String chatModel,
-        String routingModel,
         String embeddingModel,
         String rerankModel,
         double temperature,
         int retrievalTopK,
         int reasoningBudget,
-        String systemPrompt,
-        String knowledgeBaseToolPromptTemplate,
-        String knowledgeBaseInjectedContextPromptTemplate,
-        String knowledgeBaseNoEvidencePromptTemplate,
-        String knowledgeBaseDisabledPromptTemplate
+        String systemPrompt
 ) {
 }

@@ -18,17 +18,12 @@ public record CreateAgentProfileRequest(
         @Size(max = 1000) String description,
         @NotNull AgentProfileVersionType agentType,
         @NotBlank @Size(max = 64) String chatModel,
-        @NotBlank @Size(max = 64) String routingModel,
         @NotBlank @Size(max = 64) String embeddingModel,
         @Size(max = 64) String rerankModel,
         @NotNull @DecimalMin("0.0") @DecimalMax("2.0") Double temperature,
         @NotNull @Min(1) Integer retrievalTopK,
         @NotNull @Min(0) Integer reasoningBudget,
         Boolean publicDebug,
-        @Size(max = 20000) String systemPrompt,
-        @Size(max = 20000) String knowledgeBaseToolPromptTemplate,
-        @Size(max = 20000) String knowledgeBaseInjectedContextPromptTemplate,
-        @Size(max = 20000) String knowledgeBaseNoEvidencePromptTemplate,
-        @Size(max = 20000) String knowledgeBaseDisabledPromptTemplate
+        @Size(max = 20000) String systemPrompt
 ) {
 }

@@ -88,18 +88,13 @@ class AdminCommandServiceTests {
                 "route user queries",
                 AgentProfileVersionType.ORCHESTRATOR,
                 "qwen-plus",
-                "qwen-plus",
                 "text-embedding-v3",
                 "gte-rerank",
                 0.3,
                 8,
                 2,
                 false,
-                "base prompt",
-                "kb tool prompt",
-                "kb injected prompt",
-                "kb no evidence prompt",
-                "kb disabled prompt"
+                "base prompt"
         ));
 
         assertThat(created.profileCode()).isEqualTo("router-agent");

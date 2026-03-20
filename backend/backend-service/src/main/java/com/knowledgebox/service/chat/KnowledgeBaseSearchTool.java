@@ -29,7 +29,7 @@ public class KnowledgeBaseSearchTool {
 
     @Tool(
             name = "searchKnowledgeBase",
-            description = "Search the internal knowledge base and return grounded snippets with document titles, headings and anchors before giving the final answer."
+            description = "Search the internal knowledge base and return grounded snippets with document titles, headings and anchors before giving the final answer. The result may contain no hits, so answer conservatively when evidence is insufficient."
     )
     public String searchKnowledgeBase(
             @ToolParam(name = "query", description = "The user question or retrieval query rewritten for semantic search.") String query,

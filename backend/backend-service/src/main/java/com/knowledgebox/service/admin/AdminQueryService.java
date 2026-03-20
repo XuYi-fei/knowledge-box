@@ -112,17 +112,12 @@ public class AdminQueryService {
                 Boolean.TRUE.equals(version.getPublicDebug()),
                 policyService.normalizeType(version.getAgentType()),
                 version.getChatModel(),
-                version.getRoutingModel(),
                 version.getEmbeddingModel(),
                 version.getRerankModel(),
                 version.getTemperature(),
                 version.getRetrievalTopK(),
                 version.getReasoningBudget(),
-                version.getSystemPrompt(),
-                version.getKnowledgeBaseToolPromptTemplate(),
-                version.getKnowledgeBaseInjectedContextPromptTemplate(),
-                version.getKnowledgeBaseNoEvidencePromptTemplate(),
-                version.getKnowledgeBaseDisabledPromptTemplate()
+                version.getSystemPrompt()
         );
     }
 

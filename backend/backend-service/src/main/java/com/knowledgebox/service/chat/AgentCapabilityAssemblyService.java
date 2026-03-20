@@ -380,9 +380,6 @@ public class AgentCapabilityAssemblyService {
         return chatModelFactory.createReActAgent(
                 childVersion,
                 childVersion.getChatModel(),
-                childCapabilities.knowledgeBaseToolBound(),
-                false,
-                false,
                 childCapabilities.toolkit(),
                 childCapabilities.skillBox(),
                 hooks,

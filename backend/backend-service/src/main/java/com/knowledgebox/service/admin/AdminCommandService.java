@@ -30,6 +30,15 @@ import org.springframework.util.StringUtils;
 @Service
 public class AdminCommandService {
 
+    private static final String DEFAULT_MAIN_SYSTEM_PROMPT = """
+            You are the main public supervisor agent for the knowledge base.
+            If the searchKnowledgeBase tool is available for this round, you must call it before writing the final answer.
+            Rewrite the user's request into a focused retrieval query when needed, use a small topK such as 3 to 6, and base repository-specific facts on retrieved evidence.
+            If the knowledge base does not provide enough evidence, say that clearly instead of fabricating details.
+            Do not expose hidden chain-of-thought.
+            Keep the final answer concise and structured.
+            """;
+
     private final AgentProfileRepository agentProfileRepository;
     private final AgentProfileVersionRepository agentProfileVersionRepository;
     private final ModelCatalogRepository modelCatalogRepository;
@@ -84,10 +93,6 @@ public class AdminCommandService {
         version.setStatus(ProfileStatus.DRAFT);
         version.setPublished(Boolean.FALSE);
         version.setSystemPrompt(resolveSystemPrompt(request.systemPrompt(), savedProfile.getName(), targetType));
-        version.setKnowledgeBaseToolPromptTemplate(blankToNull(request.knowledgeBaseToolPromptTemplate()));
-        version.setKnowledgeBaseInjectedContextPromptTemplate(blankToNull(request.knowledgeBaseInjectedContextPromptTemplate()));
-        version.setKnowledgeBaseNoEvidencePromptTemplate(blankToNull(request.knowledgeBaseNoEvidencePromptTemplate()));
-        version.setKnowledgeBaseDisabledPromptTemplate(blankToNull(request.knowledgeBaseDisabledPromptTemplate()));
         version.setToolBindings("[]");
         version.setMcpBindings("[]");
         version.setSkillBindings("[]");
@@ -96,17 +101,12 @@ public class AdminCommandService {
         version.setPublicDebug(Boolean.TRUE.equals(request.publicDebug()));
         policyService.validatePublicDebugSetting(version, request.publicDebug());
         version.setChatModel(requireEnabledModel(request.chatModel(), ModelType.CHAT).getCode());
-        version.setRoutingModel(requireEnabledModel(request.routingModel(), ModelType.CHAT).getCode());
+        version.setRoutingModel(version.getChatModel());
         version.setEmbeddingModel(requireEnabledModel(request.embeddingModel(), ModelType.EMBEDDING).getCode());
         version.setRerankModel(normalizeOptionalRerank(request.rerankModel()));
         version.setTemperature(request.temperature());
         version.setRetrievalTopK(request.retrievalTopK());
         version.setReasoningBudget(request.reasoningBudget());
-        version.setSystemPrompt(resolveSystemPrompt(request.systemPrompt(), version.getProfile().getName(), targetType));
-        version.setKnowledgeBaseToolPromptTemplate(blankToNull(request.knowledgeBaseToolPromptTemplate()));
-        version.setKnowledgeBaseInjectedContextPromptTemplate(blankToNull(request.knowledgeBaseInjectedContextPromptTemplate()));
-        version.setKnowledgeBaseNoEvidencePromptTemplate(blankToNull(request.knowledgeBaseNoEvidencePromptTemplate()));
-        version.setKnowledgeBaseDisabledPromptTemplate(blankToNull(request.knowledgeBaseDisabledPromptTemplate()));
         return toProfileVersionView(agentProfileVersionRepository.save(version));
     }
 
@@ -121,12 +121,13 @@ public class AdminCommandService {
         version.setPublicDebug(Boolean.TRUE.equals(request.publicDebug()));
         policyService.validatePublicDebugSetting(version, request.publicDebug());
         version.setChatModel(requireEnabledModel(request.chatModel(), ModelType.CHAT).getCode());
-        version.setRoutingModel(requireEnabledModel(request.routingModel(), ModelType.CHAT).getCode());
+        version.setRoutingModel(version.getChatModel());
         version.setEmbeddingModel(requireEnabledModel(request.embeddingModel(), ModelType.EMBEDDING).getCode());
         version.setRerankModel(normalizeOptionalRerank(request.rerankModel()));
         version.setTemperature(request.temperature());
         version.setRetrievalTopK(request.retrievalTopK());
         version.setReasoningBudget(request.reasoningBudget());
+        version.setSystemPrompt(resolveSystemPrompt(request.systemPrompt(), version.getProfile().getName(), targetType));
         return toProfileVersionView(agentProfileVersionRepository.save(version));
     }
 
@@ -208,7 +209,7 @@ public class AdminCommandService {
 
     private String defaultSystemPrompt(String profileName, AgentProfileVersionType agentType) {
         if (agentType == AgentProfileVersionType.MAIN) {
-            return "You are the main public supervisor agent for the knowledge base.";
+            return DEFAULT_MAIN_SYSTEM_PROMPT;
         }
         return "You are agent " + profileName + " in the knowledge box system.";
     }
@@ -276,17 +277,12 @@ public class AdminCommandService {
                 Boolean.TRUE.equals(version.getPublicDebug()),
                 policyService.normalizeType(version.getAgentType()),
                 version.getChatModel(),
-                version.getRoutingModel(),
                 version.getEmbeddingModel(),
                 version.getRerankModel(),
                 version.getTemperature(),
                 version.getRetrievalTopK(),
                 version.getReasoningBudget(),
-                version.getSystemPrompt(),
-                version.getKnowledgeBaseToolPromptTemplate(),
-                version.getKnowledgeBaseInjectedContextPromptTemplate(),
-                version.getKnowledgeBaseNoEvidencePromptTemplate(),
-                version.getKnowledgeBaseDisabledPromptTemplate()
+                version.getSystemPrompt()
         );
     }
 

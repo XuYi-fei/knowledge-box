@@ -21,7 +21,6 @@ import {
 type ProfileConfigFormValues = {
   agentType: AgentProfileVersion['agentType'];
   chatModel: string;
-  routingModel: string;
   embeddingModel: string;
   rerankModel?: string | null;
   temperature: number;
@@ -29,10 +28,6 @@ type ProfileConfigFormValues = {
   reasoningBudget: number;
   publicDebug: boolean;
   systemPrompt?: string;
-  knowledgeBaseToolPromptTemplate?: string;
-  knowledgeBaseInjectedContextPromptTemplate?: string;
-  knowledgeBaseNoEvidencePromptTemplate?: string;
-  knowledgeBaseDisabledPromptTemplate?: string;
 };
 
 type CreateProfileFormValues = ProfileConfigFormValues & {
@@ -275,10 +270,6 @@ export function ProfileVersionsPage() {
         rerankModel: values.rerankModel ?? null,
         description: values.description?.trim() || undefined,
         systemPrompt: values.systemPrompt?.trim() || null,
-        knowledgeBaseToolPromptTemplate: values.knowledgeBaseToolPromptTemplate?.trim() || null,
-        knowledgeBaseInjectedContextPromptTemplate: values.knowledgeBaseInjectedContextPromptTemplate?.trim() || null,
-        knowledgeBaseNoEvidencePromptTemplate: values.knowledgeBaseNoEvidencePromptTemplate?.trim() || null,
-        knowledgeBaseDisabledPromptTemplate: values.knowledgeBaseDisabledPromptTemplate?.trim() || null,
       }),
     onSuccess: () => {
       message.success('Agent 已创建');
@@ -304,10 +295,6 @@ export function ProfileVersionsPage() {
         ...values,
         rerankModel: values.rerankModel ?? null,
         systemPrompt: values.systemPrompt?.trim() || null,
-        knowledgeBaseToolPromptTemplate: values.knowledgeBaseToolPromptTemplate?.trim() || null,
-        knowledgeBaseInjectedContextPromptTemplate: values.knowledgeBaseInjectedContextPromptTemplate?.trim() || null,
-        knowledgeBaseNoEvidencePromptTemplate: values.knowledgeBaseNoEvidencePromptTemplate?.trim() || null,
-        knowledgeBaseDisabledPromptTemplate: values.knowledgeBaseDisabledPromptTemplate?.trim() || null,
       });
     },
     onSuccess: () => {
@@ -510,7 +497,6 @@ export function ProfileVersionsPage() {
     description: '',
     agentType: 'ENTRY',
     chatModel: defaultChatModel,
-    routingModel: defaultChatModel,
     embeddingModel: defaultEmbeddingModel,
     rerankModel: defaultRerankModel,
     temperature: 0.2,
@@ -518,10 +504,6 @@ export function ProfileVersionsPage() {
     reasoningBudget: 1,
     publicDebug: false,
     systemPrompt: '',
-    knowledgeBaseToolPromptTemplate: '',
-    knowledgeBaseInjectedContextPromptTemplate: '',
-    knowledgeBaseNoEvidencePromptTemplate: '',
-    knowledgeBaseDisabledPromptTemplate: '',
   }), [defaultChatModel, defaultEmbeddingModel, defaultRerankModel]);
 
   const toolCodeOptions = tools.map((item) => ({
@@ -713,11 +695,6 @@ export function ProfileVersionsPage() {
       ),
     },
     { title: '聊天模型', dataIndex: 'chatModel' },
-    {
-      title: '路由模型',
-      dataIndex: 'routingModel',
-      render: (value: AgentProfileVersion['routingModel']) => value ?? '-',
-    },
     { title: 'Embedding', dataIndex: 'embeddingModel' },
     {
       title: '状态',
@@ -734,7 +711,6 @@ export function ProfileVersionsPage() {
               profileForm.setFieldsValue({
                 agentType: record.agentType,
                 chatModel: record.chatModel,
-                routingModel: record.routingModel ?? record.chatModel,
                 embeddingModel: record.embeddingModel,
                 rerankModel: record.rerankModel ?? undefined,
                 temperature: record.temperature,
@@ -742,10 +718,6 @@ export function ProfileVersionsPage() {
                 reasoningBudget: record.reasoningBudget,
                 publicDebug: record.publicDebug,
                 systemPrompt: record.systemPrompt ?? '',
-                knowledgeBaseToolPromptTemplate: record.knowledgeBaseToolPromptTemplate ?? '',
-                knowledgeBaseInjectedContextPromptTemplate: record.knowledgeBaseInjectedContextPromptTemplate ?? '',
-                knowledgeBaseNoEvidencePromptTemplate: record.knowledgeBaseNoEvidencePromptTemplate ?? '',
-                knowledgeBaseDisabledPromptTemplate: record.knowledgeBaseDisabledPromptTemplate ?? '',
               });
               setProfileModalOpen(true);
             }}
@@ -995,9 +967,6 @@ export function ProfileVersionsPage() {
           <Form.Item label="聊天模型" name="chatModel" rules={[{ required: true, message: '请选择聊天模型' }]}>
             <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
-          <Form.Item label="路由模型" name="routingModel" rules={[{ required: true, message: '请选择路由模型' }]} extra="用于规则未命中时的轻量路由判定模型。">
-            <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
-          </Form.Item>
           <Form.Item label="Embedding 模型" name="embeddingModel" rules={[{ required: true, message: '请选择 embedding 模型' }]}>
             <Select options={embeddingOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
@@ -1018,40 +987,10 @@ export function ProfileVersionsPage() {
           <Form.Item
             label="系统提示词"
             name="systemPrompt"
-            extra="作为该 Agent 的基础系统提示词；知识库相关模板会按运行场景在其后追加。"
+            extra="作为该 Agent 的基础 system prompt。MAIN Agent 如需强制先查知识库，请直接在这里写明策略。"
           >
             <Input.TextArea rows={6} placeholder="留空则使用后端默认系统提示词" />
           </Form.Item>
-          <Card size="small" title="知识库提示词模板" styles={{ body: { paddingBottom: 0 } }}>
-            <Form.Item
-              label="知识库工具启用模板"
-              name="knowledgeBaseToolPromptTemplate"
-              extra="当该轮允许 Agent 主动调用知识库检索 Tool 时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-            <Form.Item
-              label="已注入知识片段模板"
-              name="knowledgeBaseInjectedContextPromptTemplate"
-              extra="当后端已预先检索并把知识片段注入上下文时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-            <Form.Item
-              label="未命中知识库模板"
-              name="knowledgeBaseNoEvidencePromptTemplate"
-              extra="当已经尝试检索但没有拿到足够证据时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-            <Form.Item
-              label="知识库关闭模板"
-              name="knowledgeBaseDisabledPromptTemplate"
-              extra="当当前 Agent 未绑定知识库工具或该轮明确关闭知识库时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-          </Card>
         </Form>
       </Modal>
 
@@ -1076,9 +1015,6 @@ export function ProfileVersionsPage() {
           <Form.Item label="聊天模型" name="chatModel" rules={[{ required: true, message: '请选择聊天模型' }]}>
             <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
-          <Form.Item label="路由模型" name="routingModel" rules={[{ required: true, message: '请选择路由模型' }]} extra="用于规则未命中时的轻量路由判定模型，建议选择低成本聊天模型。">
-            <Select options={chatOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
-          </Form.Item>
           <Form.Item label="Embedding 模型" name="embeddingModel" rules={[{ required: true, message: '请选择 embedding 模型' }]}>
             <Select options={embeddingOptions.map((item) => ({ label: `${item.displayName} (${item.code})`, value: item.code }))} />
           </Form.Item>
@@ -1099,40 +1035,10 @@ export function ProfileVersionsPage() {
           <Form.Item
             label="系统提示词"
             name="systemPrompt"
-            extra="作为该 Agent 的基础系统提示词；知识库相关模板会按运行场景在其后追加。"
+            extra="作为该 Agent 的基础 system prompt。MAIN Agent 如需强制先查知识库，请直接在这里写明策略。"
           >
             <Input.TextArea rows={6} placeholder="留空则使用后端默认系统提示词" />
           </Form.Item>
-          <Card size="small" title="知识库提示词模板" styles={{ body: { paddingBottom: 0 } }}>
-            <Form.Item
-              label="知识库工具启用模板"
-              name="knowledgeBaseToolPromptTemplate"
-              extra="当该轮允许 Agent 主动调用知识库检索 Tool 时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-            <Form.Item
-              label="已注入知识片段模板"
-              name="knowledgeBaseInjectedContextPromptTemplate"
-              extra="当后端已预先检索并把知识片段注入上下文时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-            <Form.Item
-              label="未命中知识库模板"
-              name="knowledgeBaseNoEvidencePromptTemplate"
-              extra="当已经尝试检索但没有拿到足够证据时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-            <Form.Item
-              label="知识库关闭模板"
-              name="knowledgeBaseDisabledPromptTemplate"
-              extra="当当前 Agent 未绑定知识库工具或该轮明确关闭知识库时追加。留空则使用默认模板。"
-            >
-              <Input.TextArea rows={5} placeholder="留空则使用默认模板" />
-            </Form.Item>
-          </Card>
         </Form>
       </Modal>
 

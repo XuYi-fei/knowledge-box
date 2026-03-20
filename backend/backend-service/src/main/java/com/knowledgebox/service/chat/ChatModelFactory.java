@@ -22,38 +22,6 @@ import org.springframework.http.HttpStatus;
 final class ChatModelFactory {
 
     private static final Logger log = LoggerFactory.getLogger(ChatModelFactory.class);
-    private static final String DEFAULT_KNOWLEDGE_BASE_TOOL_PROMPT = """
-            You operate in ReAct mode.
-            - For factual or system-specific questions, call the searchKnowledgeBase tool before writing the final answer.
-            - Base the final answer strictly on retrieved evidence when available.
-            - If evidence is insufficient, state the uncertainty clearly instead of fabricating details.
-            - Do not expose hidden chain-of-thought.
-            - Keep the final answer concise and structured.
-            """;
-    private static final String DEFAULT_KNOWLEDGE_BASE_INJECTED_CONTEXT_PROMPT = """
-            You operate in ReAct mode.
-            - Knowledge base tools are disabled because this request already has pre-retrieved knowledge snippets injected into the context.
-            - Treat the injected snippets as the primary evidence for repository-specific facts.
-            - If the injected evidence is incomplete, state the limitation clearly instead of fabricating details.
-            - Do not expose hidden chain-of-thought.
-            - Keep the final answer concise and structured.
-            """;
-    private static final String DEFAULT_KNOWLEDGE_BASE_NO_EVIDENCE_PROMPT = """
-            You operate in ReAct mode.
-            - A knowledge-base retrieval was executed before this answer, but no sufficiently relevant public snippets were found.
-            - You may still answer with general knowledge and current conversation context.
-            - Explicitly mention that the current knowledge base did not provide supporting evidence for this answer.
-            - Do not expose hidden chain-of-thought.
-            - Keep the final answer concise and structured.
-            """;
-    private static final String DEFAULT_KNOWLEDGE_BASE_DISABLED_PROMPT = """
-            You operate in ReAct mode.
-            - Knowledge base retrieval tools are intentionally disabled for this request to reduce latency.
-            - Answer using general capabilities and current conversation context.
-            - If the user asks for repository-specific facts, explicitly state that knowledge-base evidence is unavailable in this round.
-            - Do not expose hidden chain-of-thought.
-            - Keep the final answer concise and structured.
-            """;
 
     private final KnowledgeBoxProperties properties;
     private final String dashScopeApiKey;
@@ -68,9 +36,6 @@ final class ChatModelFactory {
     ReActAgent createReActAgent(
             AgentProfileVersion profile,
             String chatModelCode,
-            boolean enableKnowledgeBaseTool,
-            boolean hasInjectedKnowledgeContext,
-            boolean retrievalAttemptedWithoutEvidence,
             Toolkit toolkit,
             SkillBox skillBox,
             List<Hook> hooks,
@@ -79,12 +44,7 @@ final class ChatModelFactory {
         ReActAgent.Builder builder = ReActAgent.builder()
                 .name("knowledge-box-react-agent")
                 .description("Knowledge Box public chat agent")
-                .sysPrompt(buildSystemPrompt(
-                        profile,
-                        enableKnowledgeBaseTool,
-                        hasInjectedKnowledgeContext,
-                        retrievalAttemptedWithoutEvidence
-                ))
+                .sysPrompt(buildSystemPrompt(profile))
                 .model(buildChatModel(profile, chatModelCode))
                 .toolkit(toolkit == null ? new Toolkit() : toolkit)
                 .maxIters(8);
@@ -98,40 +58,6 @@ final class ChatModelFactory {
             builder.toolExecutionContext(toolExecutionContext);
         }
         return builder.build();
-    }
-
-    Model buildRoutingClassifierModel(String routingModelCode) {
-        if (shouldUseDashScopeCompatibleEndpoint(routingModelCode)) {
-            return OpenAIChatModel.builder()
-                    .apiKey(resolveDashScopeApiKey())
-                    .baseUrl(resolveDashScopeCompatibleBaseUrl())
-                    .modelName(routingModelCode)
-                    .stream(false)
-                    .generateOptions(buildRoutingClassifierGenerateOptions(routingModelCode))
-                    .build();
-        }
-        DashScopeChatModel.Builder builder = DashScopeChatModel.builder()
-                .apiKey(resolveDashScopeApiKey())
-                .modelName(routingModelCode)
-                .stream(false)
-                .enableThinking(Boolean.FALSE)
-                .defaultOptions(buildRoutingClassifierGenerateOptions(routingModelCode));
-        if (dashScopeBaseUrl != null && !dashScopeBaseUrl.isBlank()) {
-            builder.baseUrl(dashScopeBaseUrl.trim());
-        }
-        return builder.build();
-    }
-
-    GenerateOptions buildRoutingClassifierGenerateOptions(String routingModelCode) {
-        GenerateOptions.Builder options = GenerateOptions.builder()
-                .modelName(routingModelCode)
-                .stream(Boolean.FALSE)
-                .temperature(0D)
-                .maxTokens(8);
-        if (shouldUseDashScopeCompatibleEndpoint(routingModelCode)) {
-            options.additionalBodyParam("enable_thinking", false);
-        }
-        return options.build();
     }
 
     private Model buildChatModel(AgentProfileVersion profile, String chatModelCode) {
@@ -196,55 +122,8 @@ final class ChatModelFactory {
         return options.build();
     }
 
-    private String buildSystemPrompt(
-            AgentProfileVersion profile,
-            boolean enableKnowledgeBaseTool,
-            boolean hasInjectedKnowledgeContext,
-            boolean retrievalAttemptedWithoutEvidence
-    ) {
-        String profilePrompt = profile.getSystemPrompt() == null ? "" : profile.getSystemPrompt().trim();
-        if (enableKnowledgeBaseTool) {
-            return appendPrompt(profilePrompt, resolveKnowledgeBasePromptTemplate(
-                    profile.getKnowledgeBaseToolPromptTemplate(),
-                    DEFAULT_KNOWLEDGE_BASE_TOOL_PROMPT
-            ));
-        }
-        if (hasInjectedKnowledgeContext) {
-            return appendPrompt(profilePrompt, resolveKnowledgeBasePromptTemplate(
-                    profile.getKnowledgeBaseInjectedContextPromptTemplate(),
-                    DEFAULT_KNOWLEDGE_BASE_INJECTED_CONTEXT_PROMPT
-            ));
-        }
-        if (retrievalAttemptedWithoutEvidence) {
-            return appendPrompt(profilePrompt, resolveKnowledgeBasePromptTemplate(
-                    profile.getKnowledgeBaseNoEvidencePromptTemplate(),
-                    DEFAULT_KNOWLEDGE_BASE_NO_EVIDENCE_PROMPT
-            ));
-        }
-        return appendPrompt(profilePrompt, resolveKnowledgeBasePromptTemplate(
-                profile.getKnowledgeBaseDisabledPromptTemplate(),
-                DEFAULT_KNOWLEDGE_BASE_DISABLED_PROMPT
-        ));
-    }
-
-    private String resolveKnowledgeBasePromptTemplate(String configuredTemplate, String defaultTemplate) {
-        String configured = configuredTemplate == null ? "" : configuredTemplate.trim();
-        if (!configured.isBlank()) {
-            return configured;
-        }
-        return defaultTemplate.trim();
-    }
-
-    private String appendPrompt(String basePrompt, String extraPrompt) {
-        String base = basePrompt == null ? "" : basePrompt.trim();
-        String extra = extraPrompt == null ? "" : extraPrompt.trim();
-        if (base.isBlank()) {
-            return extra;
-        }
-        if (extra.isBlank()) {
-            return base;
-        }
-        return base + "\n\n" + extra;
+    private String buildSystemPrompt(AgentProfileVersion profile) {
+        return profile.getSystemPrompt() == null ? "" : profile.getSystemPrompt().trim();
     }
 
     private String resolveDashScopeApiKey() {

@@ -21,7 +21,6 @@ import io.agentscope.core.agent.StreamOptions;
 import io.agentscope.core.message.Msg;
 import io.agentscope.core.message.MsgRole;
 import io.agentscope.core.message.ToolUseBlock;
-import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.tool.ToolExecutionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +55,6 @@ public class ChatOrchestrator {
     private final AgentCapabilityAssemblyService agentCapabilityAssemblyService;
     private final ChatStreamBroker chatStreamBroker;
     private final ChatModelFactory chatModelFactory;
-    private final KnowledgeBaseRoutingService routingService;
     private final ChatStreamDeltaService chatStreamDeltaService;
     private final AgentEventStreamService agentEventStreamService;
     private final AssistantTurnAwaitService assistantTurnAwaitService;
@@ -89,7 +87,6 @@ public class ChatOrchestrator {
         this.chatStreamBroker = chatStreamBroker;
         this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
         this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
-        this.routingService = new KnowledgeBaseRoutingService(properties, chatModelFactory);
         this.chatStreamDeltaService = new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker);
         this.chatProcessDetailFormatter = new ChatProcessDetailFormatter(objectMapper);
         this.agentEventStreamService = new AgentEventStreamService(chatStreamDeltaService, agentExecutionTraceService, chatProcessDetailFormatter);
@@ -503,12 +500,9 @@ public class ChatOrchestrator {
                         new java.util.EnumMap<>(EventType.class),
                         new QueryRoutingDecision(
                                 true,
-                                "stub-mode",
+                                "STUB_MODE",
                                 "stub-responses-enabled",
-                                "stub",
-                                resolveRoutingModel(task.profile()),
-                                null,
-                                resolveRetrievalTriggerMode()
+                                "stub"
                         ),
                         rootBackendCallId
                 );
@@ -531,7 +525,6 @@ public class ChatOrchestrator {
                             "knowledgeBaseToolBound", executionPlan.knowledgeBaseToolBound(),
                             "enableKnowledgeBase", executionPlan.enableKnowledgeBaseTool(),
                             "historyTurns", history.size(),
-                            "retrievalTriggerMode", resolveRetrievalTriggerMode().name(),
                             "preRetrievedHits", executionPlan.retrievedChunks().size(),
                             "retrievalAttempted", executionPlan.retrievalAttempted()
                     ),
@@ -557,8 +550,6 @@ public class ChatOrchestrator {
                     task.profile(),
                     task.chatModelCode(),
                     executionPlan.enableKnowledgeBaseTool(),
-                    !executionPlan.retrievedChunks().isEmpty(),
-                    executionPlan.retrievalAttempted() && executionPlan.retrievedChunks().isEmpty(),
                     traceContext,
                     exchangeRuntime
             );
@@ -1243,8 +1234,6 @@ public class ChatOrchestrator {
             AgentProfileVersion profile,
             String chatModelCode,
             boolean enableKnowledgeBaseTool,
-            boolean hasInjectedKnowledgeContext,
-            boolean retrievalAttemptedWithoutEvidence,
             AgentExecutionTraceContext traceContext,
             ChatExchangeRuntime exchangeRuntime
     ) {
@@ -1269,9 +1258,6 @@ public class ChatOrchestrator {
         return chatModelFactory.createReActAgent(
                 profile,
                 chatModelCode,
-                enableKnowledgeBaseTool,
-                hasInjectedKnowledgeContext,
-                retrievalAttemptedWithoutEvidence,
                 capabilities.toolkit(),
                 capabilities.skillBox(),
                 hooks,
@@ -1417,22 +1403,6 @@ public class ChatOrchestrator {
         return value != null && !value.isBlank();
     }
 
-    private QueryRoutingDecision routeQuery(String query, AgentProfileVersion profile) {
-        return routingService.routeQuery(query, profile, this::invokeRoutingModel);
-    }
-
-    private String resolveRoutingModel(AgentProfileVersion profile) {
-        return routingService.resolveRoutingModel(profile);
-    }
-
-    protected String invokeRoutingModel(String query, String routingModelCode) {
-        return routingService.invokeRoutingModel(query, routingModelCode);
-    }
-
-    private GenerateOptions buildRoutingClassifierGenerateOptions(String routingModelCode) {
-        return routingService.buildRoutingClassifierGenerateOptions(routingModelCode);
-    }
-
     private Map<String, Integer> toEventTypeCountPayload(Map<EventType, Integer> eventTypeCounts) {
         Map<String, Integer> payload = new LinkedHashMap<>();
         for (EventType eventType : EventType.values()) {
@@ -1447,12 +1417,6 @@ public class ChatOrchestrator {
         payload.put("matchedRule", routingDecision.matchedRule());
         payload.put("reason", routingDecision.reason());
         payload.put("source", routingDecision.source());
-        payload.put("routingModel", routingDecision.routingModel());
-        payload.put("routingModelOutput", routingDecision.routingModelOutput());
-        payload.put(
-                "retrievalTriggerMode",
-                routingDecision.retrievalTriggerMode() == null ? null : routingDecision.retrievalTriggerMode().name()
-        );
         return payload;
     }
 
@@ -1465,10 +1429,7 @@ public class ChatOrchestrator {
         if (!knowledgeBaseToolBound) {
             return prepareKnowledgeBaseDisabledPlan(task, traceContext);
         }
-        if (resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE) {
-            return prepareAlwaysPreRetrievePlan(task, traceContext, rootBackendCallId, true);
-        }
-        return prepareModelRoutedPlan(task, traceContext, rootBackendCallId, true);
+        return prepareKnowledgeBaseToolEnabledPlan(task, traceContext, true);
     }
 
     private QueryExecutionPlan prepareKnowledgeBaseDisabledPlan(
@@ -1479,10 +1440,7 @@ public class ChatOrchestrator {
                 false,
                 "TOOL_NOT_BOUND",
                 "searchKnowledgeBase tool is not bound to the current agent version",
-                "binding",
-                null,
-                null,
-                resolveRetrievalTriggerMode()
+                "binding"
         );
         Map<String, Object> routePayload = routingPayload(routingDecision);
         routePayload.put("query", task.query());
@@ -1492,119 +1450,23 @@ public class ChatOrchestrator {
         return new QueryExecutionPlan(routingDecision, List.of(), false, false, false);
     }
 
-    private QueryExecutionPlan prepareAlwaysPreRetrievePlan(
+    private QueryExecutionPlan prepareKnowledgeBaseToolEnabledPlan(
             StreamTask task,
             AgentExecutionTraceContext traceContext,
-            String rootBackendCallId,
             boolean knowledgeBaseToolBound
     ) {
-        String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
-        agentExecutionTraceService.startSpan(
-                traceContext,
-                traceContext.requestSpanId(),
-                routingSpanId,
-                "query.route",
-                com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
-                Map.of(
-                        "query", task.query(),
-                        "knowledgeBaseToolBound", knowledgeBaseToolBound,
-                        "retrievalTriggerMode", KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name()
-                ),
-                Map.of()
-        );
-        String preRetrieveCallId = startBackendCall(
-                traceContext,
-                rootBackendCallId,
-                "KnowledgeBaseRetrievalService.search",
-                "SERVICE",
-                "search",
-                Map.of(
-                        "query", task.query(),
-                        "topK", task.profile().getRetrievalTopK(),
-                        "mode", "pre-retrieval"
-                ),
-                routingSpanId
-        );
-        List<RetrievedChunk> retrievedChunks = knowledgeBaseRetrievalService.search(
-                task.query(),
-                task.profile().getRetrievalTopK(),
-                traceContext,
-                preRetrieveCallId
-        );
-        completeBackendCall(traceContext, preRetrieveCallId, Map.of("hits", retrievedChunks.size(), "mode", "pre-retrieval"));
         QueryRoutingDecision routingDecision = new QueryRoutingDecision(
-                !retrievedChunks.isEmpty(),
-                KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name(),
-                "chat.retrieval-trigger-mode=ALWAYS_PRE_RETRIEVE",
-                "pre-retrieval",
-                null,
-                retrievedChunks.isEmpty() ? "NO_HIT" : "HIT",
-                KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE
-        );
-        Map<String, Object> routePayload = routingPayload(routingDecision);
-        routePayload.put("retrievalTriggerMode", KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE.name());
-        routePayload.put("preRetrievedHits", retrievedChunks.size());
-        routePayload.put("knowledgeBaseToolBound", knowledgeBaseToolBound);
-        agentExecutionTraceService.endSpan(
-                traceContext,
-                routingSpanId,
-                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
-                routePayload,
-                Map.of(),
-                null
-        );
-        agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
-        return new QueryExecutionPlan(routingDecision, retrievedChunks, false, true, knowledgeBaseToolBound);
-    }
-
-    private QueryExecutionPlan prepareModelRoutedPlan(
-            StreamTask task,
-            AgentExecutionTraceContext traceContext,
-            String rootBackendCallId,
-            boolean knowledgeBaseToolBound
-    ) {
-        String routingSpanId = agentExecutionTraceService.nextSpanIdValue();
-        agentExecutionTraceService.startSpan(
-                traceContext,
-                traceContext.requestSpanId(),
-                routingSpanId,
-                "query.route",
-                com.knowledgebox.domain.chat.AgentExecutionSpanType.ROUTING,
-                Map.of(
-                        "query", task.query(),
-                        "knowledgeBaseToolBound", knowledgeBaseToolBound
-                ),
-                Map.of()
-        );
-        String routeCallId = startBackendCall(
-                traceContext,
-                rootBackendCallId,
-                "KnowledgeBaseRoutingService.routeQuery",
-                "SERVICE",
-                "routeQuery",
-                Map.of("query", task.query()),
-                routingSpanId
-        );
-        QueryRoutingDecision routingDecision = routeQuery(task.query(), task.profile());
-        completeBackendCall(traceContext, routeCallId, routingPayload(routingDecision));
-        agentExecutionTraceService.endSpan(
-                traceContext,
-                routingSpanId,
-                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
-                routingPayload(routingDecision),
-                Map.of(),
-                null
+                true,
+                "TOOL_BOUND",
+                "searchKnowledgeBase tool is bound and enabled for this round",
+                "binding"
         );
         Map<String, Object> routePayload = routingPayload(routingDecision);
         routePayload.put("query", task.query());
         routePayload.put("knowledgeBaseToolBound", knowledgeBaseToolBound);
+        routePayload.put("retrievalAttempted", false);
         agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
-        return new QueryExecutionPlan(routingDecision, List.of(), routingDecision.enableKnowledgeBase(), false, knowledgeBaseToolBound);
-    }
-
-    private KnowledgeBoxProperties.RetrievalTriggerMode resolveRetrievalTriggerMode() {
-        KnowledgeBoxProperties.RetrievalTriggerMode mode = properties.getChat().getRetrievalTriggerMode();
-        return mode == null ? KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE : mode;
+        return new QueryExecutionPlan(routingDecision, List.of(), true, false, knowledgeBaseToolBound);
     }
 
     private String renderInjectedKnowledgeContext(QueryExecutionPlan executionPlan) {
@@ -1655,15 +1517,11 @@ public class ChatOrchestrator {
     }
 
     private boolean shouldRunFallbackRetrieval(QueryExecutionPlan executionPlan, List<RetrievedChunk> runtimeRetrievedChunks) {
-        return resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
-                && executionPlan.enableKnowledgeBaseTool()
-                && (runtimeRetrievedChunks == null || runtimeRetrievedChunks.isEmpty());
+        return false;
     }
 
     private boolean shouldRunFallbackRetrieval(boolean enableKnowledgeBase, List<RetrievedChunk> retrievedChunks) {
-        return resolveRetrievalTriggerMode() == KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED
-                && enableKnowledgeBase
-                && (retrievedChunks == null || retrievedChunks.isEmpty());
+        return false;
     }
 
     private String finalizeAnswer(String answer, QueryExecutionPlan executionPlan, List<RetrievedChunk> retrievedChunks) {

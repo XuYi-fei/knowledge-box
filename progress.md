@@ -14,7 +14,7 @@
 - 真实环境联调继续补齐：Redis、邮件、OSS、模型配置与部署链路仍需持续验证。
 - Agent 运行时配置继续完善：当前已补齐 Agent 级环境变量、外网搜索子 Agent 与配置 Bundle v2，后续重点转向真实联网场景联调。
 - Agent 启动导入链路已补齐：web-search 相关 bundle 现可在本地与远程部署时自动导入，后续重点转向真实环境下的首启验证与幂等性观察。
-- Agent 提示词配置继续细化：当前已支持在 Agent 版本上直接编辑基础 system prompt 与知识库场景模板，并把知识库能力切到按 Tool 绑定启用，后续重点转向真实多入口 Agent 的运营配置沉淀。
+- Agent 提示词配置继续细化：当前已收口为 Agent 版本基础 `systemPrompt`；MAIN 的知识库查询策略改由 `systemPrompt` + Tool 绑定共同表达，后续重点转向真实多入口 Agent 的运营配置沉淀。
 
 ## 模块索引
 
@@ -35,8 +35,10 @@
 - Agent 运行时 `PROCESS_ENV` 现已支持在缺少宿主环境变量时回退读取 Spring `Environment`，因此可直接从 `application-local.yml` 读取 `KB_TAVILY_API_KEY` 这类配置做本地启动联调。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 已通过，覆盖 Agent 创建删除、`MAIN` 唯一性与公开入口校验。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,ChatOrchestratorTests test` 已通过，覆盖 `publicDebug` 调试入口约束、按入口停止回答与删除 Agent 时的聊天/trace 清理。
-- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests test` 已通过，覆盖 Agent 版本级 prompt 模板、知识库 Tool 绑定判定、无知识库绑定入口跳过路由/检索，以及配置导入导出回归。
-- `npm --prefix frontend run build` 已通过，覆盖管理端 Agent 配置页新增的 system prompt 与四类知识库模板表单字段。
+- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests test` 已通过，覆盖 Agent 版本级 `systemPrompt`、知识库 Tool 绑定判定、无知识库绑定入口跳过路由/检索，以及配置导入导出回归。
+- `mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `npm --prefix frontend run build` 已通过，覆盖知识库分类路由移除、Agent 配置页去除路由模型显式配置，以及示例 bundle/seed 同步收口。
+- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AdminCommandServiceTests,PublishedProfileRoutingModelValidatorTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests test` 已通过，覆盖“绑定 KB tool 即启用 `searchKnowledgeBase`”、发布入口改校验 `chatModel`，以及 Agent/Bundle 导入导出对历史 `routingModel` 字段的兼容回填。
+- `npm --prefix frontend run build` 与 `mvn -q -pl backend/backend-app -am -DskipTests compile` 已通过，覆盖管理端移除知识库模板字段、MAIN 默认 `systemPrompt` 收口，以及 Agent/Bundle/seed 示例同步。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。
 

@@ -470,17 +470,16 @@ public class ConfigBundleAdminService {
             boolean published = readBoolean(item.get("published"), false);
             boolean publicDebug = readBoolean(item.get("publicDebug"), false);
             String chatModel = readRequiredText(item.get("chatModel"), "agents[%s].chatModel".formatted(index)).trim();
-            String routingModel = readRequiredText(item.get("routingModel"), "agents[%s].routingModel".formatted(index)).trim();
+            String routingModel = normalizeOptionalText(readOptionalText(item.get("routingModel"), null));
+            if (!StringUtils.hasText(routingModel)) {
+                routingModel = chatModel;
+            }
             String embeddingModel = readRequiredText(item.get("embeddingModel"), "agents[%s].embeddingModel".formatted(index)).trim();
             String rerankModel = normalizeOptionalText(readOptionalText(item.get("rerankModel"), null));
             double temperature = readDouble(item.get("temperature"), 0.2D);
             int retrievalTopK = readInt(item.get("retrievalTopK"), 6);
             int reasoningBudget = readInt(item.get("reasoningBudget"), 1);
             String systemPrompt = readRequiredText(item.get("systemPrompt"), "agents[%s].systemPrompt".formatted(index));
-            String knowledgeBaseToolPromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseToolPromptTemplate"), null));
-            String knowledgeBaseInjectedContextPromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseInjectedContextPromptTemplate"), null));
-            String knowledgeBaseNoEvidencePromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseNoEvidencePromptTemplate"), null));
-            String knowledgeBaseDisabledPromptTemplate = normalizeOptionalText(readOptionalText(item.get("knowledgeBaseDisabledPromptTemplate"), null));
             List<String> toolCodes = normalizeCodeList(item.get("toolCodes"));
             List<String> skillCodes = normalizeCodeList(item.get("skillCodes"));
             List<AgentConfigMcpBindingView> mcpBindings = normalizeMcpBindings(item.get("mcpBindings"));
@@ -502,10 +501,6 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
-                    knowledgeBaseToolPromptTemplate,
-                    knowledgeBaseInjectedContextPromptTemplate,
-                    knowledgeBaseNoEvidencePromptTemplate,
-                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -1002,7 +997,6 @@ public class ConfigBundleAdminService {
             }
         }
         validateEnabledModel(snapshot.chatModel(), ModelType.CHAT, key, errorsByKey, "chatModel");
-        validateEnabledModel(snapshot.routingModel(), ModelType.CHAT, key, errorsByKey, "routingModel");
         validateEnabledModel(snapshot.embeddingModel(), ModelType.EMBEDDING, key, errorsByKey, "embeddingModel");
         if (StringUtils.hasText(snapshot.rerankModel())) {
             validateEnabledModel(snapshot.rerankModel(), ModelType.RERANK, key, errorsByKey, "rerankModel");
@@ -1349,17 +1343,13 @@ public class ConfigBundleAdminService {
         version.setPublicDebug(snapshot.publicDebug());
         version.setAgentType(policyService.normalizeType(snapshot.agentType()));
         version.setChatModel(snapshot.chatModel());
-        version.setRoutingModel(snapshot.routingModel());
+        version.setRoutingModel(snapshot.chatModel());
         version.setEmbeddingModel(snapshot.embeddingModel());
         version.setRerankModel(snapshot.rerankModel());
         version.setTemperature(snapshot.temperature());
         version.setRetrievalTopK(snapshot.retrievalTopK());
         version.setReasoningBudget(snapshot.reasoningBudget());
         version.setSystemPrompt(snapshot.systemPrompt());
-        version.setKnowledgeBaseToolPromptTemplate(snapshot.knowledgeBaseToolPromptTemplate());
-        version.setKnowledgeBaseInjectedContextPromptTemplate(snapshot.knowledgeBaseInjectedContextPromptTemplate());
-        version.setKnowledgeBaseNoEvidencePromptTemplate(snapshot.knowledgeBaseNoEvidencePromptTemplate());
-        version.setKnowledgeBaseDisabledPromptTemplate(snapshot.knowledgeBaseDisabledPromptTemplate());
         version.setToolBindings("[]");
         version.setMcpBindings("[]");
         version.setSkillBindings("[]");
@@ -1383,10 +1373,6 @@ public class ConfigBundleAdminService {
                 snapshot.retrievalTopK(),
                 snapshot.reasoningBudget(),
                 snapshot.systemPrompt(),
-                snapshot.knowledgeBaseToolPromptTemplate(),
-                snapshot.knowledgeBaseInjectedContextPromptTemplate(),
-                snapshot.knowledgeBaseNoEvidencePromptTemplate(),
-                snapshot.knowledgeBaseDisabledPromptTemplate(),
                 snapshot.toolCodes(),
                 snapshot.skillCodes(),
                 snapshot.mcpBindings(),
@@ -1656,10 +1642,6 @@ public class ConfigBundleAdminService {
                     version.getRetrievalTopK(),
                     version.getReasoningBudget(),
                     version.getSystemPrompt(),
-                    version.getKnowledgeBaseToolPromptTemplate(),
-                    version.getKnowledgeBaseInjectedContextPromptTemplate(),
-                    version.getKnowledgeBaseNoEvidencePromptTemplate(),
-                    version.getKnowledgeBaseDisabledPromptTemplate(),
                     bindings.toolCodes(),
                     bindings.skillCodes(),
                     bindings.mcpBindings().stream()
@@ -2388,10 +2370,6 @@ public class ConfigBundleAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
-            String knowledgeBaseToolPromptTemplate,
-            String knowledgeBaseInjectedContextPromptTemplate,
-            String knowledgeBaseNoEvidencePromptTemplate,
-            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
@@ -2423,17 +2401,12 @@ public class ConfigBundleAdminService {
                     published,
                     publicDebug,
                     chatModel,
-                    routingModel,
                     embeddingModel,
                     rerankModel,
                     temperature,
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
-                    knowledgeBaseToolPromptTemplate,
-                    knowledgeBaseInjectedContextPromptTemplate,
-                    knowledgeBaseNoEvidencePromptTemplate,
-                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2459,10 +2432,6 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
-                    knowledgeBaseToolPromptTemplate,
-                    knowledgeBaseInjectedContextPromptTemplate,
-                    knowledgeBaseNoEvidencePromptTemplate,
-                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2497,10 +2466,6 @@ public class ConfigBundleAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
-            String knowledgeBaseToolPromptTemplate,
-            String knowledgeBaseInjectedContextPromptTemplate,
-            String knowledgeBaseNoEvidencePromptTemplate,
-            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,
@@ -2532,17 +2497,12 @@ public class ConfigBundleAdminService {
                     published,
                     publicDebug,
                     chatModel,
-                    routingModel,
                     embeddingModel,
                     rerankModel,
                     temperature,
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
-                    knowledgeBaseToolPromptTemplate,
-                    knowledgeBaseInjectedContextPromptTemplate,
-                    knowledgeBaseNoEvidencePromptTemplate,
-                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2568,10 +2528,6 @@ public class ConfigBundleAdminService {
                     retrievalTopK,
                     reasoningBudget,
                     systemPrompt,
-                    knowledgeBaseToolPromptTemplate,
-                    knowledgeBaseInjectedContextPromptTemplate,
-                    knowledgeBaseNoEvidencePromptTemplate,
-                    knowledgeBaseDisabledPromptTemplate,
                     toolCodes,
                     skillCodes,
                     mcpBindings,
@@ -2598,10 +2554,6 @@ public class ConfigBundleAdminService {
             int retrievalTopK,
             int reasoningBudget,
             String systemPrompt,
-            String knowledgeBaseToolPromptTemplate,
-            String knowledgeBaseInjectedContextPromptTemplate,
-            String knowledgeBaseNoEvidencePromptTemplate,
-            String knowledgeBaseDisabledPromptTemplate,
             List<String> toolCodes,
             List<String> skillCodes,
             List<AgentConfigMcpBindingView> mcpBindings,

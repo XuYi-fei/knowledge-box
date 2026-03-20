@@ -68,7 +68,6 @@ export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? 'http://localh
 type UpdateProfileVersionPayload = {
   agentType: AgentProfileVersion['agentType'];
   chatModel: string;
-  routingModel?: string | null;
   embeddingModel: string;
   rerankModel?: string | null;
   temperature: number;
@@ -76,10 +75,6 @@ type UpdateProfileVersionPayload = {
   reasoningBudget: number;
   publicDebug?: boolean;
   systemPrompt?: string | null;
-  knowledgeBaseToolPromptTemplate?: string | null;
-  knowledgeBaseInjectedContextPromptTemplate?: string | null;
-  knowledgeBaseNoEvidencePromptTemplate?: string | null;
-  knowledgeBaseDisabledPromptTemplate?: string | null;
 };
 
 type CreateProfilePayload = {
@@ -88,7 +83,6 @@ type CreateProfilePayload = {
   description?: string;
   agentType: AgentProfileVersion['agentType'];
   chatModel: string;
-  routingModel: string;
   embeddingModel: string;
   rerankModel?: string | null;
   temperature: number;
@@ -96,10 +90,6 @@ type CreateProfilePayload = {
   reasoningBudget: number;
   publicDebug?: boolean;
   systemPrompt?: string | null;
-  knowledgeBaseToolPromptTemplate?: string | null;
-  knowledgeBaseInjectedContextPromptTemplate?: string | null;
-  knowledgeBaseNoEvidencePromptTemplate?: string | null;
-  knowledgeBaseDisabledPromptTemplate?: string | null;
 };
 
 type UpdateProfileVersionBindingsPayload = {

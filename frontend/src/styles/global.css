@@ -356,11 +356,13 @@ a {
   width: 292px;
   flex: 0 0 292px;
   min-height: 0;
+  min-width: 0;
 }
 
 .chat-sidebar-shell {
   height: 100%;
   min-height: 0;
+  min-width: 0;
   padding: 12px;
   border-radius: 24px;
   background:
@@ -376,6 +378,7 @@ a {
 .chat-sidebar-bottom {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .chat-sidebar-brand {
@@ -383,6 +386,7 @@ a {
   align-items: center;
   gap: 12px;
   padding: 4px 4px 8px;
+  min-width: 0;
 }
 
 .chat-sidebar-brand-mark {
@@ -400,22 +404,69 @@ a {
 
 .chat-sidebar-brand-copy {
   display: grid;
+  min-width: 0;
 }
 
 .chat-sidebar-brand-title {
   font-weight: 700;
   color: #102a2b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-sidebar-brand-subtitle {
   font-size: 12px;
   color: rgba(16, 42, 43, 0.58);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-sidebar-primary.ant-btn {
+  width: 100%;
+  min-width: 0;
   height: 42px;
   border-radius: 14px;
   box-shadow: 0 12px 24px rgba(15, 118, 110, 0.18);
+}
+
+.chat-sidebar .ant-select,
+.chat-sidebar .ant-space,
+.chat-sidebar .ant-space-item,
+.chat-sidebar .ant-alert,
+.chat-sidebar .ant-tag {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chat-sidebar .ant-select {
+  width: 100%;
+}
+
+.chat-sidebar .ant-alert {
+  overflow: hidden;
+}
+
+.chat-sidebar .ant-alert-content,
+.chat-sidebar .ant-alert-message,
+.chat-sidebar .ant-alert-description {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-sidebar .ant-space {
+  width: 100%;
+}
+
+.chat-sidebar .ant-space-item {
+  overflow: hidden;
+}
+
+.chat-sidebar .ant-tag {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-sidebar-shortcuts {
@@ -560,6 +611,31 @@ a {
   color: rgba(16, 42, 43, 0.74);
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+
+.chat-sidebar-user .ant-space {
+  align-items: center;
+}
+
+.chat-sidebar-user .ant-space-item:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-sidebar-user .ant-btn {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.chat-sidebar-user .ant-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-sidebar-bottom .chat-sidebar-shortcuts {

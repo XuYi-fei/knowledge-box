@@ -1308,6 +1308,7 @@ export function AgentDebugPage() {
                                     status={item.status}
                                     content={item.content}
                                     errorMessage={item.errorMessage}
+                                    showInternalReasoning
                                   />
                                 ) : null}
 

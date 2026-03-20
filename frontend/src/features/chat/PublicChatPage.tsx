@@ -1180,6 +1180,7 @@ export function PublicChatPage() {
                                     status={item.status}
                                     content={item.content}
                                     errorMessage={item.errorMessage}
+                                    showInternalReasoning={false}
                                   />
                                 ) : null}
 

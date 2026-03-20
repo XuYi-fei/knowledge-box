@@ -17,6 +17,7 @@ type AssistantMessageProcessTimelineProps = {
   status: ChatMessageStatus;
   content: string;
   errorMessage?: string | null;
+  showInternalReasoning?: boolean;
 };
 
 type ProcessItem = {
@@ -127,9 +128,15 @@ function statusTagColor(tone: ProcessItem['statusTone']) {
   return 'processing';
 }
 
+function isInternalReasoningSummary(summary: string) {
+  const normalized = summary.replace(/\s+/g, ' ').trim();
+  return normalized.startsWith('查询路由[');
+}
+
 function buildProcessItemsFromDetails(
   messageId: string,
   processDetails: ChatProcessDetail[],
+  showInternalReasoning: boolean,
 ): ProcessItem[] {
   let reasoningIndex = 0;
   let toolIndex = 0;
@@ -146,22 +153,26 @@ function buildProcessItemsFromDetails(
     }
     return kind === 'tool' ? 'tool' : 'thinking';
   };
-  return processDetails.map((detail, index) => {
+  return processDetails.flatMap((detail, index) => {
     const kind = detail.kind === 'tool' ? 'tool' : 'reasoning';
+    const summary = detail.summary || '处理中';
+    if (!showInternalReasoning && kind === 'reasoning' && isInternalReasoningSummary(summary)) {
+      return [];
+    }
     if (kind === 'tool') {
       toolIndex += 1;
     } else {
       reasoningIndex += 1;
     }
-    return {
+    return [{
       key: `${messageId}-process-${index}`,
       kind,
       title: kind === 'tool' ? `工具调用 ${toolIndex}` : `思考 ${reasoningIndex}`,
-      summary: detail.summary || '处理中',
+      summary,
       detail: <Typography.Paragraph className="message-process-detail">{detail.detail || detail.summary}</Typography.Paragraph>,
       statusLabel: detail.statusLabel || (kind === 'tool' ? '已执行' : '已记录'),
       statusTone: resolveStatusTone(detail, kind),
-    };
+    }];
   });
 }
 
@@ -171,12 +182,16 @@ function buildProcessItems(
   toolCalls: string[],
   status: ChatMessageStatus,
   content: string,
+  showInternalReasoning: boolean,
   errorMessage?: string | null,
 ): ProcessItem[] {
   const items: ProcessItem[] = [];
+  const visibleReasoningSteps = showInternalReasoning
+    ? reasoningSteps
+    : reasoningSteps.filter((step) => !isInternalReasoningSummary(step));
 
-  reasoningSteps.forEach((step, index) => {
-    const reasoningStepStatus = reasoningStatus(index, reasoningSteps.length, status);
+  visibleReasoningSteps.forEach((step, index) => {
+    const reasoningStepStatus = reasoningStatus(index, visibleReasoningSteps.length, status);
     items.push({
       key: `${messageId}-reasoning-${index}`,
       kind: 'reasoning',
@@ -240,8 +255,11 @@ export function AssistantMessageProcessTimeline({
   status,
   content,
   errorMessage,
+  showInternalReasoning = false,
 }: AssistantMessageProcessTimelineProps) {
-  const baseItems = processDetails && processDetails.length ? buildProcessItemsFromDetails(messageId, processDetails) : buildProcessItems(messageId, reasoningSteps, toolCalls, status, content, errorMessage);
+  const baseItems = processDetails && processDetails.length
+    ? buildProcessItemsFromDetails(messageId, processDetails, showInternalReasoning)
+    : buildProcessItems(messageId, reasoningSteps, toolCalls, status, content, showInternalReasoning, errorMessage);
   const items = [...baseItems];
   if (processDetails && processDetails.length) {
     if (content || errorMessage || status !== 'PENDING') {

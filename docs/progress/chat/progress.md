@@ -23,6 +23,7 @@
 - 助手消息现已新增“回复过程”时间线，用竖向步骤卡片展示思考、工具调用和最终回答，不再只显示单行思考摘要。
 - 助手消息“回复过程”时间线中的思考步骤图标现已区分进行中与已完成；流式期间仅当前思考步骤保持旋转，思考完成后会切换为完成态图标。
 - 助手消息“回复过程”展开态现已优先展示后端结构化 `processDetails`；思考步骤会显示更完整的阶段说明，工具调用会展示调用参数、调用 ID 和执行结果，不再与折叠摘要重复。
+- 普通聊天页现已默认隐藏内部路由类思考节点（如 `查询路由[binding]`）；这类编排状态仅在 `Agent 调试` 页继续完整展示，避免用户侧时间线噪声过高。
 - 回答下方引用已内联展示，并可跳转到公开文档详情查看正文，不再依赖右侧单独资料栏。
 - 对话区已补齐稳定高度链与内部滚动约束；消息增多时只在会话主区和历史列表内滚动，不再把整页持续撑高。
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
@@ -41,6 +42,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖主页与 Agent 调试页新增的助手消息“回复过程”时间线组件。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖“回复过程”时间线中思考步骤图标由进行中切换为完成态的前端改动。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页与 Agent 调试页对结构化 `processDetails` 的消费，以及展开态思考/工具详情展示。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖普通聊天页隐藏内部路由节点、`Agent 调试` 页保留完整内部过程的差异化时间线展示。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖知识库 Tool 绑定判定、Prompt 模板拼接和相关 Liquibase 字段迁移。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。

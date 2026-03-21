@@ -1,7 +1,19 @@
 package com.knowledgebox.service.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knowledgebox.api.*;
+import com.knowledgebox.api.AgentExecutionTracePageView;
+import com.knowledgebox.api.ChatMessageRequest;
+import com.knowledgebox.api.ChatProcessDetailView;
+import com.knowledgebox.api.ChatResponse;
+import com.knowledgebox.api.ChatStreamEvent;
+import com.knowledgebox.api.DebugChatMessageRequest;
+import com.knowledgebox.api.PublicChatModelOptionView;
+import com.knowledgebox.api.PublicChatOptionsView;
+import com.knowledgebox.api.UserChatMessageView;
+import com.knowledgebox.api.UserChatSessionDetailView;
+import com.knowledgebox.api.UserChatSessionSummaryView;
+import com.knowledgebox.api.UserDebugChatEntryView;
+import com.knowledgebox.api.UserDebugChatOptionsView;
 import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.agent.AgentProfileVersion;
@@ -15,13 +27,8 @@ import com.knowledgebox.domain.chat.ChatTurn;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
 import com.knowledgebox.repository.ModelCatalogRepository;
 import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
-import io.agentscope.core.ReActAgent;
 import io.agentscope.core.agent.EventType;
 import io.agentscope.core.agent.StreamOptions;
-import io.agentscope.core.message.Msg;
-import io.agentscope.core.message.MsgRole;
-import io.agentscope.core.message.ToolUseBlock;
-import io.agentscope.core.tool.ToolExecutionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,38 +37,31 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.net.SocketException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class ChatOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(ChatOrchestrator.class);
 
-    private final KnowledgeBoxProperties properties;
     private final AgentProfileVersionRepository agentProfileVersionRepository;
     private final ModelCatalogRepository modelCatalogRepository;
     private final ConversationMemoryService conversationMemoryService;
-    private final AgentExecutionTraceService agentExecutionTraceService;
-    private final KnowledgeBaseRetrievalService knowledgeBaseRetrievalService;
     private final AgentCapabilityAssemblyService agentCapabilityAssemblyService;
     private final ChatStreamBroker chatStreamBroker;
-    private final ChatModelFactory chatModelFactory;
-    private final ChatStreamDeltaService chatStreamDeltaService;
-    private final AgentEventStreamService agentEventStreamService;
     private final AssistantTurnAwaitService assistantTurnAwaitService;
     private final ChatMessagePayloadService chatMessagePayloadService;
     private final AgentExecutionTraceQueryService agentExecutionTraceQueryService;
     private final ChatProcessDetailFormatter chatProcessDetailFormatter;
-    private final Map<String, RunningTaskControl> runningTasks = new ConcurrentHashMap<>();
+    private final ChatKnowledgeBasePlanService chatKnowledgeBasePlanService;
+    private final ChatGenerationExecutor chatGenerationExecutor;
+    private final Map<String, RunningChatTask> runningTasks = new ConcurrentHashMap<>();
 
     public ChatOrchestrator(
             KnowledgeBoxProperties properties,
@@ -77,21 +77,40 @@ public class ChatOrchestrator {
             @Value("${spring.ai.dashscope.api-key:${spring.ai.alibaba.dashscope.api-key:}}") String dashScopeApiKey,
             @Value("${spring.ai.dashscope.base-url:}") String dashScopeBaseUrl
     ) {
-        this.properties = properties;
         this.agentProfileVersionRepository = agentProfileVersionRepository;
         this.modelCatalogRepository = modelCatalogRepository;
         this.conversationMemoryService = conversationMemoryService;
-        this.agentExecutionTraceService = agentExecutionTraceService;
-        this.knowledgeBaseRetrievalService = knowledgeBaseRetrievalService;
         this.agentCapabilityAssemblyService = agentCapabilityAssemblyService;
         this.chatStreamBroker = chatStreamBroker;
         this.agentExecutionTraceQueryService = agentExecutionTraceQueryService;
-        this.chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
-        this.chatStreamDeltaService = new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker);
+        ChatModelFactory chatModelFactory = new ChatModelFactory(properties, dashScopeApiKey, dashScopeBaseUrl);
+        ChatStreamDeltaService chatStreamDeltaService = new ChatStreamDeltaService(conversationMemoryService, chatStreamBroker);
         this.chatProcessDetailFormatter = new ChatProcessDetailFormatter(objectMapper);
-        this.agentEventStreamService = new AgentEventStreamService(chatStreamDeltaService, agentExecutionTraceService, chatProcessDetailFormatter);
+        AgentEventStreamService agentEventStreamService = new AgentEventStreamService(
+                chatStreamDeltaService,
+                agentExecutionTraceService,
+                chatProcessDetailFormatter
+        );
         this.assistantTurnAwaitService = new AssistantTurnAwaitService(conversationMemoryService);
         this.chatMessagePayloadService = new ChatMessagePayloadService(conversationMemoryService);
+        this.chatKnowledgeBasePlanService = new ChatKnowledgeBasePlanService(
+                agentCapabilityAssemblyService,
+                agentExecutionTraceService,
+                knowledgeBaseRetrievalService
+        );
+        this.chatGenerationExecutor = new ChatGenerationExecutor(
+                properties,
+                conversationMemoryService,
+                agentExecutionTraceService,
+                knowledgeBaseRetrievalService,
+                agentCapabilityAssemblyService,
+                chatStreamBroker,
+                chatModelFactory,
+                chatStreamDeltaService,
+                agentEventStreamService,
+                chatProcessDetailFormatter,
+                chatKnowledgeBasePlanService
+        );
     }
 
     public PublicChatOptionsView options() {
@@ -176,45 +195,6 @@ public class ChatOrchestrator {
         return stopInternal(userId, sessionId, messageId);
     }
 
-    private UserChatMessageView stopInternal(Long userId, String sessionId, String messageId) {
-        ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
-        if (!"assistant".equals(assistantTurn.getRole())) {
-            throw new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_NOT_ASSISTANT", "当前消息不是助手回答");
-        }
-        if (assistantTurn.getStatus() == ChatMessageStatus.COMPLETED
-                || assistantTurn.getStatus() == ChatMessageStatus.FAILED
-                || assistantTurn.getStatus() == ChatMessageStatus.CANCELLED) {
-            return conversationMemoryService.messageView(userId, sessionId, messageId);
-        }
-        RunningTaskControl control = runningTasks.get(messageId);
-        if (control != null) {
-            control.cancelByUser();
-            Thread worker = control.worker();
-            if (worker != null) {
-                worker.interrupt();
-            }
-        }
-        ChatMessagePayload existingPayload = chatMessagePayloadService.resolvePayload(assistantTurn);
-        List<ChatProcessDetailView> processDetails = new ArrayList<>(existingPayload.processDetails());
-        chatProcessDetailFormatter.completeOpenReasoning(processDetails);
-        ChatTurn cancelledTurn = conversationMemoryService.cancelAssistantMessage(
-                userId,
-                sessionId,
-                messageId,
-                assistantTurn.getContent(),
-                existingPayload.reasoningSteps(),
-                processDetails,
-                "已停止回答"
-        );
-        chatStreamBroker.publish(
-                messageId,
-                "done",
-                snapshotEvent("stopped", sessionId, cancelledTurn, "")
-        );
-        chatStreamBroker.complete(messageId);
-        return conversationMemoryService.messageView(userId, sessionId, messageId);
-    }
-
     public ChatResponse answerLegacy(Long userId, com.knowledgebox.api.ChatRequest request) {
         String sessionId = request.sessionId() == null || request.sessionId().isBlank()
                 ? java.util.UUID.randomUUID().toString()
@@ -268,7 +248,7 @@ public class ChatOrchestrator {
                         existing.description(),
                         existing.available(),
                         existing.canStartNewConversation(),
-                    true
+                        true
                 ));
                 continue;
             }
@@ -362,6 +342,45 @@ public class ChatOrchestrator {
         return stopInternal(userId, sessionId, messageId);
     }
 
+    private UserChatMessageView stopInternal(Long userId, String sessionId, String messageId) {
+        ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
+        if (!"assistant".equals(assistantTurn.getRole())) {
+            throw new ApiException(org.springframework.http.HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_NOT_ASSISTANT", "当前消息不是助手回答");
+        }
+        if (assistantTurn.getStatus() == ChatMessageStatus.COMPLETED
+                || assistantTurn.getStatus() == ChatMessageStatus.FAILED
+                || assistantTurn.getStatus() == ChatMessageStatus.CANCELLED) {
+            return conversationMemoryService.messageView(userId, sessionId, messageId);
+        }
+        RunningChatTask control = runningTasks.get(messageId);
+        if (control != null) {
+            control.cancelByUser();
+            Thread worker = control.worker();
+            if (worker != null) {
+                worker.interrupt();
+            }
+        }
+        ChatMessagePayload existingPayload = chatMessagePayloadService.resolvePayload(assistantTurn);
+        List<ChatProcessDetailView> processDetails = new ArrayList<>(existingPayload.processDetails());
+        chatProcessDetailFormatter.completeOpenReasoning(processDetails);
+        ChatTurn cancelledTurn = conversationMemoryService.cancelAssistantMessage(
+                userId,
+                sessionId,
+                messageId,
+                assistantTurn.getContent(),
+                existingPayload.reasoningSteps(),
+                processDetails,
+                "已停止回答"
+        );
+        chatStreamBroker.publish(
+                messageId,
+                "done",
+                snapshotEvent("stopped", sessionId, cancelledTurn, "")
+        );
+        chatStreamBroker.complete(messageId);
+        return conversationMemoryService.messageView(userId, sessionId, messageId);
+    }
+
     private SseEmitter subscribe(Long userId, String sessionId, String messageId) {
         ChatTurn assistantTurn = conversationMemoryService.loadMessage(userId, sessionId, messageId);
         return subscribe(sessionId, assistantTurn);
@@ -399,596 +418,22 @@ public class ChatOrchestrator {
                 || turn.getStatus() == ChatMessageStatus.CANCELLED) {
             return;
         }
-        RunningTaskControl control = new RunningTaskControl(task.userId(), task.sessionId());
-        RunningTaskControl existing = runningTasks.putIfAbsent(task.assistantMessageId(), control);
+        RunningChatTask control = new RunningChatTask(task.userId(), task.sessionId());
+        RunningChatTask existing = runningTasks.putIfAbsent(task.assistantMessageId(), control);
         if (existing != null) {
             return;
         }
         Thread worker = Thread.ofVirtual()
                 .name("kb-chat-" + task.assistantMessageId())
-                .unstarted(() -> generate(task, control));
+                .unstarted(() -> {
+                    try {
+                        chatGenerationExecutor.generate(task, control);
+                    } finally {
+                        runningTasks.remove(task.assistantMessageId());
+                    }
+                });
         control.bind(worker);
         worker.start();
-    }
-
-    private void generate(StreamTask task, RunningTaskControl control) {
-        List<String> reasoningSteps = new ArrayList<>();
-        List<ChatProcessDetailView> processDetails = new ArrayList<>();
-        StringBuilder answerBuilder = new StringBuilder();
-        AgentExecutionTraceContext traceContext = null;
-        ChatExchangeRuntime exchangeRuntime = new ChatExchangeRuntime(task.sessionId());
-        String rootBackendCallId = null;
-        try {
-            throwIfCancelled(control);
-            traceContext = agentExecutionTraceService.startOrResumeTrace(task);
-            agentExecutionTraceService.bindMdc(traceContext, traceContext.requestSpanId());
-            rootBackendCallId = startBackendCall(
-                    traceContext,
-                    null,
-                    "ChatOrchestrator.generate",
-                    "ORCHESTRATOR",
-                    "generate",
-                    requestInput(task),
-                    traceContext.requestSpanId()
-            );
-            String historyCallId = startBackendCall(
-                    traceContext,
-                    rootBackendCallId,
-                    "ConversationMemoryService.history",
-                    "SERVICE",
-                    "history",
-                    Map.of("sessionCode", task.sessionId(), "historyTurns", properties.getChat().getHistoryTurns()),
-                    null
-            );
-            List<ChatTurn> history = conversationMemoryService.history(task.userId(), task.sessionId(), properties.getChat().getHistoryTurns());
-            completeBackendCall(traceContext, historyCallId, Map.of("turnCount", history.size()));
-            agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "request.received", Map.of(
-                    "query", task.query(),
-                    "historyTurns", history.size(),
-                    "profile", task.profileCode(),
-                    "chatModel", task.chatModelCode()
-            ));
-
-            if (properties.getChat().isStubResponses()) {
-                String stubbedAnswerCallId = startBackendCall(
-                        traceContext,
-                        rootBackendCallId,
-                        "ChatOrchestrator.stubbedAnswer",
-                        "SERVICE",
-                        "stubbedAnswer",
-                        Map.of("query", task.query(), "chatModel", task.chatModelCode()),
-                        null
-                );
-                boolean knowledgeBaseToolBound = agentCapabilityAssemblyService.hasKnowledgeBaseToolBound(task.profile().getId());
-                ChatResponse stubbed = stubbedAnswer(
-                        task.sessionId(),
-                        task.profile(),
-                        task.query(),
-                        task.chatModelCode(),
-                        knowledgeBaseToolBound
-                );
-                completeBackendCall(traceContext, stubbedAnswerCallId, Map.of("answerLength", stubbed.answer().length(), "toolCalls", stubbed.toolCalls()));
-                String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
-                traceContext.setAnswerStreamSpanId(answerStreamSpanId);
-                agentExecutionTraceService.startSpan(
-                        traceContext,
-                        traceContext.requestSpanId(),
-                        answerStreamSpanId,
-                        "answer.stream",
-                        com.knowledgebox.domain.chat.AgentExecutionSpanType.STREAM,
-                        Map.of("mode", "stub"),
-                        Map.of("streamMode", "stub")
-                );
-                chatStreamDeltaService.streamTextDelta(
-                        task,
-                        reasoningSteps,
-                        processDetails,
-                        answerBuilder,
-                        stubbed.answer(),
-                        properties.getChat().getStreamDelay(),
-                        () -> throwIfCancelled(control)
-                );
-                throwIfCancelled(control);
-                finishSuccessfully(
-                        task,
-                        traceContext,
-                        answerBuilder.toString(),
-                        reasoningSteps,
-                        processDetails,
-                        stubbed.citations(),
-                        stubbed.toolCalls(),
-                        new java.util.EnumMap<>(EventType.class),
-                        new QueryRoutingDecision(
-                                true,
-                                "STUB_MODE",
-                                "stub-responses-enabled",
-                                "stub"
-                        ),
-                        rootBackendCallId
-                );
-                return;
-            }
-
-            QueryExecutionPlan executionPlan = prepareExecutionPlan(task, traceContext, rootBackendCallId);
-            QueryRoutingDecision routingDecision = executionPlan.routingDecision();
-
-            String answerStreamSpanId = agentExecutionTraceService.nextSpanIdValue();
-            traceContext.setAnswerStreamSpanId(answerStreamSpanId);
-            agentExecutionTraceService.startSpan(
-                    traceContext,
-                    traceContext.requestSpanId(),
-                    answerStreamSpanId,
-                    "answer.stream",
-                    com.knowledgebox.domain.chat.AgentExecutionSpanType.STREAM,
-                    Map.of(
-                            "chatModel", task.chatModelCode(),
-                            "knowledgeBaseToolBound", executionPlan.knowledgeBaseToolBound(),
-                            "enableKnowledgeBase", executionPlan.enableKnowledgeBaseTool(),
-                            "historyTurns", history.size(),
-                            "preRetrievedHits", executionPlan.retrievedChunks().size(),
-                            "retrievalAttempted", executionPlan.retrievalAttempted()
-                    ),
-                    Map.of()
-            );
-
-            String createAgentCallId = startBackendCall(
-                    traceContext,
-                    rootBackendCallId,
-                    "ChatOrchestrator.createReActAgent",
-                    "SERVICE",
-                    "createReActAgent",
-                    Map.of(
-                            "chatModel", task.chatModelCode(),
-                            "knowledgeBaseToolBound", executionPlan.knowledgeBaseToolBound(),
-                            "enableKnowledgeBase", executionPlan.enableKnowledgeBaseTool(),
-                            "preRetrievedHits", executionPlan.retrievedChunks().size(),
-                            "retrievalAttempted", executionPlan.retrievalAttempted()
-                    ),
-                    answerStreamSpanId
-            );
-            ReActAgent agent = createReActAgent(
-                    task.profile(),
-                    task.chatModelCode(),
-                    executionPlan.enableKnowledgeBaseTool(),
-                    traceContext,
-                    exchangeRuntime
-            );
-            completeBackendCall(traceContext, createAgentCallId, Map.of("agentType", "ReActAgent"));
-            AgentStreamState streamState = new AgentStreamState();
-            final AgentExecutionTraceContext activeTraceContext = traceContext;
-            String agentStreamCallId = startBackendCall(
-                    traceContext,
-                    rootBackendCallId,
-                    "ReActAgent.stream",
-                    "STREAM",
-                    "stream",
-                    Map.of(
-                            "historyTurns", history.size(),
-                            "chatModel", task.chatModelCode(),
-                            "knowledgeBaseToolBound", executionPlan.knowledgeBaseToolBound(),
-                            "preRetrievedHits", executionPlan.retrievedChunks().size()
-                    ),
-                    answerStreamSpanId
-            );
-            agent.stream(toAgentScopeHistory(history, executionPlan), buildStreamOptions())
-                    .doOnNext(event -> {
-                        throwIfCancelled(control);
-                        agentExecutionTraceService.bindMdc(activeTraceContext, activeTraceContext.answerStreamSpanId());
-                        agentEventStreamService.consumeAgentEvent(
-                                task,
-                                activeTraceContext,
-                                reasoningSteps,
-                                processDetails,
-                                answerBuilder,
-                                streamState,
-                                event,
-                                this::updateProgress
-                        );
-                    })
-                    .blockLast();
-            completeBackendCall(traceContext, agentStreamCallId, Map.of("eventTypeCounts", toEventTypeCountPayload(streamState.eventTypeCounts)));
-            throwIfCancelled(control);
-
-            if (answerBuilder.isEmpty() && streamState.finalMessage != null) {
-                String fallbackAnswer = streamState.finalMessage.getTextContent();
-                if (fallbackAnswer != null && !fallbackAnswer.isBlank()) {
-                    chatStreamDeltaService.streamTextDelta(
-                            task,
-                            reasoningSteps,
-                            processDetails,
-                            answerBuilder,
-                            fallbackAnswer,
-                            Duration.ofMillis(12),
-                            () -> throwIfCancelled(control)
-                    );
-                }
-            }
-
-            List<String> toolCalls = exchangeRuntime.toolCalls();
-            if (toolCalls.isEmpty()) {
-                toolCalls = !streamState.toolCalls.isEmpty()
-                        ? new ArrayList<>(streamState.toolCalls)
-                        : extractToolCalls(streamState.finalMessage);
-            }
-            List<RetrievedChunk> retrievedChunks = mergeRetrievedChunks(
-                    executionPlan.retrievedChunks(),
-                    exchangeRuntime.retrievals()
-            );
-            if (shouldRunFallbackRetrieval(executionPlan, exchangeRuntime.retrievals())) {
-                String fallbackRetrievalCallId = startBackendCall(
-                        traceContext,
-                        rootBackendCallId,
-                        "KnowledgeBaseRetrievalService.search",
-                        "SERVICE",
-                        "search",
-                        Map.of("query", task.query(), "topK", task.profile().getRetrievalTopK()),
-                        null
-                );
-                retrievedChunks = knowledgeBaseRetrievalService.search(
-                        task.query(),
-                        task.profile().getRetrievalTopK(),
-                        traceContext,
-                        fallbackRetrievalCallId
-                );
-                completeBackendCall(traceContext, fallbackRetrievalCallId, Map.of("hits", retrievedChunks.size(), "mode", "fallback"));
-            }
-            chatProcessDetailFormatter.completeOpenReasoning(processDetails);
-            throwIfCancelled(control);
-            String finalAnswer = finalizeAnswer(answerBuilder.toString(), executionPlan, retrievedChunks);
-            if (!finalAnswer.equals(answerBuilder.toString())) {
-                answerBuilder.setLength(0);
-                answerBuilder.append(finalAnswer);
-            }
-            agentExecutionTraceService.endSpan(
-                    traceContext,
-                    answerStreamSpanId,
-                    com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
-                    Map.of(
-                            "answerLength", answerBuilder.length(),
-                            "toolCalls", toolCalls,
-                            "reasoningStepCount", reasoningSteps.size()
-                    ),
-                    Map.of(),
-                    null
-            );
-            finishSuccessfully(
-                    task,
-                    traceContext,
-                    finalAnswer,
-                    reasoningSteps,
-                    processDetails,
-                    toCitations(retrievedChunks),
-                    toolCalls,
-                    streamState.eventTypeCounts,
-                    routingDecision,
-                    rootBackendCallId
-            );
-        } catch (ChatGenerationCancelledException exception) {
-            log.info(
-                    "Chat generation was cancelled. userId={}, sessionId={}, assistantMessageId={}, cancelledByUser={}",
-                    task.userId(),
-                    task.sessionId(),
-                    task.assistantMessageId(),
-                    control.cancelledByUser()
-            );
-            chatStreamBroker.complete(task.assistantMessageId());
-            agentExecutionTraceService.cancelTrace(
-                    traceContext,
-                    control.cancelledByUser() ? "CHAT_CANCELLED_BY_USER" : "CHAT_CANCELLED",
-                    control.cancelledByUser() ? "generation cancelled by user" : "generation cancelled"
-            );
-        } catch (Exception exception) {
-            if (isCancellationException(exception)) {
-                log.info(
-                        "Chat generation interrupted by cancellation. userId={}, sessionId={}, assistantMessageId={}, cancelledByUser={}",
-                        task.userId(),
-                        task.sessionId(),
-                        task.assistantMessageId(),
-                        control.cancelledByUser()
-                );
-                chatStreamBroker.complete(task.assistantMessageId());
-                agentExecutionTraceService.cancelTrace(
-                        traceContext,
-                        control.cancelledByUser() ? "CHAT_CANCELLED_BY_USER" : "CHAT_CANCELLED",
-                        control.cancelledByUser() ? "generation cancelled by user" : "generation cancelled"
-                );
-                return;
-            }
-            if (isMessageMissing(exception)) {
-                log.info(
-                        "Chat generation stopped because target message/session no longer exists. userId={}, sessionId={}, assistantMessageId={}",
-                        task.userId(),
-                        task.sessionId(),
-                        task.assistantMessageId()
-                );
-                chatStreamBroker.complete(task.assistantMessageId());
-                agentExecutionTraceService.cancelTrace(traceContext);
-                return;
-            }
-            log.error(
-                    "Chat generation failed. userId={}, sessionId={}, assistantMessageId={}, chatModel={}",
-                    task.userId(),
-                    task.sessionId(),
-                    task.assistantMessageId(),
-                    task.chatModelCode(),
-                    exception
-            );
-            try {
-                chatProcessDetailFormatter.completeOpenReasoning(processDetails);
-                String failPersistCallId = startBackendCall(
-                        traceContext,
-                        rootBackendCallId,
-                        "ConversationMemoryService.failAssistantMessage",
-                        "PERSISTENCE",
-                        "failAssistantMessage",
-                        Map.of("assistantMessageId", task.assistantMessageId()),
-                        null
-                );
-                conversationMemoryService.failAssistantMessage(
-                        task.userId(),
-                        task.sessionId(),
-                        task.assistantMessageId(),
-                        answerBuilder.toString(),
-                        reasoningSteps,
-                        processDetails,
-                        "回答生成失败，请稍后重试"
-                );
-                completeBackendCall(traceContext, failPersistCallId, Map.of("status", ChatMessageStatus.FAILED.name()));
-                String publishErrorCallId = startBackendCall(
-                        traceContext,
-                        rootBackendCallId,
-                        "ChatStreamBroker.publish",
-                        "DELIVERY",
-                        "publish",
-                        Map.of("eventName", "error"),
-                        null
-                );
-                chatStreamBroker.publish(
-                        task.assistantMessageId(),
-                        "error",
-                        new ChatStreamEvent(
-                                "error",
-                                task.sessionId(),
-                                task.assistantMessageId(),
-                                "",
-                                answerBuilder.toString(),
-                                List.copyOf(reasoningSteps),
-                                List.copyOf(processDetails),
-                                List.of(),
-                                List.of(),
-                                ChatMessageStatus.FAILED.name(),
-                                task.chatModelCode(),
-                                "回答生成失败，请稍后重试"
-                        )
-                );
-                completeBackendCall(traceContext, publishErrorCallId, Map.of("eventName", "error"));
-            } catch (Exception updateException) {
-                if (!isMessageMissing(updateException) && !isCancellationException(updateException)) {
-                    throw updateException;
-                }
-            }
-            String completeErrorCallId = startBackendCall(
-                    traceContext,
-                    rootBackendCallId,
-                    "ChatStreamBroker.complete",
-                    "DELIVERY",
-                    "complete",
-                    Map.of("assistantMessageId", task.assistantMessageId()),
-                    null
-            );
-            chatStreamBroker.complete(task.assistantMessageId());
-            completeBackendCall(traceContext, completeErrorCallId, Map.of("completed", true));
-            agentExecutionTraceService.failTrace(traceContext, exception);
-        } finally {
-            runningTasks.remove(task.assistantMessageId());
-            agentExecutionTraceService.clearMdc();
-        }
-    }
-
-    private void finishSuccessfully(
-            StreamTask task,
-            AgentExecutionTraceContext traceContext,
-            String answer,
-            List<String> reasoningSteps,
-            List<ChatProcessDetailView> processDetails,
-            List<ChatCitationView> citations,
-            List<String> toolCalls,
-            Map<EventType, Integer> eventTypeCounts,
-            QueryRoutingDecision routingDecision,
-            String rootBackendCallId
-    ) {
-        String persistCallId = startBackendCall(
-                traceContext,
-                rootBackendCallId,
-                "ConversationMemoryService.completeAssistantMessage",
-                "PERSISTENCE",
-                "completeAssistantMessage",
-                Map.of("assistantMessageId", task.assistantMessageId()),
-                null
-        );
-        conversationMemoryService.completeAssistantMessage(
-                task.userId(),
-                task.sessionId(),
-                task.assistantMessageId(),
-                answer,
-                reasoningSteps,
-                processDetails,
-                citations,
-                toolCalls
-        );
-        completeBackendCall(traceContext, persistCallId, Map.of("status", ChatMessageStatus.COMPLETED.name(), "answerLength", answer.length()));
-        Map<String, Object> answerTracePayload = new LinkedHashMap<>();
-        answerTracePayload.put("toolCalls", toolCalls);
-        answerTracePayload.put("citations", citations.size());
-        answerTracePayload.put("routing", routingPayload(routingDecision));
-        answerTracePayload.put("eventTypeCounts", toEventTypeCountPayload(eventTypeCounts));
-        String finalizeSpanId = agentExecutionTraceService.nextSpanIdValue();
-        agentExecutionTraceService.startSpan(
-                traceContext,
-                traceContext.requestSpanId(),
-                finalizeSpanId,
-                "answer.finalize",
-                com.knowledgebox.domain.chat.AgentExecutionSpanType.FINALIZE,
-                Map.of(
-                        "toolCalls", toolCalls,
-                        "citationCount", citations.size(),
-                        "reasoningStepCount", reasoningSteps.size()
-                ),
-                Map.of()
-        );
-        agentExecutionTraceService.recordEvent(traceContext, finalizeSpanId, "final.response", Map.of(
-                "answer", answer,
-                "toolCalls", toolCalls,
-                "citations", citations,
-                "reasoningSteps", reasoningSteps
-        ));
-        agentExecutionTraceService.endSpan(
-                traceContext,
-                finalizeSpanId,
-                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
-                Map.of(
-                        "answer", answer,
-                        "toolCalls", toolCalls,
-                        "citations", citations,
-                        "eventTypeCounts", toEventTypeCountPayload(eventTypeCounts)
-                ),
-                Map.of(),
-                null
-        );
-        String publishDoneCallId = startBackendCall(
-                traceContext,
-                rootBackendCallId,
-                "ChatStreamBroker.publish",
-                "DELIVERY",
-                "publish",
-                Map.of("eventName", "done"),
-                null
-        );
-        chatStreamBroker.publish(
-                task.assistantMessageId(),
-                "done",
-                new ChatStreamEvent(
-                        "done",
-                        task.sessionId(),
-                        task.assistantMessageId(),
-                        "",
-                        answer,
-                        reasoningSteps,
-                        processDetails,
-                        citations,
-                        toolCalls,
-                        ChatMessageStatus.COMPLETED.name(),
-                        task.chatModelCode(),
-                        null
-                )
-        );
-        completeBackendCall(traceContext, publishDoneCallId, Map.of("eventName", "done"));
-        String completeStreamCallId = startBackendCall(
-                traceContext,
-                rootBackendCallId,
-                "ChatStreamBroker.complete",
-                "DELIVERY",
-                "complete",
-                Map.of("assistantMessageId", task.assistantMessageId()),
-                null
-        );
-        chatStreamBroker.complete(task.assistantMessageId());
-        completeBackendCall(traceContext, completeStreamCallId, Map.of("completed", true));
-        agentExecutionTraceService.completeTrace(traceContext, answerTracePayload);
-    }
-
-    private String startBackendCall(
-            AgentExecutionTraceContext traceContext,
-            String parentCallId,
-            String callName,
-            String callType,
-            String methodName,
-            Map<String, ?> input,
-            String relatedSpanId
-    ) {
-        if (traceContext == null) {
-            return null;
-        }
-        String callId = agentExecutionTraceService.nextBackendSpanIdValue();
-        agentExecutionTraceService.startBackendSpan(
-                traceContext,
-                parentCallId,
-                callId,
-                callName,
-                callType,
-                getServiceClass(callName),
-                methodName,
-                input,
-                relatedSpanId
-        );
-        return callId;
-    }
-
-    private void completeBackendCall(AgentExecutionTraceContext traceContext, String callId, Map<String, ?> output) {
-        if (traceContext == null || callId == null) {
-            return;
-        }
-        agentExecutionTraceService.endBackendSpan(
-                traceContext,
-                callId,
-                com.knowledgebox.domain.chat.AgentExecutionStatus.COMPLETED,
-                output,
-                null
-        );
-    }
-
-    private String getServiceClass(String callName) {
-        int separator = callName.indexOf('.');
-        if (separator <= 0) {
-            return callName;
-        }
-        return callName.substring(0, separator);
-    }
-
-    private Map<String, Object> requestInput(StreamTask task) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("sessionCode", task.sessionId());
-        payload.put("assistantMessageId", task.assistantMessageId());
-        payload.put("clientMessageId", task.clientMessageId());
-        payload.put("query", task.query());
-        payload.put("profileCode", task.profileCode());
-        payload.put("chatModel", task.chatModelCode());
-        return payload;
-    }
-
-    private void updateProgress(
-            StreamTask task,
-            List<String> reasoningSteps,
-            List<ChatProcessDetailView> processDetails,
-            String fullContent,
-            String delta
-    ) {
-        conversationMemoryService.markAssistantStreaming(
-                task.userId(),
-                task.sessionId(),
-                task.assistantMessageId(),
-                fullContent,
-                reasoningSteps,
-                processDetails
-        );
-        chatStreamBroker.publish(
-                task.assistantMessageId(),
-                "message",
-                new ChatStreamEvent(
-                        "thinking",
-                        task.sessionId(),
-                        task.assistantMessageId(),
-                        delta,
-                        fullContent,
-                        List.copyOf(reasoningSteps),
-                        List.copyOf(processDetails),
-                        List.of(),
-                        List.of(),
-                        ChatMessageStatus.STREAMING.name(),
-                        task.chatModelCode(),
-                        null
-                )
-        );
     }
 
     private ChatStreamEvent snapshotEvent(String type, String sessionId, ChatTurn assistantTurn, String delta) {
@@ -1081,7 +526,7 @@ public class ChatOrchestrator {
     }
 
     private void cancelMessageTask(String messageId) {
-        RunningTaskControl control = runningTasks.get(messageId);
+        RunningChatTask control = runningTasks.get(messageId);
         if (control == null) {
             chatStreamBroker.complete(messageId);
             return;
@@ -1092,75 +537,6 @@ public class ChatOrchestrator {
             worker.interrupt();
         }
         chatStreamBroker.complete(messageId);
-    }
-
-    private void throwIfCancelled(RunningTaskControl control) {
-        if (control.isCancelled() || Thread.currentThread().isInterrupted()) {
-            throw new ChatGenerationCancelledException();
-        }
-    }
-
-    private boolean isMessageMissing(Throwable throwable) {
-        if (!(throwable instanceof ApiException apiException)) {
-            return false;
-        }
-        return "MESSAGE_NOT_FOUND".equals(apiException.getCode()) || "SESSION_NOT_FOUND".equals(apiException.getCode());
-    }
-
-    private boolean isCancellationException(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof ChatGenerationCancelledException
-                    || current instanceof InterruptedException
-                    || current instanceof CancellationException) {
-                return true;
-            }
-            if (current instanceof SocketException socketException) {
-                String message = socketException.getMessage();
-                if (message != null && message.toLowerCase().contains("interrupt")) {
-                    return true;
-                }
-            }
-            if (current == current.getCause()) {
-                break;
-            }
-            current = current.getCause();
-        }
-        return false;
-    }
-
-    private StreamOptions buildStreamOptions() {
-        return StreamOptions.builder()
-                .eventTypes(
-                        EventType.REASONING,
-                        EventType.TOOL_RESULT,
-                        EventType.HINT,
-                        EventType.SUMMARY,
-                        EventType.AGENT_RESULT,
-                        EventType.ALL
-                )
-                .incremental(true)
-                .includeReasoningChunk(true)
-                .includeReasoningResult(false)
-                .includeActingChunk(true)
-                .includeSummaryChunk(true)
-                .includeSummaryResult(false)
-                .build();
-    }
-
-    private List<String> extractToolCalls(Msg response) {
-        if (response == null) {
-            return List.of();
-        }
-        List<ToolUseBlock> toolUseBlocks = response.getContentBlocks(ToolUseBlock.class);
-        if (toolUseBlocks.isEmpty()) {
-            return List.of();
-        }
-        return toolUseBlocks.stream()
-                .map(ToolUseBlock::getName)
-                .filter(name -> name != null && !name.isBlank())
-                .distinct()
-                .toList();
     }
 
     private AgentProfileVersion publishedProfile() {
@@ -1230,312 +606,43 @@ public class ChatOrchestrator {
                 .orElseThrow(() -> new IllegalArgumentException("Publicly selectable chat model not found: " + requestedChatModel));
     }
 
-    private ReActAgent createReActAgent(
-            AgentProfileVersion profile,
-            String chatModelCode,
-            boolean enableKnowledgeBaseTool,
-            AgentExecutionTraceContext traceContext,
-            ChatExchangeRuntime exchangeRuntime
-    ) {
-        AgentCapabilityAssemblyService.AgentRuntimeCapabilities capabilities = agentCapabilityAssemblyService.assemble(
-                profile.getId(),
-                enableKnowledgeBaseTool,
-                traceContext,
-                exchangeRuntime
-        );
-        List<io.agentscope.core.hook.Hook> hooks = new ArrayList<>();
-        if (capabilities.hooks() != null && !capabilities.hooks().isEmpty()) {
-            hooks.addAll(capabilities.hooks());
-        }
-        hooks.add(new AgentExecutionTraceHook(
-                agentExecutionTraceService,
-                traceContext,
-                traceContext.requestSpanId(),
-                traceContext::answerStreamSpanId,
-                null,
-                capabilities.subAgentToolMetadataByName()
-        ));
-        return chatModelFactory.createReActAgent(
-                profile,
-                chatModelCode,
-                capabilities.toolkit(),
-                capabilities.skillBox(),
-                hooks,
-                ToolExecutionContext.builder()
-                        .register(AgentExecutionTraceContext.class, traceContext)
-                        .register(ChatExchangeRuntime.class, exchangeRuntime)
-                        .register(AgentRuntimeEnvironment.class, capabilities.runtimeEnvironment())
-                        .build()
-        );
-    }
-
-    private List<Msg> toAgentScopeHistory(List<ChatTurn> history, QueryExecutionPlan executionPlan) {
-        List<Msg> messages = new ArrayList<>();
-        if (executionPlan.retrievalAttempted()) {
-            messages.add(Msg.builder()
-                    .name("knowledge-base-context")
-                    .role(MsgRole.SYSTEM)
-                    .textContent(renderInjectedKnowledgeContext(executionPlan))
-                    .build());
-        }
-        for (ChatTurn turn : history) {
-            MsgRole role = switch (turn.getRole()) {
-                case "user" -> MsgRole.USER;
-                case "assistant" -> MsgRole.ASSISTANT;
-                default -> null;
-            };
-            if (role == null) {
-                continue;
-            }
-            messages.add(Msg.builder()
-                    .role(role)
-                    .textContent(turn.getContent() == null ? "" : turn.getContent())
-                    .build());
-        }
-        return messages;
-    }
-
-    private ChatResponse stubbedAnswer(String sessionId, AgentProfileVersion profile, String query, String chatModelCode) {
-        return stubbedAnswer(sessionId, profile, query, chatModelCode, true);
-    }
-
-    private ChatResponse stubbedAnswer(
-            String sessionId,
-            AgentProfileVersion profile,
-            String query,
-            String chatModelCode,
-            boolean knowledgeBaseToolBound
-    ) {
-        if (!knowledgeBaseToolBound) {
-            return new ChatResponse(
-                    sessionId,
-                    "当前测试模式下该 Agent 未绑定知识库检索工具，因此不会执行知识库查询。",
-                    List.of(),
-                    List.of(),
-                    chatModelCode
-            );
-        }
-        List<RetrievedChunk> retrievedChunks = knowledgeBaseRetrievalService.search(query, profile.getRetrievalTopK());
-        List<String> toolCalls = retrievedChunks.isEmpty() ? List.of() : List.of("searchKnowledgeBase");
-        String answer;
-        if (retrievedChunks.isEmpty()) {
-            answer = "当前测试模式未检索到匹配知识片段，因此无法给出基于知识库的正式回答。";
-        } else {
-            StringBuilder builder = new StringBuilder("当前运行在测试桩模式，但检索链路已生效。命中的知识片段如下：\n");
-            for (RetrievedChunk chunk : retrievedChunks) {
-                builder.append("- ")
-                        .append(chunk.documentTitle())
-                        .append(" / ")
-                        .append(chunk.headingPath())
-                        .append("：")
-                        .append(chunk.snippet())
-                        .append('\n');
-            }
-            answer = builder.toString().trim();
-        }
-        return new ChatResponse(sessionId, answer, toCitations(retrievedChunks), toolCalls, chatModelCode);
-    }
-
-    private List<ChatCitationView> toCitations(List<RetrievedChunk> chunks) {
-        record CitationAggregate(
-                Long documentId,
-                String documentTitle,
-                LinkedHashSet<String> headingPaths,
-                String firstAnchor,
-                LinkedHashSet<String> snippets
-        ) {
-        }
-
-        Map<Long, CitationAggregate> aggregates = new LinkedHashMap<>();
-        for (RetrievedChunk chunk : chunks) {
-            if (!chunk.publicVisible()) {
-                continue;
-            }
-            CitationAggregate aggregate = aggregates.computeIfAbsent(
-                    chunk.documentId(),
-                    ignored -> new CitationAggregate(
-                            chunk.documentId(),
-                            chunk.documentTitle(),
-                            new LinkedHashSet<>(),
-                            chunk.anchor(),
-                            new LinkedHashSet<>()
-                    )
-            );
-            if (hasText(chunk.headingPath())) {
-                aggregate.headingPaths().add(chunk.headingPath().trim());
-            }
-            if (hasText(chunk.snippet())) {
-                aggregate.snippets().add(chunk.snippet().trim());
-            }
-        }
-
-        return aggregates.values().stream()
-                .map(aggregate -> new ChatCitationView(
-                        aggregate.documentId(),
-                        aggregate.documentTitle(),
-                        summarizeCitationText(aggregate.headingPaths(), "未分节"),
-                        aggregate.firstAnchor(),
-                        summarizeCitationText(aggregate.snippets(), "")
-                ))
-                .toList();
-    }
-
-    private String summarizeCitationText(LinkedHashSet<String> values, String fallback) {
-        if (values.isEmpty()) {
-            return fallback;
-        }
-        List<String> orderedValues = new ArrayList<>(values);
-        if (orderedValues.size() == 1) {
-            return orderedValues.getFirst();
-        }
-        StringBuilder builder = new StringBuilder(orderedValues.getFirst());
-        int previewCount = Math.min(orderedValues.size(), 2);
-        for (int index = 1; index < previewCount; index++) {
-            builder.append(" / ").append(orderedValues.get(index));
-        }
-        if (orderedValues.size() > previewCount) {
-            builder.append(" 等").append(orderedValues.size()).append("处");
-        }
-        return builder.toString();
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    private Map<String, Integer> toEventTypeCountPayload(Map<EventType, Integer> eventTypeCounts) {
-        Map<String, Integer> payload = new LinkedHashMap<>();
-        for (EventType eventType : EventType.values()) {
-            payload.put(eventType.name(), eventTypeCounts.getOrDefault(eventType, 0));
-        }
-        return payload;
-    }
-
-    private Map<String, Object> routingPayload(QueryRoutingDecision routingDecision) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("enableKnowledgeBase", routingDecision.enableKnowledgeBase());
-        payload.put("matchedRule", routingDecision.matchedRule());
-        payload.put("reason", routingDecision.reason());
-        payload.put("source", routingDecision.source());
-        return payload;
-    }
-
     private QueryExecutionPlan prepareExecutionPlan(
             StreamTask task,
             AgentExecutionTraceContext traceContext,
             String rootBackendCallId
     ) {
-        boolean knowledgeBaseToolBound = agentCapabilityAssemblyService.hasKnowledgeBaseToolBound(task.profile().getId());
-        if (!knowledgeBaseToolBound) {
-            return prepareKnowledgeBaseDisabledPlan(task, traceContext);
-        }
-        return prepareKnowledgeBaseToolEnabledPlan(task, traceContext, true);
-    }
-
-    private QueryExecutionPlan prepareKnowledgeBaseDisabledPlan(
-            StreamTask task,
-            AgentExecutionTraceContext traceContext
-    ) {
-        QueryRoutingDecision routingDecision = new QueryRoutingDecision(
-                false,
-                "TOOL_NOT_BOUND",
-                "searchKnowledgeBase tool is not bound to the current agent version",
-                "binding"
-        );
-        Map<String, Object> routePayload = routingPayload(routingDecision);
-        routePayload.put("query", task.query());
-        routePayload.put("knowledgeBaseToolBound", false);
-        routePayload.put("retrievalAttempted", false);
-        agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
-        return new QueryExecutionPlan(routingDecision, List.of(), false, false, false);
-    }
-
-    private QueryExecutionPlan prepareKnowledgeBaseToolEnabledPlan(
-            StreamTask task,
-            AgentExecutionTraceContext traceContext,
-            boolean knowledgeBaseToolBound
-    ) {
-        QueryRoutingDecision routingDecision = new QueryRoutingDecision(
-                true,
-                "TOOL_BOUND",
-                "searchKnowledgeBase tool is bound and enabled for this round",
-                "binding"
-        );
-        Map<String, Object> routePayload = routingPayload(routingDecision);
-        routePayload.put("query", task.query());
-        routePayload.put("knowledgeBaseToolBound", knowledgeBaseToolBound);
-        routePayload.put("retrievalAttempted", false);
-        agentExecutionTraceService.recordEvent(traceContext, traceContext.requestSpanId(), "query.routed", routePayload);
-        return new QueryExecutionPlan(routingDecision, List.of(), true, false, knowledgeBaseToolBound);
-    }
-
-    private String renderInjectedKnowledgeContext(QueryExecutionPlan executionPlan) {
-        if (!executionPlan.retrievalAttempted()) {
-            return "";
-        }
-        if (executionPlan.retrievedChunks().isEmpty()) {
-            return """
-                    A knowledge-base retrieval was executed for the current user request before model generation.
-                    Result: no sufficiently relevant public snippets were found.
-                    If you answer from general knowledge, explicitly mention that the current knowledge base did not provide supporting evidence in this round.
-                    """;
-        }
-        StringBuilder builder = new StringBuilder("""
-                The following knowledge-base snippets were retrieved before model generation.
-                Use them as the primary evidence for repository-specific facts.
-
-                """);
-        for (int index = 0; index < executionPlan.retrievedChunks().size(); index++) {
-            RetrievedChunk chunk = executionPlan.retrievedChunks().get(index);
-            builder.append(index + 1)
-                    .append(". [")
-                    .append(chunk.documentTitle())
-                    .append("] ")
-                    .append(chunk.headingPath())
-                    .append(" #")
-                    .append(chunk.anchor())
-                    .append('\n')
-                    .append(chunk.snippet())
-                    .append("\n\n");
-        }
-        return builder.toString().trim();
-    }
-
-    private List<RetrievedChunk> mergeRetrievedChunks(List<RetrievedChunk> preRetrieved, List<RetrievedChunk> runtimeRetrieved) {
-        LinkedHashMap<String, RetrievedChunk> merged = new LinkedHashMap<>();
-        if (preRetrieved != null) {
-            for (RetrievedChunk chunk : preRetrieved) {
-                merged.put(chunk.documentId() + "::" + chunk.anchor(), chunk);
-            }
-        }
-        if (runtimeRetrieved != null) {
-            for (RetrievedChunk chunk : runtimeRetrieved) {
-                merged.put(chunk.documentId() + "::" + chunk.anchor(), chunk);
-            }
-        }
-        return new ArrayList<>(merged.values());
+        return chatKnowledgeBasePlanService.prepareExecutionPlan(task, traceContext);
     }
 
     private boolean shouldRunFallbackRetrieval(QueryExecutionPlan executionPlan, List<RetrievedChunk> runtimeRetrievedChunks) {
-        return false;
+        return chatKnowledgeBasePlanService.shouldRunFallbackRetrieval(executionPlan, runtimeRetrievedChunks);
     }
 
     private boolean shouldRunFallbackRetrieval(boolean enableKnowledgeBase, List<RetrievedChunk> retrievedChunks) {
         return false;
     }
 
-    private String finalizeAnswer(String answer, QueryExecutionPlan executionPlan, List<RetrievedChunk> retrievedChunks) {
-        if (answer == null) {
-            return "";
-        }
-        if (!executionPlan.retrievalAttempted() || (retrievedChunks != null && !retrievedChunks.isEmpty())) {
-            return answer;
-        }
-        String normalized = answer.replaceAll("\\s+", "");
-        if (normalized.contains("知识库") && (normalized.contains("未检索到") || normalized.contains("证据不足") || normalized.contains("未提供支持"))) {
-            return answer;
-        }
-        return "当前知识库未检索到足够相关的公开文档，以下回答基于通用知识给出，仅供参考。\n\n" + answer;
+    private List<com.knowledgebox.api.ChatCitationView> toCitations(List<RetrievedChunk> chunks) {
+        return chatKnowledgeBasePlanService.toCitations(chunks);
+    }
+
+    private StreamOptions buildStreamOptions() {
+        return StreamOptions.builder()
+                .eventTypes(
+                        EventType.REASONING,
+                        EventType.TOOL_RESULT,
+                        EventType.HINT,
+                        EventType.SUMMARY,
+                        EventType.AGENT_RESULT,
+                        EventType.ALL
+                )
+                .incremental(true)
+                .includeReasoningChunk(true)
+                .includeReasoningResult(false)
+                .includeActingChunk(true)
+                .includeSummaryChunk(true)
+                .includeSummaryResult(false)
+                .build();
     }
 
     private void sleep(Duration duration) {
@@ -1543,66 +650,7 @@ public class ChatOrchestrator {
             Thread.sleep(duration.toMillis());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new ChatGenerationCancelledException();
+            throw new CancellationException("legacy wait interrupted");
         }
     }
-
-    private static final class ChatGenerationCancelledException extends RuntimeException {
-    }
-
-    private static final class RunningTaskControl {
-        private final Long userId;
-        private final String sessionId;
-        private final AtomicBoolean cancelled = new AtomicBoolean(false);
-        private final AtomicBoolean cancelledByUser = new AtomicBoolean(false);
-        private volatile Thread worker;
-
-        private RunningTaskControl(Long userId, String sessionId) {
-            this.userId = userId;
-            this.sessionId = sessionId;
-        }
-
-        private void bind(Thread worker) {
-            this.worker = worker;
-        }
-
-        private void cancel() {
-            this.cancelled.set(true);
-        }
-
-        private void cancelByUser() {
-            this.cancelled.set(true);
-            this.cancelledByUser.set(true);
-        }
-
-        private boolean isCancelled() {
-            return cancelled.get();
-        }
-
-        private boolean cancelledByUser() {
-            return cancelledByUser.get();
-        }
-
-        private Long userId() {
-            return userId;
-        }
-
-        private String sessionId() {
-            return sessionId;
-        }
-
-        private Thread worker() {
-            return worker;
-        }
-    }
-
-    private record QueryExecutionPlan(
-            QueryRoutingDecision routingDecision,
-            List<RetrievedChunk> retrievedChunks,
-            boolean enableKnowledgeBaseTool,
-            boolean retrievalAttempted,
-            boolean knowledgeBaseToolBound
-    ) {
-    }
-
 }

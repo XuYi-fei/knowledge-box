@@ -31,6 +31,8 @@
 - 回答下方“关联资料”摘要已压缩为更紧凑的两行预览，减少单条消息的纵向占用。
 - 聊天主消息区已补齐细滚动条与右侧内边距，避免粗滚动条与靠右的用户消息头像发生视觉重叠；引用详情页“返回对话”按钮已移到左上区域，返回路径更符合阅读流。
 - `Agent 调试` 页左侧边栏的选择框、标签和底部按钮现已补齐宽度约束与文本省略，避免按钮样式溢出侧栏宽度。
+- 聊天前端页面现已完成业务级拆分：`PublicChatPage` / `AgentDebugPage` 只保留入口差异，重复的会话状态机、SSE 消费、消息合并和通用布局已抽到共享聊天工作区模块，避免两份页面继续并行堆积逻辑。
+- 聊天后端主编排现已完成职责拆分：`ChatOrchestrator` 只保留入口编排、订阅与任务调度，回答生成主流程已抽到 `ChatGenerationExecutor`，知识库执行计划、citation 聚合与回答收尾已抽到 `ChatKnowledgeBasePlanService`。
 
 ## 已验证范围
 
@@ -46,6 +48,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页与 Agent 调试页对结构化 `processDetails` 的消费，以及展开态思考/工具详情展示。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖移除 optimistic 假思考节点后，聊天页与 `Agent 调试` 页只展示真实 reasoning/tool 过程。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖“回复过程”整体折叠开关、步骤计数展示，以及聊天页与 `Agent 调试` 页的共用时间线组件回归。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天共享工作区拆分后 `PublicChatPage` / `AgentDebugPage` 的页面瘦身、会话恢复、SSE 消费与通用布局回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖知识库 Tool 绑定判定、`systemPrompt` 直传和相关运行时装配回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AssistantTurnAwaitServiceTests test` 可通过，已覆盖 stop 接口、取消态快照和 legacy 等待分支的 `CANCELLED` 终态回归。
@@ -62,6 +65,7 @@
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests,ChatOrchestratorTests test` 可通过，已覆盖知识库 Tool 绑定装配、无知识库绑定入口跳过路由/检索，以及去除知识库模板字段后的导入导出回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖移除知识库分类路由、删除 `KnowledgeBaseRoutingService` 后的聊天编排主链路编译回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests test` 可通过，已覆盖“绑定 KB tool 即启用知识库工具、未绑定则关闭、且不再走分类模型/兜底检索”的主链路回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatKnowledgeBasePlanServiceTests,ChatOrchestratorTests,AssistantTurnAwaitServiceTests,CompatibleSubAgentToolTests,AgentCapabilityAssemblyServiceTests test` 可通过，已覆盖聊天主链路重构后的执行计划拆分、回答生成执行器兼容层与共享单测回归。
 
 ## 待继续推进
 

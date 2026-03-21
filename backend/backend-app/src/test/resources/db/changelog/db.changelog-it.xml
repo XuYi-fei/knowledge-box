@@ -220,7 +220,7 @@
                 tool_bindings, mcp_bindings, skill_bindings
             ) VALUES (
                 1, 1, 1, 'PUBLISHED', 'qwen-max', 'text-embedding-v3', 'gte-rerank',
-                0.2, 6, 1, TRUE, 'You are the public supervisor agent for the knowledge base.',
+                0.2, 6, 1, TRUE, 'You are the public supervisor agent for the knowledge base. If you include images in the final answer, never output the same image URL more than once in a single response.',
                 '["http-search"]', '[]', '["retrieval-critic"]'
             );
 
@@ -1338,6 +1338,16 @@
                  WHERE version_label = '2026.03.20'
                    AND title = '回复过程展开支持详细思考与工具结果'
             );
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="it-063-main-agent-image-dedup-prompt" author="codex">
+        <sql><![CDATA[
+            UPDATE agent_profile_version
+               SET system_prompt = E'You are the main public supervisor agent for the knowledge base.\nIf the searchKnowledgeBase tool is available for this round, you must call it before writing the final answer.\nRewrite the user''s request into a focused retrieval query when needed, use a small topK such as 3 to 6, and base repository-specific facts on retrieved evidence.\nIf the knowledge base does not provide enough evidence, say that clearly instead of fabricating details.\nIf you include images in the final answer, never output the same image URL more than once in a single response.\nDo not expose hidden chain-of-thought.\nKeep the final answer concise and structured.'
+             WHERE system_prompt = 'You are the public supervisor agent for the knowledge base.'
+                OR system_prompt = 'You are the public supervisor agent for the knowledge base. If you include images in the final answer, never output the same image URL more than once in a single response.'
+                OR system_prompt = E'You are the main public supervisor agent for the knowledge base.\nIf the searchKnowledgeBase tool is available for this round, you must call it before writing the final answer.\nRewrite the user''s request into a focused retrieval query when needed, use a small topK such as 3 to 6, and base repository-specific facts on retrieved evidence.\nIf the knowledge base does not provide enough evidence, say that clearly instead of fabricating details.\nDo not expose hidden chain-of-thought.\nKeep the final answer concise and structured.';
         ]]></sql>
     </changeSet>
 </databaseChangeLog>

@@ -35,6 +35,7 @@ public class AdminCommandService {
             If the searchKnowledgeBase tool is available for this round, you must call it before writing the final answer.
             Rewrite the user's request into a focused retrieval query when needed, use a small topK such as 3 to 6, and base repository-specific facts on retrieved evidence.
             If the knowledge base does not provide enough evidence, say that clearly instead of fabricating details.
+            If you include images in the final answer, never output the same image URL more than once in a single response.
             Do not expose hidden chain-of-thought.
             Keep the final answer concise and structured.
             """;

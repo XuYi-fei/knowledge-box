@@ -136,6 +136,46 @@ class AdminCommandServiceTests {
         verify(agentExecutionTraceRepository).deleteByProfileCode("router-agent");
     }
 
+    @Test
+    void shouldApplyImageDedupGuidanceToDefaultMainPrompt() {
+        when(agentProfileRepository.existsByCode("default-main")).thenReturn(false);
+        when(policyService.normalizeType(AgentProfileVersionType.MAIN)).thenReturn(AgentProfileVersionType.MAIN);
+        when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("qwen-max", ModelType.CHAT))
+                .thenReturn(Optional.of(model("qwen-max")));
+        when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("text-embedding-v3", ModelType.EMBEDDING))
+                .thenReturn(Optional.of(model("text-embedding-v3")));
+        when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("gte-rerank", ModelType.RERANK))
+                .thenReturn(Optional.of(model("gte-rerank")));
+        when(agentProfileRepository.save(any(AgentProfile.class))).thenAnswer(invocation -> {
+            AgentProfile profile = invocation.getArgument(0);
+            setId(profile, 8L);
+            return profile;
+        });
+        when(agentProfileVersionRepository.save(any(AgentProfileVersion.class))).thenAnswer(invocation -> {
+            AgentProfileVersion version = invocation.getArgument(0);
+            setId(version, 12L);
+            return version;
+        });
+
+        var created = service.createProfile(new CreateAgentProfileRequest(
+                "default-main",
+                "Default Main",
+                "public main agent",
+                AgentProfileVersionType.MAIN,
+                "qwen-max",
+                "text-embedding-v3",
+                "gte-rerank",
+                0.2,
+                6,
+                1,
+                false,
+                null
+        ));
+
+        assertThat(created.systemPrompt()).contains("never output the same image URL more than once");
+        assertThat(created.systemPrompt()).contains("searchKnowledgeBase tool is available");
+    }
+
     private ModelCatalog model(String code) {
         ModelCatalog modelCatalog = new ModelCatalog();
         modelCatalog.setCode(code);

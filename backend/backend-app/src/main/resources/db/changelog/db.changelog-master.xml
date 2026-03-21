@@ -67,4 +67,5 @@
     <include file="db/changelog/db.changelog-060-chat-process-timeline-release-note.xml"/>
     <include file="db/changelog/db.changelog-061-chat-process-details.xml"/>
     <include file="db/changelog/db.changelog-062-chat-process-details-release-note.xml"/>
+    <include file="db/changelog/db.changelog-063-main-agent-image-dedup-prompt.xml"/>
 </databaseChangeLog>

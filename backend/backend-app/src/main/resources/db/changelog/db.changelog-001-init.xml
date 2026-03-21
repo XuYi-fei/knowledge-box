@@ -189,7 +189,7 @@
                 tool_bindings, mcp_bindings, skill_bindings
             ) VALUES (
                 1, 1, 1, 'PUBLISHED', 'qwen-max', 'text-embedding-v3', 'gte-rerank',
-                0.2, 6, 1, TRUE, 'You are the public supervisor agent for the knowledge base.',
+                0.2, 6, 1, TRUE, 'You are the public supervisor agent for the knowledge base. If you include images in the final answer, never output the same image URL more than once in a single response.',
                 '["http-search"]', '[]', '["retrieval-critic"]'
             );
 

@@ -33,6 +33,7 @@
 - `Agent 调试` 页左侧边栏的选择框、标签和底部按钮现已补齐宽度约束与文本省略，避免按钮样式溢出侧栏宽度。
 - 聊天前端页面现已完成业务级拆分：`PublicChatPage` / `AgentDebugPage` 只保留入口差异，重复的会话状态机、SSE 消费、消息合并和通用布局已抽到共享聊天工作区模块，避免两份页面继续并行堆积逻辑。
 - 聊天后端主编排现已完成职责拆分：`ChatOrchestrator` 只保留入口编排、订阅与任务调度，回答生成主流程已抽到 `ChatGenerationExecutor`，知识库执行计划、citation 聚合与回答收尾已抽到 `ChatKnowledgeBasePlanService`。
+- MAIN 默认 `systemPrompt` 现已新增图片去重约束：若最终回答包含图片，同一图片 URL 在单条回答中只能输出一次；默认创建逻辑、bootstrap 示例与初始化/升级 changelog 已同步。
 
 ## 已验证范围
 
@@ -66,6 +67,7 @@
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖移除知识库分类路由、删除 `KnowledgeBaseRoutingService` 后的聊天编排主链路编译回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests test` 可通过，已覆盖“绑定 KB tool 即启用知识库工具、未绑定则关闭、且不再走分类模型/兜底检索”的主链路回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatKnowledgeBasePlanServiceTests,ChatOrchestratorTests,AssistantTurnAwaitServiceTests,CompatibleSubAgentToolTests,AgentCapabilityAssemblyServiceTests test` 可通过，已覆盖聊天主链路重构后的执行计划拆分、回答生成执行器兼容层与共享单测回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,ChatOrchestratorTests test` 可通过，已覆盖 MAIN 默认 prompt 新增“同一图片 URL 只输出一次”的约束，以及聊天入口侧兼容回归。
 
 ## 待继续推进
 

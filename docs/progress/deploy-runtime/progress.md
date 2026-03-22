@@ -15,6 +15,7 @@
 - 远程平铺部署脚本现已同步 `backend/bootstrap/` 目录，确保服务器重启时能读到 `web-search-agent` 相关 bundle。
 - 本地 `application-local.yml` 现已补充顶层 `DASHSCOPE_API_KEY`，远程 `knowledge-box.env` 也已明确由启动脚本自动导出；因此启动期 runtime-env-check 可同时覆盖本地 IDEA 启动与远程平铺部署。
 - 本地启动链路已验证可跑通，`/api/public/system/availability` 可正常返回 `UP`。
+- MAIN prompt 的图片去重约束现已改为通过新增 Liquibase 变更集增量升级，旧初始化 changeSet 已恢复原样，避免本地数据库因 checksum 变化直接启动失败。
 
 ## 已验证范围
 
@@ -23,6 +24,7 @@
 - 远程平铺部署脚本：`bash -n deploy/deploy-remote-flat.sh deploy/bin/start-backend-flat.sh deploy/bin/stop-backend-flat.sh` 与 `./deploy/deploy-remote-flat.sh --help` 可通过，已覆盖 `backend/bootstrap/` 同步改动。
 - 干跑：`./deploy/deploy-remote-flat.sh --skip-build --dry-run`、`--frontend-only`、`--backend-only` 已验证动作拆分正确。
 - 本地启动：`java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
+- 代码层面已恢复历史 Liquibase changeSet 原文，并将 prompt 修正迁移收口到新 `db.changelog-063-main-agent-image-dedup-prompt.xml`；后续启动不应再触发旧 changeSet checksum 校验失败。
 
 ## 待继续推进
 

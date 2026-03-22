@@ -81,6 +81,7 @@
 - 公开文库目录若底层存在不同 `importKey` 但标题和正文完全相同的公开文档，展示层需按“分类 + 标题 + 正文指纹”去重，否则分类计数和列表会把同一篇文章重复展示。
 - Agent 配置导入/导出与启动 bootstrap 统一使用 `profileCode` 作为稳定业务标识；跨环境迁移不要依赖数据库自增 `id`，重复 `profileCode` / `profileName` 启动期默认保留数据库现状。
 - 启动期 Agent / Config Bundle bootstrap 的 fail-fast 只能针对真实校验失败；“数据库已存在因此跳过”的幂等消息只能记录为 skip，不能阻断应用启动。
+- Liquibase 已执行过的历史 changeSet 不能直接改内容；涉及历史 seed/prompt/默认数据修正时，必须新增 changeSet 做增量更新，否则本地和线上都会因 checksum 校验失败而无法启动。
 - `published` 只保留给唯一 `MAIN` 公开主入口；用户侧可调试的 Entry Agent 必须使用单独的 `publicDebug` 字段表达，不要复用 `published` 承担两种语义。
 - 统一配置 Bundle 导入里的 Skill `packageLocation` 由服务端解析；后台上传的 JSON 不能引用管理员本机路径，需使用服务端可访问的 `file:` / `classpath:` 路径或约定的 `classpath:bootstrap/skills/<code>` 目录。
 - 用户主动停止对话回答时，助手消息必须持久化为独立 `CANCELLED` 终态并禁止自动 resume；不要把这种情况混入 `FAILED`。

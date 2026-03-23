@@ -24,7 +24,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖公开文档详情代码块双按钮复制工具条与 fenced code block 复制能力。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖公开文档分页、facet、详情与匿名访问接口。
 - 后端：已用只读 SQL 实查本地 `knowledge_document`，确认存在相同正文的重复正式文档时，当前公开文库目录已在服务层聚合去重。
-- 后端：`KnowledgeBoxPostgresIntegrationTests#shouldServeAnonymousPublicDocumentCatalogAndRespectVisibility` 已补充，但当前沙箱因 PostgreSQL 连接受限未实际跑通。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeBoxPostgresIntegrationTests#shouldServeAnonymousPublicDocumentCatalogAndRespectVisibility test` 可通过，已覆盖公开目录去重、匿名可见性边界，以及专栏文章按当前时间线顺序返回的详情链路。
 
 ## 待继续推进
 

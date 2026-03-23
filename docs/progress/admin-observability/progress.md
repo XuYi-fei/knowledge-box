@@ -45,6 +45,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖管理端 Agent 配置页移除知识库模板表单后的创建/编辑回填链路。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 Agent 配置页移除“路由模型”字段后的类型、表格与创建/编辑表单回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,PublishedProfileRoutingModelValidatorTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests test` 可通过，已覆盖发布入口改校验 `chatModel`、配置导入导出去除显式 `routingModel`，以及历史 bundle 兼容解析回归。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeBoxPostgresIntegrationTests#shouldLoadModelCatalogAndUpdateProfileVersion test` 可通过，已覆盖管理端更新 Agent 版本接口在移除显式 `routingModel` 后仍需携带 `agentType` 的当前请求契约。
 
 ## 待继续推进
 

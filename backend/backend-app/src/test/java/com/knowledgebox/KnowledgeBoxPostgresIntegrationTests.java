@@ -233,11 +233,10 @@ class KnowledgeBoxPostgresIntegrationTests {
         List<Map<String, Object>> columnDocuments = (List<Map<String, Object>>) detailResponse.getBody().get("columnDocuments");
         assertThat(columnDocuments)
                 .extracting(item -> item.get("title"))
-                .containsExactly("Java MCP 入门", "Java MCP 进阶", "Java 与 MCP");
+                .containsExactly("Java 与 MCP", "Java MCP 进阶", "Java MCP 入门");
         assertThat(columnDocuments)
-                .extracting(item -> item.get("id"))
-                .contains(javaMcp.documentId())
-                .contains(javaMcpFollowup.documentId());
+                .extracting(item -> ((Number) item.get("id")).longValue())
+                .contains(javaMcp.documentId(), javaMcpFollowup.documentId());
 
         assertThat(hiddenDetailResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -555,8 +554,8 @@ class KnowledgeBoxPostgresIntegrationTests {
         );
         RequestEntity<Map<String, Object>> request = new RequestEntity<>(
                 Map.of(
+                        "agentType", "MAIN",
                         "chatModel", "qwen-plus",
-                        "routingModel", "qwen-plus",
                         "embeddingModel", "text-embedding-v3",
                         "rerankModel", "gte-rerank",
                         "temperature", 0.4D,
@@ -577,7 +576,6 @@ class KnowledgeBoxPostgresIntegrationTests {
         assertThat(modelCatalogResponse.getBody()[0]).containsKeys("publicSelectable", "defaultForPublic");
         assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(updateResponse.getBody()).containsEntry("chatModel", "qwen-plus");
-        assertThat(updateResponse.getBody()).containsEntry("routingModel", "qwen-plus");
         assertThat(updateResponse.getBody()).containsEntry("retrievalTopK", 8);
     }
 

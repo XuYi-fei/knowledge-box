@@ -1068,6 +1068,42 @@ a {
   color: rgba(16, 42, 43, 0.62);
 }
 
+.message-process-toggle {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.message-process-toggle-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(16, 42, 43, 0.58);
+  flex: 0 0 auto;
+}
+
+.message-process-toggle-count,
+.message-process-toggle-label {
+  white-space: nowrap;
+}
+
+.message-process-toggle-icon {
+  font-size: 11px;
+  transition: transform 160ms ease;
+}
+
+.message-process-toggle.is-expanded .message-process-toggle-icon {
+  transform: rotate(90deg);
+}
+
 .message-process-list {
   display: grid;
   gap: 10px;
@@ -1527,6 +1563,12 @@ a {
   margin-bottom: 0;
 }
 
+.chat-markdown a {
+  color: #1677ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .chat-markdown pre {
   margin: 0;
   overflow: auto;
@@ -1728,6 +1770,12 @@ a {
 
 .admin-markdown > :last-child {
   margin-bottom: 0;
+}
+
+.admin-markdown a {
+  color: #1677ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .admin-markdown pre {

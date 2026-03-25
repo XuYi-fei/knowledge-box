@@ -21,6 +21,7 @@ const TraceDetailPage = lazy(() => import('../features/admin/TraceDetailPage').t
 const AboutPage = lazy(() => import('../features/chat/AboutPage').then((module) => ({ default: module.AboutPage })));
 const AgentDebugPage = lazy(() => import('../features/chat/AgentDebugPage').then((module) => ({ default: module.AgentDebugPage })));
 const KnowledgeIngestionPage = lazy(() => import('../features/chat/KnowledgeIngestionPage').then((module) => ({ default: module.KnowledgeIngestionPage })));
+const KnowledgeIngestionTasksPage = lazy(() => import('../features/chat/KnowledgeIngestionTasksPage').then((module) => ({ default: module.KnowledgeIngestionTasksPage })));
 const KnowledgeIngestionTaskPage = lazy(() => import('../features/chat/KnowledgeIngestionTaskPage').then((module) => ({ default: module.KnowledgeIngestionTaskPage })));
 const PublicChatPage = lazy(() => import('../features/chat/PublicChatPage').then((module) => ({ default: module.PublicChatPage })));
 const PublicArticlesPage = lazy(() => import('../features/chat/PublicArticlesPage').then((module) => ({ default: module.PublicArticlesPage })));
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
       { index: true, element: withSuspense(<PublicChatPage />) },
       { path: 'ingest', element: withSuspense(<KnowledgeIngestionPage />) },
       { path: 'ingest/:draftId', element: withSuspense(<KnowledgeIngestionPage />) },
+      { path: 'ingest/tasks', element: withSuspense(<KnowledgeIngestionTasksPage />) },
       { path: 'ingest/tasks/:taskId', element: withSuspense(<KnowledgeIngestionTaskPage />) },
       { path: 'agent-debug', element: withSuspense(<AgentDebugPage />) },
       { path: 'agent-debug/:profileCode', element: withSuspense(<AgentDebugPage />) },

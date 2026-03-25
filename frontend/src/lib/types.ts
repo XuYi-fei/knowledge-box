@@ -923,6 +923,7 @@ export type KnowledgeIngestionTask = {
   status: KnowledgeIngestionTaskStatus;
   stage: string;
   progressPercent: number;
+  summaryText: string | null;
   cancelRequested: boolean;
   failureReason: string | null;
   stages: KnowledgeIngestionTaskStage[];

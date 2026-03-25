@@ -35,7 +35,7 @@ export function KnowledgeIngestionTaskPage() {
     enabled: taskId != null,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status && ['QUEUED', 'RUNNING', 'PARTIAL_FAILED', 'CANCELLING'].includes(status) ? 2000 : false;
+      return status && ['QUEUED', 'RUNNING', 'PARTIAL_FAILED', 'CANCELLING'].includes(status) ? 1000 : false;
     },
   });
 
@@ -85,13 +85,25 @@ export function KnowledgeIngestionTaskPage() {
   return (
     <div className="chat-shell" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card className="chat-panel chat-card" title={`任务 · ${detail.taskCode}`} extra={<Tag color={stageColor(detail.status)}>{detail.status}</Tag>}>
+      <Card
+        className="chat-panel chat-card"
+        title={`任务 · ${detail.taskCode}`}
+        extra={(
+          <Space>
+            <Button type="link" onClick={() => void navigate('/ingest/tasks')}>
+              返回任务中心
+            </Button>
+            <Tag color={stageColor(detail.status)}>{detail.status}</Tag>
+          </Space>
+        )}
+      >
         <Row gutter={16}>
           <Col span={16}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <Typography.Text>原始文件：{detail.sourceFilename}</Typography.Text>
               <Typography.Text type="secondary">页数：{detail.pageCount ?? '未知'}</Typography.Text>
               <Progress percent={detail.progressPercent} status={detail.status === 'FAILED' ? 'exception' : 'active'} />
+              {detail.summaryText ? <Typography.Text type="secondary">{detail.summaryText}</Typography.Text> : null}
               {detail.failureReason ? <Alert type="error" message="任务报错" description={detail.failureReason} showIcon /> : null}
             </Space>
           </Col>
@@ -171,7 +183,12 @@ export function KnowledgeIngestionTaskPage() {
                 <Typography.Text>阶段：{selectedDocument.stage}</Typography.Text>
                 <Typography.Text>Status: {selectedDocument.status}</Typography.Text>
                 {selectedDocumentDetail?.confirmedReviewRequestCode ? (
-                  <Typography.Text>审核单：{selectedDocumentDetail.confirmedReviewRequestCode}</Typography.Text>
+                  <Space wrap>
+                    <Typography.Text>审核单：{selectedDocumentDetail.confirmedReviewRequestCode}</Typography.Text>
+                    <Button type="link" onClick={() => void navigate('/admin/document-reviews')}>
+                      前往审核页
+                    </Button>
+                  </Space>
                 ) : null}
                 {selectedDocumentDetail?.errorMessage ? (
                   <Alert type="error" showIcon message="子文档生成失败" description={selectedDocumentDetail.errorMessage} />

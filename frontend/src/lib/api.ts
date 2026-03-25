@@ -225,6 +225,7 @@ type RawKnowledgeIngestionTask = {
   stage: string;
   progressPercent: number;
   cancelRequested: boolean;
+  summaryText: string | null;
   errorMessage: string | null;
   stages: RawKnowledgeIngestionTaskStage[];
   documents: RawKnowledgeIngestionTaskDocumentSummary[];
@@ -299,6 +300,7 @@ function normalizeKnowledgeIngestionTask(raw: RawKnowledgeIngestionTask): Knowle
     status: raw.status,
     stage: raw.stage,
     progressPercent: raw.progressPercent,
+    summaryText: raw.summaryText,
     cancelRequested: raw.cancelRequested,
     failureReason: raw.errorMessage,
     stages: (raw.stages ?? []).map((stage) => ({

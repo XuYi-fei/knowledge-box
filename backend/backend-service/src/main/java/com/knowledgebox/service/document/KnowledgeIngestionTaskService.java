@@ -342,7 +342,6 @@ public class KnowledgeIngestionTaskService {
             List<String> pageTexts = new ArrayList<>(totalPages);
             List<KnowledgeIngestionAgentService.LargePdfPagePreview> pagePreviews = new ArrayList<>(totalPages);
             int previewLimit = Math.max(120, properties.getDocument().getIngestion().getPreviewCharsPerPage());
-            int batchSize = Math.max(1, properties.getDocument().getIngestion().getPageBatchSize());
             int nonBlankPages = 0;
             for (int pageNumber = 1; pageNumber <= totalPages; pageNumber++) {
                 checkCancelled(task.getId(), runningTask);
@@ -355,11 +354,9 @@ public class KnowledgeIngestionTaskService {
                 }
                 pageTexts.add(pageText);
                 pagePreviews.add(new KnowledgeIngestionAgentService.LargePdfPagePreview(pageNumber, abbreviate(pageText, previewLimit)));
-                if (pageNumber % batchSize == 0 || pageNumber == totalPages) {
-                    int progress = Math.min(100, (int) Math.round(pageNumber * 100.0 / Math.max(totalPages, 1)));
-                    updateStageProgress(task.getId(), KnowledgeIngestionTaskStageCode.TEXT_EXTRACTION, progress, "已提取 " + pageNumber + "/" + totalPages + " 页文本。");
-                    updateTaskProgress(task.getId(), 15 + Math.min(20, progress / 5), "已提取 " + pageNumber + "/" + totalPages + " 页文本。");
-                }
+                int progress = Math.min(100, (int) Math.round(pageNumber * 100.0 / Math.max(totalPages, 1)));
+                updateStageProgress(task.getId(), KnowledgeIngestionTaskStageCode.TEXT_EXTRACTION, progress, "正在读取第 " + pageNumber + "/" + totalPages + " 页。");
+                updateTaskProgress(task.getId(), 15 + Math.min(20, progress / 5), "正在读取第 " + pageNumber + "/" + totalPages + " 页。");
             }
             if (nonBlankPages == 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INGESTION_PDF_EMPTY", "PDF 未提取到文本，当前仅支持文本型 PDF");

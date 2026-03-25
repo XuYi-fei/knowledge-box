@@ -1,11 +1,13 @@
 import {
+  FolderOpenOutlined,
   CheckCircleOutlined,
   FileTextOutlined,
   InboxOutlined,
+  RightOutlined,
   SyncOutlined,
 } from '@ant-design/icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, App, Button, Card, Descriptions, Form, Input, Progress, Segmented, Select, Space, Tag, Typography, Upload } from 'antd';
+import { Alert, App, AutoComplete, Button, Card, Collapse, Descriptions, Form, Input, List, Progress, Segmented, Select, Space, Tag, Typography, Upload } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -93,6 +95,14 @@ export function KnowledgeIngestionPage() {
     enabled: draftId != null,
     refetchInterval: (query) => (shouldPollDraft(query.state.data as KnowledgeIngestionDraft | undefined) ? 1500 : false),
   });
+  const tasksQuery = useQuery({
+    queryKey: ['knowledgeIngestionTasks'],
+    queryFn: api.listKnowledgeIngestionTasks,
+    refetchInterval: (query) => {
+      const tasks = query.state.data ?? [];
+      return tasks.some((task) => ['QUEUED', 'RUNNING', 'PARTIAL_FAILED', 'CANCELLING'].includes(task.status)) ? 3000 : false;
+    },
+  });
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
@@ -108,7 +118,7 @@ export function KnowledgeIngestionPage() {
         void navigate(`/ingest/${result.draftId}`);
         return;
       }
-      message.success('大文件已进入任务拆解，稍后在任务页查看子产物');
+      message.success('大文件已进入异步拆解任务，正在跳转到任务详情');
       void navigate(`/ingest/tasks/${result.taskId}`);
     },
     onError: (error) => {
@@ -124,7 +134,7 @@ export function KnowledgeIngestionPage() {
         void navigate(`/ingest/${result.draftId}`);
         return;
       }
-      message.success('内容已进入大文件任务拆解，稍后在任务页查看子产物');
+      message.success('内容已进入异步拆解任务，正在跳转到任务详情');
       void navigate(`/ingest/tasks/${result.taskId}`);
     },
     onError: (error) => {
@@ -179,11 +189,16 @@ export function KnowledgeIngestionPage() {
           className="chat-panel chat-card"
           title="知识入库工作台"
           extra={
-            draftId ? (
-              <Button type="link" onClick={() => void navigate('/ingest')}>
-                新建草稿
+            <Space>
+              <Button type="link" onClick={() => void navigate('/ingest/tasks')}>
+                任务中心
               </Button>
-            ) : null
+              {draftId ? (
+                <Button type="link" onClick={() => void navigate('/ingest')}>
+                  新建草稿
+                </Button>
+              ) : null}
+            </Space>
           }
         >
           <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
@@ -230,13 +245,64 @@ export function KnowledgeIngestionPage() {
               <Button type="primary" htmlType="submit" loading={inlineMutation.isPending}>
                 生成草稿
              </Button>
-           </Form>
+          </Form>
          )}
        </Card>
-        <Card className="chat-panel chat-card" title="大文件任务说明">
-          <Typography.Paragraph>
-            当上传大体量 PDF（如超过一定页数/大小）时，它会自动进入异步任务页面，您可以在任务页 `/ingest/tasks/:taskId` 实时查看阶段进度与子产物，不必等到所有内容处理完再看结果。
-          </Typography.Paragraph>
+        <Card
+          className="chat-panel chat-card"
+          title="大文件任务入口"
+          extra={
+            <Button type="primary" icon={<FolderOpenOutlined />} onClick={() => void navigate('/ingest/tasks')}>
+              打开任务中心
+            </Button>
+          }
+        >
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>
+              当 PDF 较大时，系统会自动切到异步拆解模式。建议直接从任务中心查看进度和阶段产物，而不是记住参数化路径。
+            </Typography.Paragraph>
+            <Collapse
+              size="small"
+              items={[
+                {
+                  key: 'async-flow',
+                  label: '展开查看大文件处理流程',
+                  children: (
+                    <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                      <Typography.Text type="secondary">1. 保存原始文件并建立异步任务</Typography.Text>
+                      <Typography.Text type="secondary">2. 扫描页数、抽取文本并规划拆分段落</Typography.Text>
+                      <Typography.Text type="secondary">3. 按段持续生成草稿，任务详情页会实时出现子产物</Typography.Text>
+                      <Typography.Text type="secondary">4. 每个子产物可继续提交审核，原始 PDF 会保留在 OSS 中</Typography.Text>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+            {(tasksQuery.data ?? []).length > 0 ? (
+              <List
+                size="small"
+                header={<Typography.Text strong>最近任务</Typography.Text>}
+                dataSource={(tasksQuery.data ?? []).slice(0, 3)}
+                renderItem={(task) => (
+                  <List.Item
+                    key={task.id}
+                    actions={[
+                      <Button key="open" type="link" icon={<RightOutlined />} onClick={() => void navigate(`/ingest/tasks/${task.id}`)}>
+                        查看
+                      </Button>,
+                    ]}
+                  >
+                    <Space direction="vertical" size={2}>
+                      <Typography.Text>{task.sourceFilename}</Typography.Text>
+                      <Typography.Text type="secondary">
+                        {task.taskCode} · {task.status} · 进度 {task.progressPercent}% · 子文档 {task.documents.length} 个
+                      </Typography.Text>
+                    </Space>
+                  </List.Item>
+                )}
+              />
+            ) : null}
+          </Space>
         </Card>
 
         {draftId && !detail && detailQuery.isLoading ? (
@@ -297,7 +363,19 @@ export function KnowledgeIngestionPage() {
                   type="success"
                   showIcon
                   message="已提交待审核"
-                  description={`审核单编号：${detail.confirmedReviewRequestCode ?? '待生成'}`}
+                  description={(
+                    <Space direction="vertical" size={8}>
+                      <Typography.Text>审核单编号：{detail.confirmedReviewRequestCode ?? '待生成'}</Typography.Text>
+                      <Space wrap>
+                        <Button type="primary" onClick={() => void navigate('/admin/document-reviews')}>
+                          前往审核页
+                        </Button>
+                        <Button onClick={() => void navigate('/ingest')}>
+                          继续新建草稿
+                        </Button>
+                      </Space>
+                    </Space>
+                  )}
                 />
               ) : null}
 
@@ -336,12 +414,11 @@ export function KnowledgeIngestionPage() {
                       <Input placeholder="可自定义标题；留空时回退 Agent 建议" />
                     </Form.Item>
                     <Form.Item name="categoryName" label="分类">
-                      <Select
+                      <AutoComplete
                         allowClear
-                        showSearch
                         options={categoryOptions}
-                        placeholder="可选分类；留空时回退 Agent 建议"
-                        optionFilterProp="label"
+                        placeholder="可选已有分类，也可直接输入临时新分类"
+                        filterOption={(inputValue, option) => String(option?.label ?? '').toLowerCase().includes(inputValue.toLowerCase())}
                       />
                     </Form.Item>
                     <Form.Item name="columnName" label="专栏（可选）">

@@ -12,6 +12,8 @@ public interface StorageService {
 
     byte[] read(String objectKey);
 
+    void delete(String objectKey);
+
     record StoredObject(
             String provider,
             String objectKey,

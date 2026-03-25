@@ -56,6 +56,25 @@ public class OssStorageService implements StorageService {
         }
     }
 
+    @Override
+    public void delete(String objectKey) {
+        KnowledgeBoxProperties.Oss oss = properties.getStorage().getOss();
+        String endpoint = require(oss.getEndpoint(), "knowledge-box.storage.oss.endpoint");
+        String bucket = require(oss.getBucket(), "knowledge-box.storage.oss.bucket");
+        String accessKeyId = require(oss.getAccessKeyId(), "knowledge-box.storage.oss.access-key-id");
+        String accessKeySecret = require(oss.getAccessKeySecret(), "knowledge-box.storage.oss.access-key-secret");
+        OSS client = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
+        try {
+            if (client.doesObjectExist(bucket, objectKey)) {
+                client.deleteObject(bucket, objectKey);
+            }
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to delete file from OSS: " + objectKey, exception);
+        } finally {
+            client.shutdown();
+        }
+    }
+
     private StoredObject storeToOss(
             KnowledgeBoxProperties.Oss oss,
             String category,

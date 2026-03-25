@@ -1,10 +1,14 @@
-import { CheckCircleOutlined, ClockCircleOutlined, FileSearchOutlined, FileTextOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Empty, List, Progress, Space, Tag, Typography } from 'antd';
+import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, FileOutlined, FileSearchOutlined, FileTextOutlined } from '@ant-design/icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, App, Button, Card, Empty, List, Progress, Space, Tag, Typography } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
 import type { KnowledgeIngestionTask } from '../../lib/types';
+
+function canDeleteTask(status: KnowledgeIngestionTask['status']) {
+  return ['CANCELLED', 'FAILED', 'COMPLETED', 'PARTIAL_FAILED'].includes(status);
+}
 
 function taskStatusColor(status: KnowledgeIngestionTask['status']) {
   switch (status) {
@@ -36,6 +40,8 @@ function formatDateTime(value: string) {
 
 export function KnowledgeIngestionTasksPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { modal, message } = App.useApp();
   const tasksQuery = useQuery({
     queryKey: ['knowledgeIngestionTasks'],
     queryFn: api.listKnowledgeIngestionTasks,
@@ -44,6 +50,27 @@ export function KnowledgeIngestionTasksPage() {
       return tasks.some((task) => ['QUEUED', 'RUNNING', 'PARTIAL_FAILED', 'CANCELLING'].includes(task.status)) ? 3000 : false;
     },
   });
+  const deleteMutation = useMutation({
+    mutationFn: (taskId: number) => api.deleteKnowledgeIngestionTask(taskId),
+    onSuccess: async () => {
+      message.success('任务已删除，已保留已生成的待审核单');
+      await queryClient.invalidateQueries({ queryKey: ['knowledgeIngestionTasks'] });
+    },
+    onError: (error) => {
+      message.error(buildErrorSummary(error, '删除任务失败，请稍后重试'));
+    },
+  });
+
+  const openDeleteConfirm = (task: KnowledgeIngestionTask) => {
+    modal.confirm({
+      title: '确认删除该任务？',
+      content: '将删除任务记录、阶段记录、子文档记录和源文件；已生成的待审核单不会删除。',
+      okText: '删除任务',
+      okButtonProps: { danger: true, loading: deleteMutation.isPending },
+      cancelText: '取消',
+      onOk: async () => deleteMutation.mutateAsync(task.id),
+    });
+  };
 
   return (
     <div className="chat-shell" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
@@ -94,7 +121,27 @@ export function KnowledgeIngestionTasksPage() {
                     <Button key="detail" type="link" onClick={() => void navigate(`/ingest/tasks/${task.id}`)}>
                       查看详情
                     </Button>,
-                  ]}
+                    <Button
+                      key="source"
+                      type="link"
+                      icon={<FileOutlined />}
+                      disabled={!task.sourceFileUrl}
+                      onClick={() => window.open(task.sourceFileUrl ?? '', '_blank')}
+                    >
+                      查看源文件
+                    </Button>,
+                    canDeleteTask(task.status) ? (
+                      <Button
+                        key="delete"
+                        type="link"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => openDeleteConfirm(task)}
+                      >
+                        删除任务
+                      </Button>
+                    ) : null,
+                  ].filter(Boolean)}
                 >
                   <List.Item.Meta
                     avatar={task.status === 'COMPLETED' ? <CheckCircleOutlined /> : <ClockCircleOutlined />}

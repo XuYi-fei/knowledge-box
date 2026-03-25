@@ -72,4 +72,5 @@
     <include file="db/changelog/db.changelog-065-knowledge-ingestion-release-note.xml"/>
     <include file="db/changelog/db.changelog-066-knowledge-ingestion-task.xml"/>
     <include file="db/changelog/db.changelog-067-knowledge-ingestion-task-release-note.xml"/>
+    <include file="db/changelog/db.changelog-068-knowledge-ingestion-task-management-release-note.xml"/>
 </databaseChangeLog>

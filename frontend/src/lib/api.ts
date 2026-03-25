@@ -729,6 +729,15 @@ export const api = {
       'user',
     );
   },
+  async deleteKnowledgeIngestionTask(taskId: number) {
+    return requestJson<void>(
+      `/api/app/knowledge-ingestion/tasks/${taskId}`,
+      {
+        method: 'DELETE',
+      },
+      'user',
+    );
+  },
   async userDebugChatSessions(profileCode: string) {
     return requestJson<UserChatSessionSummary[]>(
       `/api/app/agent-debug/${encodeURIComponent(profileCode)}/sessions`,

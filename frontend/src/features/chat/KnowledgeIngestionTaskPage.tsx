@@ -1,9 +1,10 @@
 import { CaretRightOutlined, CheckCircleOutlined, CloseCircleOutlined, FileOutlined, StopOutlined } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Card, Col, Divider, List, Progress, Row, Skeleton, Space, Tag, Typography } from 'antd';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, App, Button, Card, Col, Divider, List, Progress, Row, Skeleton, Space, Tag, Typography } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { buildErrorSummary } from '../../lib/errors';
 import type {
   KnowledgeIngestionTask,
   KnowledgeIngestionTaskDocumentDetail,
@@ -24,8 +25,14 @@ const stageColor = (status: KnowledgeIngestionTask['status']) => {
   }
 };
 
+function canDeleteTask(status: KnowledgeIngestionTask['status']) {
+  return ['CANCELLED', 'FAILED', 'COMPLETED', 'PARTIAL_FAILED'].includes(status);
+}
+
 export function KnowledgeIngestionTaskPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { modal, message } = App.useApp();
   const { taskId: rawTaskId } = useParams<{ taskId?: string }>();
   const taskId = rawTaskId ? Number(rawTaskId) : null;
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
@@ -61,6 +68,18 @@ export function KnowledgeIngestionTaskPage() {
   const selectedDocumentSummary = detail?.documents.find((doc) => doc.id === selectedDocumentId) ?? null;
   const selectedDocumentDetail = documentDetailQuery.data ?? null;
   const selectedDocument = selectedDocumentDetail ?? selectedDocumentSummary;
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.deleteKnowledgeIngestionTask(id),
+    onSuccess: async () => {
+      message.success('任务已删除，已保留已生成的待审核单');
+      await queryClient.invalidateQueries({ queryKey: ['knowledgeIngestionTasks'] });
+      await queryClient.removeQueries({ queryKey: ['knowledgeIngestionTask', taskId] });
+      void navigate('/ingest/tasks');
+    },
+    onError: (error) => {
+      message.error(buildErrorSummary(error, '删除任务失败，请稍后重试'));
+    },
+  });
 
   const handleCancel = async () => {
     if (!detail) {
@@ -68,6 +87,19 @@ export function KnowledgeIngestionTaskPage() {
     }
     await api.cancelKnowledgeIngestionTask(detail.id);
     refetch();
+  };
+  const openDeleteConfirm = () => {
+    if (!detail) {
+      return;
+    }
+    modal.confirm({
+      title: '确认删除该任务？',
+      content: '将删除任务记录、阶段记录、子文档记录和源文件；已生成的待审核单不会删除。',
+      okText: '删除任务',
+      okButtonProps: { danger: true, loading: deleteMutation.isPending },
+      cancelText: '取消',
+      onOk: async () => deleteMutation.mutateAsync(detail.id),
+    });
   };
 
   if (!taskId) {
@@ -116,9 +148,16 @@ export function KnowledgeIngestionTaskPage() {
               <Button icon={<FileOutlined />} onClick={() => window.open(detail.sourceFileUrl ?? '', '_blank')} disabled={!detail.sourceFileUrl}>
                 查看原始 PDF
               </Button>
-              <Button icon={<StopOutlined />} danger onClick={handleCancel} disabled={detail.cancelRequested || detail.status === 'COMPLETED'}>
-                {detail.cancelRequested ? '取消中…' : '取消任务'}
-              </Button>
+              {!canDeleteTask(detail.status) ? (
+                <Button icon={<StopOutlined />} danger onClick={handleCancel} disabled={detail.cancelRequested}>
+                  {detail.cancelRequested ? '取消中…' : '取消任务'}
+                </Button>
+              ) : null}
+              {canDeleteTask(detail.status) ? (
+                <Button danger onClick={openDeleteConfirm} loading={deleteMutation.isPending}>
+                  删除任务
+                </Button>
+              ) : null}
             </Space>
           </Col>
         </Row>

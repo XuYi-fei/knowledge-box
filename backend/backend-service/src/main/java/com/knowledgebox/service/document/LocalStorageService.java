@@ -45,6 +45,16 @@ public class LocalStorageService implements StorageService {
         }
     }
 
+    @Override
+    public void delete(String objectKey) {
+        Path target = resolveObjectPath(objectKey);
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Failed to delete file from local storage: " + objectKey, exception);
+        }
+    }
+
     private StoredObject storeLocal(String category, String safeName, MultipartFile file, boolean skipIfExists) {
         Path baseDir = Path.of(properties.getStorage().getLocalBasePath()).resolve(category);
         String objectKey = category + "/" + safeName;

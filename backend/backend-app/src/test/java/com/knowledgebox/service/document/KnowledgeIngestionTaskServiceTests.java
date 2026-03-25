@@ -1,13 +1,16 @@
 package com.knowledgebox.service.document;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowledgebox.api.DocumentReviewRequestSummaryView;
+import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.document.DocumentReviewRequest;
 import com.knowledgebox.domain.document.KnowledgeIngestionTask;
@@ -89,6 +92,11 @@ class KnowledgeIngestionTaskServiceTests {
             Long userId = invocation.getArgument(1);
             return task != null && userId.equals(task.getUserId()) ? Optional.of(task) : Optional.empty();
         });
+        doAnswer(invocation -> {
+            KnowledgeIngestionTask task = invocation.getArgument(0);
+            tasks.remove(task.getId());
+            return null;
+        }).when(taskRepository).delete(any(KnowledgeIngestionTask.class));
 
         when(stageRepository.save(any(KnowledgeIngestionTaskStage.class))).thenAnswer(invocation -> {
             KnowledgeIngestionTaskStage stage = invocation.getArgument(0);
@@ -108,6 +116,11 @@ class KnowledgeIngestionTaskServiceTests {
                         && invocation.getArgument(0).equals(stage.getTask().getId())
                         && invocation.getArgument(1) == stage.getStageCode())
                 .findFirst());
+        doAnswer(invocation -> {
+            KnowledgeIngestionTaskStage stage = invocation.getArgument(0);
+            stages.remove(stage.getId());
+            return null;
+        }).when(stageRepository).delete(any(KnowledgeIngestionTaskStage.class));
 
         when(documentRepository.save(any(KnowledgeIngestionTaskDocument.class))).thenAnswer(invocation -> {
             KnowledgeIngestionTaskDocument document = invocation.getArgument(0);
@@ -128,6 +141,11 @@ class KnowledgeIngestionTaskServiceTests {
                         && document.getTask() != null
                         && invocation.getArgument(1).equals(document.getTask().getId()))
                 .findFirst());
+        doAnswer(invocation -> {
+            KnowledgeIngestionTaskDocument document = invocation.getArgument(0);
+            documents.remove(document.getId());
+            return null;
+        }).when(documentRepository).delete(any(KnowledgeIngestionTaskDocument.class));
 
         when(documentReviewRequestRepository.findById(anyLong())).thenAnswer(invocation -> Optional.ofNullable(reviewRequests.get(invocation.getArgument(0))));
         when(documentGovernanceService.createPreparedPendingReview(any())).thenAnswer(invocation -> {
@@ -258,6 +276,44 @@ class KnowledgeIngestionTaskServiceTests {
         assertThat(orderedDocuments.get(1).getStatus()).isEqualTo(KnowledgeIngestionTaskDocumentStatus.CANCELLED);
         assertThat(orderedDocuments.get(2).getStatus()).isEqualTo(KnowledgeIngestionTaskDocumentStatus.CANCELLED);
         assertThat(reviewRequests).hasSize(1);
+    }
+
+    @Test
+    void shouldDeleteTerminalTaskAndKeepReviewRequests() throws Exception {
+        KnowledgeIngestionTask task = seedTask("redis-cleanup.pdf", 7L, 4);
+        task.setStatus(KnowledgeIngestionTaskStatus.COMPLETED);
+        task.setStage(KnowledgeIngestionTaskStageCode.FINALIZING.name());
+        task.setSummaryText("已生成 1/1 个审核文档，失败 0 个，取消 0 个。");
+
+        KnowledgeIngestionTaskDocument document = new KnowledgeIngestionTaskDocument();
+        document.setTask(task);
+        document.setDocumentCode("doc-cleanup");
+        document.setSegmentIndex(1);
+        document.setStatus(KnowledgeIngestionTaskDocumentStatus.PENDING_REVIEW_CREATED);
+        DocumentReviewRequest reviewRequest = new DocumentReviewRequest();
+        setId(reviewRequest, reviewIdSequence.incrementAndGet());
+        reviewRequest.setRequestCode("review-" + reviewRequest.getId());
+        reviewRequests.put(reviewRequest.getId(), reviewRequest);
+        document.setReviewRequest(reviewRequest);
+        documentRepository.save(document);
+
+        taskService.deleteTask(task.getId(), 7L);
+
+        assertThat(tasks).doesNotContainKey(task.getId());
+        assertThat(stages.values()).noneMatch(stage -> stage.getTask() != null && task.getId().equals(stage.getTask().getId()));
+        assertThat(documents.values()).noneMatch(item -> item.getTask() != null && task.getId().equals(item.getTask().getId()));
+        assertThat(reviewRequests).containsKey(reviewRequest.getId());
+    }
+
+    @Test
+    void shouldRejectDeletingRunningTask() throws Exception {
+        KnowledgeIngestionTask task = seedTask("redis-running.pdf", 7L, 4);
+        task.setStatus(KnowledgeIngestionTaskStatus.RUNNING);
+        task.setStage(KnowledgeIngestionTaskStageCode.TEXT_EXTRACTION.name());
+
+        assertThatThrownBy(() -> taskService.deleteTask(task.getId(), 7L))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("仅支持删除已结束的任务");
     }
 
     private KnowledgeIngestionTask seedTask(String sourceFilename, Long userId, int pageCount) throws Exception {

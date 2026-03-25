@@ -249,6 +249,16 @@ public class KnowledgeIngestionTaskService {
         }
     }
 
+    @Transactional
+    public void deleteTask(Long taskId, Long userId) {
+        KnowledgeIngestionTask task = loadOwnedTask(taskId, userId);
+        if (!TERMINAL_STATUSES.contains(task.getStatus())) {
+            throw new ApiException(HttpStatus.CONFLICT, "INGESTION_TASK_NOT_DELETABLE", "仅支持删除已结束的任务");
+        }
+        deleteTaskSourceFile(task);
+        deleteTaskChain(task);
+    }
+
     void processTask(Long taskId, RunningKnowledgeIngestionTask runningTask) {
         KnowledgeIngestionTask task = taskRepository.findById(taskId).orElse(null);
         if (task == null) {
@@ -688,6 +698,31 @@ public class KnowledgeIngestionTaskService {
     private KnowledgeIngestionTask loadOwnedTask(Long taskId, Long userId) {
         return taskRepository.findByIdAndUserId(taskId, userId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "INGESTION_TASK_NOT_FOUND", "任务不存在或无权访问"));
+    }
+
+    protected void deleteTaskChain(KnowledgeIngestionTask task) {
+        runningTasks.remove(task.getId());
+        for (KnowledgeIngestionTaskDocument document : documentRepository.findAllByTask_IdOrderBySegmentIndexAscIdAsc(task.getId())) {
+            if (document.getReviewRequest() != null) {
+                document.setReviewRequest(null);
+            }
+            documentRepository.delete(document);
+        }
+        for (KnowledgeIngestionTaskStage stage : stageRepository.findAllByTask_IdOrderBySortOrderAscIdAsc(task.getId())) {
+            stageRepository.delete(stage);
+        }
+        taskRepository.delete(task);
+    }
+
+    private void deleteTaskSourceFile(KnowledgeIngestionTask task) {
+        if (!StringUtils.hasText(task.getSourceFileObjectKey())) {
+            return;
+        }
+        try {
+            storageService.delete(task.getSourceFileObjectKey());
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "INGESTION_TASK_SOURCE_DELETE_FAILED", "删除任务源文件失败，请稍后重试");
+        }
     }
 
     private KnowledgeIngestionTask requireTask(Long taskId) {

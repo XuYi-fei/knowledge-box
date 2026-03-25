@@ -8,7 +8,7 @@
 ## 当前重点
 
 - 文档治理闭环继续收口：审核策略、失败可观测性、重复治理和导入运维仍是近期主线。
-- 用户侧知识入库工作台已接上同步草稿 + 大 PDF 异步任务双链路：当前支持上传 Markdown / 小型文本型 PDF 或直接粘贴内容生成草稿，也支持大体量文本型 PDF 异步拆解为多个待审核文档；任务中心入口、审核跳转按钮、分类临时新建与草稿链接高亮已补齐，后续重点转向真实 OSS、模型与审核运营联调。
+- 用户侧知识入库工作台已接上同步草稿 + 大 PDF 异步任务双链路：当前支持上传 Markdown / 小型文本型 PDF 或直接粘贴内容生成草稿，也支持大体量文本型 PDF 异步拆解为多个待审核文档；任务中心入口、审核跳转按钮、分类临时新建、草稿链接高亮，以及非运行中任务删除与源文件查看已补齐，后续重点转向真实 OSS、模型与审核运营联调。
 - 用户体验继续打磨：聊天流式细节、公开文库阅读体验和用户工具扩展仍有持续迭代空间。
 - 聊天停止链路已补齐：当前支持用户主动停止回答并以 `CANCELLED` 持久化，后续重点转向真实模型调用下的中断时延观察。
 - 用户侧多入口调试已补齐：当前支持独立 `Agent 调试` 工作区，后续重点转向真实环境下不同 Entry Agent 的联调与可用性反馈。
@@ -45,6 +45,7 @@
 - `mvn -q -pl backend/backend-app -am -DskipTests compile`、`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionServiceTests,KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖大 PDF 自动分流、异步任务拆解、取消保留已产出审核单，以及 `/ingest/tasks/:taskId` 任务页编译回归。
 - `npm --prefix frontend run build` 已通过，覆盖知识入库任务中心 `/ingest/tasks`、确认后前往审核页按钮、分类临时新建，以及 Markdown 草稿链接高亮回归。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖大 PDF 文本提取逐页进度更新、当前页片段预览、任务页摘要展示与更高频轮询回归。
+- `mvn -q -pl backend/backend-app -am -DskipTests compile`、`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖知识入库任务删除接口、源文件删除抽象、任务中心/详情页删除入口，以及已完成任务查看源文件回归。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。
 

@@ -42,6 +42,10 @@ class DocumentIngestionServiceTests {
             public byte[] read(String objectKey) {
                 return new byte[0];
             }
+
+            @Override
+            public void delete(String objectKey) {
+            }
         };
         KnowledgeDocumentRepository knowledgeDocumentRepository = mock(KnowledgeDocumentRepository.class);
         DocumentChunkRepository documentChunkRepository = mock(DocumentChunkRepository.class);

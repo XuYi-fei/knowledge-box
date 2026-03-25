@@ -20,6 +20,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖用户侧知识入库页、工作区路由与导航接线。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖审核、专栏、重复治理与导入链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionSourceToolTests,KnowledgeIngestionServiceTests test` 可通过，已覆盖知识入库 source tool、草稿分析状态流转与确认入审核单链路。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests package` 与 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18082` 可通过，已验证知识入库 064/065 Liquibase 迁移在本地库上可正常执行启动。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=DocumentBootstrapImportRunnerTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过，已验证 bootstrap seed 会带入 `categoryName/columnName`。
 - 脚本：`python3 scripts/cleanup_duplicate_documents.py --help` 与 `python3 scripts/cleanup_stuck_bootstrap_reviews.py --help` 可执行。
 
@@ -34,6 +35,7 @@
 
 - 审核/生成异步线程要在 `afterCommit` 后启动，避免子线程读不到未提交数据。
 - Liquibase 已执行过的初始化 changeSet 不能直接改；像知识入库这类新增表、字段或 about 更新都必须走增量 changelog。
+- 当前项目的用户表名是 `user_account`；新增文档治理/用户侧入库表若需要引用用户外键，不能误写成不存在的 `app_user`。
 - 标签绑定写入前要去重；删旧绑定优先 bulk delete 或显式 flush，避免唯一键冲突。
 - DashScope embedding 单批上限按 `10` 控制。
 - bootstrap 导入不能只依赖 `importKey`；当来源系统会生成不同 `importKey` 时，还要结合正文内容指纹判重。

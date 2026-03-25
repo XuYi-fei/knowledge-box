@@ -16,7 +16,7 @@
             CREATE TABLE IF NOT EXISTS knowledge_ingestion_draft (
                 id BIGSERIAL PRIMARY KEY,
                 draft_code VARCHAR(64) NOT NULL UNIQUE,
-                user_id BIGINT NOT NULL REFERENCES app_user(id),
+                user_id BIGINT NOT NULL REFERENCES user_account(id),
                 source_type VARCHAR(16) NOT NULL,
                 source_filename VARCHAR(256),
                 source_content TEXT NOT NULL DEFAULT '',

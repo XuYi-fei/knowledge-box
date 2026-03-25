@@ -355,8 +355,9 @@ public class KnowledgeIngestionTaskService {
                 pageTexts.add(pageText);
                 pagePreviews.add(new KnowledgeIngestionAgentService.LargePdfPagePreview(pageNumber, abbreviate(pageText, previewLimit)));
                 int progress = Math.min(100, (int) Math.round(pageNumber * 100.0 / Math.max(totalPages, 1)));
-                updateStageProgress(task.getId(), KnowledgeIngestionTaskStageCode.TEXT_EXTRACTION, progress, "正在读取第 " + pageNumber + "/" + totalPages + " 页。");
-                updateTaskProgress(task.getId(), 15 + Math.min(20, progress / 5), "正在读取第 " + pageNumber + "/" + totalPages + " 页。");
+                String extractionMessage = buildExtractionProgressMessage(pageNumber, totalPages, pageText);
+                updateStageProgress(task.getId(), KnowledgeIngestionTaskStageCode.TEXT_EXTRACTION, progress, extractionMessage);
+                updateTaskProgress(task.getId(), 15 + Math.min(20, progress / 5), extractionMessage);
             }
             if (nonBlankPages == 0) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "INGESTION_PDF_EMPTY", "PDF 未提取到文本，当前仅支持文本型 PDF");
@@ -784,6 +785,14 @@ public class KnowledgeIngestionTaskService {
                 + "/" + Math.max(task.getPlannedDocumentCount(), 0)
                 + " 个审核文档，失败 " + task.getFailedDocumentCount()
                 + " 个，取消 " + task.getCancelledDocumentCount() + " 个。";
+    }
+
+    private String buildExtractionProgressMessage(int pageNumber, int totalPages, String pageText) {
+        String preview = abbreviate(pageText, 100);
+        if (!StringUtils.hasText(preview)) {
+            preview = "本页暂无可提取文本。";
+        }
+        return "正在读取第 " + pageNumber + "/" + totalPages + " 页： " + preview;
     }
 
     private String normalizeExtractedText(String text) {

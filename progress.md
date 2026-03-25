@@ -44,7 +44,7 @@
 - `npm --prefix frontend run build` 与 `mvn -q -pl backend/backend-app -am -DskipTests compile` 已通过，覆盖管理端移除知识库模板字段、MAIN 默认 `systemPrompt` 收口，以及 Agent/Bundle/seed 示例同步。
 - `mvn -q -pl backend/backend-app -am -DskipTests compile`、`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionServiceTests,KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖大 PDF 自动分流、异步任务拆解、取消保留已产出审核单，以及 `/ingest/tasks/:taskId` 任务页编译回归。
 - `npm --prefix frontend run build` 已通过，覆盖知识入库任务中心 `/ingest/tasks`、确认后前往审核页按钮、分类临时新建，以及 Markdown 草稿链接高亮回归。
-- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖大 PDF 文本提取逐页进度更新、任务页摘要展示与更高频轮询回归。
+- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖大 PDF 文本提取逐页进度更新、当前页片段预览、任务页摘要展示与更高频轮询回归。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。
 

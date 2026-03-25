@@ -13,7 +13,7 @@
 - 草稿确认提交审核后，成功态现已提供“前往审核页”按钮；若当前用户没有管理员权限，仍沿用现有后台登录/权限拦截链路。
 - 草稿确认表单中的分类现已允许直接输入临时新分类，不再只能从既有分类中选择。
 - 知识入库草稿与任务子文档的 Markdown 预览现已对超链接使用蓝色下划线样式，链接可读性更明确。
-- 大 PDF 任务页现已把文本提取进度细化到逐页反馈；任务顶部会直接显示“正在读取第 X/Y 页”，前端轮询也已缩短到 1 秒，读取阶段的体感更接近实时。
+- 大 PDF 任务页现已把文本提取进度细化到逐页反馈；任务顶部会直接显示“正在读取第 X/Y 页”，并带出当前页文本片段预览，前端轮询也已缩短到 1 秒，读取阶段的体感更接近实时。
 - 知识入库工作台与任务页现已恢复纵向滚动；长表单、长任务列表和 Markdown 预览在用户工作区内可正常上下浏览，不再被外层容器截断。
 - 用户工作区与公开页共用的备案号脚注现已回到页面内容流底部，不再因为 `AppShell` 高度锁定而视觉上固定在窗口底部；知识入库、关于页、公开文章与其他共用外壳页面都会沿用该修复。
 - 聊天主链路已切到 AgentScope Java ReActAgent，支持前置知识检索、tool calling、reasoning/tool/citation 展示与 trace。
@@ -61,7 +61,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖“回复过程”整体折叠开关、步骤计数展示，以及聊天页与 `Agent 调试` 页的共用时间线组件回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖知识入库上传自动分流、`/ingest/tasks/:taskId` 任务页、阶段/子产物列表与 Markdown 预览回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖知识入库任务中心 `/ingest/tasks`、确认后跳审核页按钮、分类临时新建与草稿链接高亮回归。
-- 前端：`npm --prefix frontend run build` 可通过，已覆盖任务页顶部显示实时 PDF 读取摘要、1 秒轮询，以及任务类型透传 `summaryText` 的编译回归。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖任务页顶部显示实时 PDF 读取摘要、当前页片段预览、1 秒轮询，以及任务类型透传 `summaryText` 的编译回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖知识入库工作台与任务页恢复纵向滚动后的页面编译回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `AppShell` 备案号脚注回到页面底部后的共享布局编译回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天共享工作区拆分后 `PublicChatPage` / `AgentDebugPage` 的页面瘦身、会话恢复、SSE 消费与通用布局回归。

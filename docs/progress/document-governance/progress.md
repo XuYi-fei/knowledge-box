@@ -10,7 +10,7 @@
 - 已新增用户侧“知识入库工作台”首版：登录用户可上传 Markdown / 文本型 PDF 或直接粘贴内容，系统会保留原始文件、生成待确认草稿，并在确认后创建 `PENDING_REVIEW` 审核单复用现有治理链路。
 - 已补齐大 PDF 异步入库链路：当文本型 PDF 超过页数或体积阈值时，上传会自动切到异步任务；系统会保留原始 PDF、规划多个子文档、边生成边创建真实 `PENDING_REVIEW` 审核单，并允许中途取消后续生成。
 - 用户侧知识入库与治理衔接体验已继续补齐：草稿确认提交后可直接跳转到审核页，分类支持临时新建，草稿/子文档中的超链接在预览区会以蓝色样式高亮。
-- 大 PDF 文本提取阶段现已支持逐页进度反馈；任务详情会持续展示“正在读取第 X/Y 页”，便于观察超大 PDF 的解析推进情况。
+- 大 PDF 文本提取阶段现已支持逐页进度反馈；任务详情会持续展示“正在读取第 X/Y 页”以及当前页文本片段，便于观察超大 PDF 的解析推进情况。
 - 管理端文档审核已支持批量审核通过。
 - 文档导入与审核已支持“专栏”能力；bootstrap 与运行时 `init-review` 可指定分类/专栏，审核页也可编辑专栏。
 - 导入判重已升级为“双重判定”：除 `importKey` 幂等外，还会按正文内容指纹拦截跨来源重复内容。
@@ -28,7 +28,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/ingest` 自动分流上传、`/ingest/tasks/:taskId` 任务页、阶段列表、子文档预览与取消按钮编译回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/ingest/tasks` 任务中心、草稿确认后跳审核页按钮、分类临时新建与 Markdown 链接高亮回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionTaskServiceTests test` 可通过，已覆盖大 PDF 任务文本提取、拆解生成与取消链路回归。
-- 前端：`npm --prefix frontend run build` 可通过，已覆盖任务页显示逐页 PDF 读取摘要与 1 秒轮询回归。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖任务页显示逐页 PDF 读取摘要、当前页片段预览与 1 秒轮询回归。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=DocumentBootstrapImportRunnerTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过，已验证 bootstrap seed 会带入 `categoryName/columnName`。
 - 脚本：`python3 scripts/cleanup_duplicate_documents.py --help` 与 `python3 scripts/cleanup_stuck_bootstrap_reviews.py --help` 可执行。
 

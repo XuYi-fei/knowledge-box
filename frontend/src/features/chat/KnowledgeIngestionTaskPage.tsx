@@ -49,6 +49,10 @@ export function KnowledgeIngestionTaskPage() {
   }, [detail, selectedDocumentId]);
 
   const stageView = useMemo(() => detail?.stages ?? [], [detail?.stages]);
+  const extractingStage = useMemo(
+    () => stageView.find((stage) => stage.name === '提取文本' && stage.status === 'RUNNING') ?? null,
+    [stageView],
+  );
   const documentDetailQuery = useQuery<KnowledgeIngestionTaskDocumentDetail>({
     queryKey: ['knowledgeIngestionTaskDocument', detail?.id, selectedDocumentId],
     queryFn: () => api.knowledgeIngestionTaskDocument(detail!.id, selectedDocumentId!),
@@ -119,6 +123,15 @@ export function KnowledgeIngestionTaskPage() {
           </Col>
         </Row>
       </Card>
+
+      {extractingStage?.message ? (
+        <Alert
+          type="info"
+          showIcon
+          message="PDF 读取中"
+          description={extractingStage.message}
+        />
+      ) : null}
 
       <Row gutter={16}>
         <Col span={8}>

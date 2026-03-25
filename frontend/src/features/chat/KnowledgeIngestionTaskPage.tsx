@@ -83,7 +83,8 @@ export function KnowledgeIngestionTaskPage() {
   }
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <div className="chat-shell" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card className="chat-panel chat-card" title={`任务 · ${detail.taskCode}`} extra={<Tag color={stageColor(detail.status)}>{detail.status}</Tag>}>
         <Row gutter={16}>
           <Col span={16}>
@@ -181,6 +182,7 @@ export function KnowledgeIngestionTaskPage() {
           )}
         </Col>
       </Row>
-    </Space>
+      </Space>
+    </div>
   );
 }

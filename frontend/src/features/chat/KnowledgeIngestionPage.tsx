@@ -173,7 +173,7 @@ export function KnowledgeIngestionPage() {
   );
 
   return (
-    <div className="chat-shell">
+    <div className="chat-shell" style={{ overflowY: 'auto', overflowX: 'hidden' }}>
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Card
           className="chat-panel chat-card"

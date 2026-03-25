@@ -7,6 +7,7 @@
 ## 已完成
 
 - 用户侧已具备登录后的知识库问答、会话持久化、历史恢复、删除会话与 SSE 流式输出。
+- 用户侧工作区已新增“知识入库”入口，支持独立上传/粘贴工作台、草稿轮询、Agent 建议确认，以及提交到文档审核链路。
 - 聊天主链路已切到 AgentScope Java ReActAgent，支持前置知识检索、tool calling、reasoning/tool/citation 展示与 trace。
 - 聊天链路现已支持通过 AgentScope `SubAgentTool` 调用绑定的原子子 Agent；子 Agent 自身仍可装配 Tool / MCP / Skill，并在统一 trace 中留下独立执行过程。
 - 聊天链路现已支持 Agent 版本级运行时环境变量；Tool 执行、MCP 占位符解析和子 Agent 装配都可按当前 Agent 版本注入 `INLINE / PROCESS_ENV` 配置。
@@ -38,6 +39,7 @@
 ## 已验证范围
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页、引用展示、会话区固定高度与内部滚动。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖知识入库页的路由、导航和确认表单接线。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页细滚动条、引用详情页左上返回按钮等本次 UI 修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 `Agent 调试` 页左侧边栏按钮/标签/用户区的宽度约束修复。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖停止回答按钮、`CANCELLED` 消息态和停止后不自动恢复的前端状态机。
@@ -73,6 +75,7 @@
 
 - 继续打磨流式输出颗粒度与异常/未知流事件的兜底展示。
 - 补齐未完成会话恢复与断链后的用户感知。
+- 继续打磨知识入库工作台的用户反馈细节，例如更细的分析进度、失败提示和草稿恢复体验。
 - 继续优化 Markdown、代码块与长回答的阅读体验。
 
 ## 关键注意点
@@ -80,6 +83,7 @@
 - AgentScope 事件分支需显式覆盖 `REASONING/TOOL_RESULT/HINT/SUMMARY/AGENT_RESULT/ALL`，不要依赖默认分支兜底。
 - `@ToolParam` 必须显式声明 `name`。
 - AgentScope 工具执行可能切线程，关键上下文不要只依赖 `ThreadLocal`。
+- 用户侧知识入库入口当前是独立工作台，不嵌入聊天输入区；确认后的产物进入待审核，而不是直接发布。
 - 子 Agent 运行时按 `SubAgentTool` 作为工具注册；当前仅支持单层调用，且父 Agent 只能绑定 `ATOMIC` 版本。
 - 当前聊天主链路不再使用知识库分类模型；若希望 MAIN Agent 查知识库，需直接给当前版本绑定 `KnowledgeBaseSearchTool`，并在 MAIN 的 `systemPrompt` 中明确要求先检索再回答。
 - Agent 运行时环境变量当前按 `profileVersionId` 独立解析，子 Agent 不继承父 Agent 的密钥；若子 Agent 也依赖外部服务，需要单独绑定自己的 `envVars`。

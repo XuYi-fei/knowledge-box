@@ -8,6 +8,7 @@
 ## 当前重点
 
 - 文档治理闭环继续收口：审核策略、失败可观测性、重复治理和导入运维仍是近期主线。
+- 用户侧知识入库工作台已接上首版闭环：当前支持上传 Markdown / 文本型 PDF 或直接粘贴内容生成草稿，后续重点转向真实 OSS、模型与审核运营联调。
 - 用户体验继续打磨：聊天流式细节、公开文库阅读体验和用户工具扩展仍有持续迭代空间。
 - 聊天停止链路已补齐：当前支持用户主动停止回答并以 `CANCELLED` 持久化，后续重点转向真实模型调用下的中断时延观察。
 - 用户侧多入口调试已补齐：当前支持独立 `Agent 调试` 工作区，后续重点转向真实环境下不同 Entry Agent 的联调与可用性反馈。
@@ -28,7 +29,9 @@
 ## 最近全局验证
 
 - `npm --prefix frontend run build` 已多轮通过，覆盖聊天、公开文库、工具平台、文档审核与 Trace 管理页等近期主线改动。
+- `npm --prefix frontend run build` 已再次通过，覆盖用户侧知识入库页、工作区导航与确认表单接线。
 - `mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 已通过，覆盖聊天编排、文档治理、工具平台、Trace 与公开文档接口。
+- `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionSourceToolTests,KnowledgeIngestionServiceTests test` 已通过，覆盖知识入库 source tool、草稿分析状态流转与确认入审核单链路。
 - `mvn -q -pl backend/backend-app -am -DskipTests compile` 已再次通过，覆盖 Agent 版本级 prompt 模板字段、知识库 Tool 绑定装配和 Liquibase 迁移。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentCapabilityAssemblyServiceTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentConfigAdminServiceTests,ChatOrchestratorTests test` 已通过，覆盖 Agent 运行时环境变量、配置 Bundle v2 与 web-search 子 Agent 装配回归。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentRuntimeEnvStartupCheckRunnerTests,AgentProfileBindingServiceTests,ConfigBundleAdminServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests test` 已通过，覆盖 Agent 运行时环境变量启动自检、必填 requirement 校验与 fail-fast 启动保护。
@@ -47,6 +50,7 @@
 - `application-local.yml` 仅在 `local` profile 生效，且视为用户本地敏感配置，不要覆盖。
 - 模块任务先读根 `progress.md`，再读对应 `docs/progress/<module>/progress.md`；根文档只保留索引与共享状态。
 - “关于”tab 的更新日志来自数据库；独立功能完成后要补增量 changelog 往 `about_release_note` 写数据。
+- 用户侧知识入库首版当前只支持文本型 PDF，不做 OCR；上传源文件会保留并随草稿进入待审核链路。
 - Git 提交默认使用中文“简短标题 + 详细正文”；正文尽量完整说明对应 bug/优化/功能、问题背景和解决办法。
 - 每次提交后都要回到对应模块 progress 检查并补齐当前进度；若进度因此变更，也要继续提交这些文档更新。
 - 发布包中的语雀 bootstrap seed 若通过 `sourceMarkdownPath` 指向 `tmp/yuque-batch/full-*` 正文，不能只打包 `bootstrap-seeds/`，必须保留整棵 `tmp/yuque-batch/`。

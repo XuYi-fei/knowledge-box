@@ -7,6 +7,7 @@
 ## 已完成
 
 - 已落地文档上传、审核流、分类/标签、Markdown 预览编辑、图片转存、向量写入、索引重建与 bootstrap 初始化导入。
+- 已新增用户侧“知识入库工作台”首版：登录用户可上传 Markdown / 文本型 PDF 或直接粘贴内容，系统会保留原始文件、生成待确认草稿，并在确认后创建 `PENDING_REVIEW` 审核单复用现有治理链路。
 - 管理端文档审核已支持批量审核通过。
 - 文档导入与审核已支持“专栏”能力；bootstrap 与运行时 `init-review` 可指定分类/专栏，审核页也可编辑专栏。
 - 导入判重已升级为“双重判定”：除 `importKey` 幂等外，还会按正文内容指纹拦截跨来源重复内容。
@@ -16,7 +17,9 @@
 ## 已验证范围
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖文档审核页、批量审核、专栏编辑与重复治理页面。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖用户侧知识入库页、工作区路由与导航接线。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖审核、专栏、重复治理与导入链路。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionSourceToolTests,KnowledgeIngestionServiceTests test` 可通过，已覆盖知识入库 source tool、草稿分析状态流转与确认入审核单链路。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=DocumentBootstrapImportRunnerTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过，已验证 bootstrap seed 会带入 `categoryName/columnName`。
 - 脚本：`python3 scripts/cleanup_duplicate_documents.py --help` 与 `python3 scripts/cleanup_stuck_bootstrap_reviews.py --help` 可执行。
 
@@ -24,11 +27,13 @@
 
 - 继续细化审核权限颗粒度、审核原因规范化与失败可观测性。
 - 持续清理和治理历史导入遗留数据，降低重复内容和卡单对运营的影响。
+- 继续补齐用户侧知识入库在真实 OSS、模型和审核运营场景下的联调，评估 PDF OCR 与入口 Agent/Tool 配置化是否需要进一步落地。
 - 补齐真实模型、邮件和对象存储参与下的完整审核运维闭环。
 
 ## 关键注意点
 
 - 审核/生成异步线程要在 `afterCommit` 后启动，避免子线程读不到未提交数据。
+- Liquibase 已执行过的初始化 changeSet 不能直接改；像知识入库这类新增表、字段或 about 更新都必须走增量 changelog。
 - 标签绑定写入前要去重；删旧绑定优先 bulk delete 或显式 flush，避免唯一键冲突。
 - DashScope embedding 单批上限按 `10` 控制。
 - bootstrap 导入不能只依赖 `importKey`；当来源系统会生成不同 `importKey` 时，还要结合正文内容指纹判重。

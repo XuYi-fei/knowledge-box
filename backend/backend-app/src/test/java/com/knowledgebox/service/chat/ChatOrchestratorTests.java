@@ -29,7 +29,6 @@ import com.knowledgebox.domain.chat.ChatMessageStatus;
 import com.knowledgebox.domain.chat.ChatSession;
 import com.knowledgebox.domain.chat.ChatTurn;
 import com.knowledgebox.repository.AgentProfileVersionRepository;
-import com.knowledgebox.repository.ModelCatalogRepository;
 import com.knowledgebox.service.admin.AgentExecutionTraceQueryService;
 import io.agentscope.core.agent.Event;
 import io.agentscope.core.agent.EventType;
@@ -40,7 +39,6 @@ import io.agentscope.core.message.TextBlock;
 import io.agentscope.core.message.ThinkingBlock;
 import io.agentscope.core.message.ToolResultBlock;
 import io.agentscope.core.message.ToolUseBlock;
-import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.tool.Toolkit;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -55,10 +53,6 @@ class ChatOrchestratorTests {
 
     private static final String SESSION_ID = "session-1";
     private static final String ASSISTANT_MESSAGE_ID = "assistant-message-1";
-    private static final String NEED_KB = "NEED_KB";
-    private static final String NO_KB = "NO_KB";
-    private static final String FORCE_DISABLE_MODEL_QUERY_REGEX =
-            "(?i).*(你是什么模型|你是(什么|哪个)|你用的什么模型|what model are you|which model are you|who are you|what are you).*";
 
     private KnowledgeBoxProperties properties;
     private AgentProfileVersionRepository agentProfileVersionRepository;
@@ -66,13 +60,10 @@ class ChatOrchestratorTests {
     private ChatStreamBroker chatStreamBroker;
     private AgentEventStreamService agentEventStreamService;
     private ChatOrchestrator orchestrator;
-    private ProbeChatOrchestrator probeChatOrchestrator;
 
     @BeforeEach
     void setUp() {
         properties = new KnowledgeBoxProperties();
-        properties.getChat().setRetrievalTriggerMode(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED);
-        properties.getChat().getKnowledgeBaseRouting().setForceDisableRegexes(List.of(FORCE_DISABLE_MODEL_QUERY_REGEX));
         agentProfileVersionRepository = mock(AgentProfileVersionRepository.class);
         conversationMemoryService = mock(ConversationMemoryService.class);
         chatStreamBroker = mock(ChatStreamBroker.class);
@@ -84,10 +75,10 @@ class ChatOrchestratorTests {
         publishedMain.setAgentType(AgentProfileVersionType.MAIN);
         when(agentProfileVersionRepository.findFirstByPublishedTrueAndAgentTypeOrderByUpdatedAtDesc(AgentProfileVersionType.MAIN))
                 .thenReturn(java.util.Optional.of(publishedMain));
-        probeChatOrchestrator = new ProbeChatOrchestrator(
+        orchestrator = new ChatOrchestrator(
                 properties,
                 agentProfileVersionRepository,
-                mock(ModelCatalogRepository.class),
+                mock(com.knowledgebox.repository.ModelCatalogRepository.class),
                 conversationMemoryService,
                 mock(AgentExecutionTraceService.class),
                 mock(KnowledgeBaseRetrievalService.class),
@@ -103,135 +94,44 @@ class ChatOrchestratorTests {
                 mock(AgentExecutionTraceService.class),
                 new ChatProcessDetailFormatter(new ObjectMapper())
         );
-        orchestrator = probeChatOrchestrator;
     }
 
     @Test
-    void shouldSkipRoutingModelWhenRegexRuleMatched() throws Exception {
-        AgentProfileVersion profile = new AgentProfileVersion();
-        profile.setRoutingModel("qwen-plus");
-        Object routingDecision = invokePrivateMethod(
-                "routeQuery",
-                new Class<?>[]{String.class, AgentProfileVersion.class},
-                "你是什么模型",
-                profile
-        );
-        boolean enableKnowledgeBase = (boolean) invokeNoArg(routingDecision, "enableKnowledgeBase");
-        String source = (String) invokeNoArg(routingDecision, "source");
-        String routingModel = (String) invokeNoArg(routingDecision, "routingModel");
-        String retrievalTriggerMode = requiredRoutingTriggerMode(routingDecision);
-        boolean shouldFallback = shouldRunFallbackRetrieval(routingDecision, List.of());
+    void shouldEnableKnowledgeBaseToolWhenAgentBindsKnowledgeBaseTool() throws Exception {
+        AgentProfile profile = new AgentProfile();
+        profile.setCode("default-main");
+        AgentProfileVersion version = new AgentProfileVersion();
+        version.setProfile(profile);
+        java.lang.reflect.Field idField = com.knowledgebox.common.BaseEntity.class.getDeclaredField("id");
+        idField.setAccessible(true);
+        idField.set(version, 9L);
 
-        assertThat(enableKnowledgeBase).isFalse();
-        assertThat(source).isEqualTo("rule");
-        assertThat(routingModel).isEqualTo("qwen-plus");
-        assertThat(retrievalTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
-        assertThat(shouldFallback).isFalse();
-        assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isZero();
+        AgentCapabilityAssemblyService assemblyService = (AgentCapabilityAssemblyService) readField(orchestrator, "agentCapabilityAssemblyService");
+        when(assemblyService.hasKnowledgeBaseToolBound(9L)).thenReturn(true);
+
+        Object executionPlan = invokePrivateMethod(
+                "prepareExecutionPlan",
+                new Class<?>[]{StreamTask.class, AgentExecutionTraceContext.class, String.class},
+                new StreamTask(1L, SESSION_ID, "client-message-1", "mcp 是什么", ASSISTANT_MESSAGE_ID, "entry-agent", version, "qwen-plus"),
+                traceContext(),
+                "backend-call-1"
+        );
+        Object routingDecision = invokeNoArg(executionPlan, "routingDecision");
+
+        assertThat(invokeNoArg(executionPlan, "knowledgeBaseToolBound")).isEqualTo(true);
+        assertThat(invokeNoArg(executionPlan, "enableKnowledgeBaseTool")).isEqualTo(true);
+        assertThat(invokeNoArg(executionPlan, "retrievalAttempted")).isEqualTo(false);
+        assertThat(invokeNoArg(routingDecision, "source")).isEqualTo("binding");
+        assertThat(invokeNoArg(routingDecision, "matchedRule")).isEqualTo("TOOL_BOUND");
+        assertThat(shouldRunFallbackRetrieval(executionPlan, List.of())).isFalse();
     }
 
     @Test
-    void shouldPreRetrieveButSkipFallbackWhenRoutingModelReturnsNoKb() throws Exception {
-        probeChatOrchestrator.setRoutingModelOutput(NO_KB);
-        AgentProfileVersion profile = new AgentProfileVersion();
-        profile.setRoutingModel("qwen-plus");
-        Object routingDecision = invokePrivateMethod(
-                "routeQuery",
-                new Class<?>[]{String.class, AgentProfileVersion.class},
-                "解释一下 TCP 三次握手",
-                profile
-        );
-
-        boolean enableKnowledgeBase = (boolean) invokeNoArg(routingDecision, "enableKnowledgeBase");
-        String source = (String) invokeNoArg(routingDecision, "source");
-        String reason = (String) invokeNoArg(routingDecision, "reason");
-        String routingModel = (String) invokeNoArg(routingDecision, "routingModel");
-        String routingModelOutput = (String) invokeNoArg(routingDecision, "routingModelOutput");
-        String retrievalTriggerMode = requiredRoutingTriggerMode(routingDecision);
-        Object ruleDecision = invokePrivateMethod(
-                "routeQuery",
-                new Class<?>[]{String.class, AgentProfileVersion.class},
-                "你是什么模型",
-                profile
-        );
-        String disabledTriggerMode = requiredRoutingTriggerMode(ruleDecision);
-        boolean shouldFallback = shouldRunFallbackRetrieval(routingDecision, List.of());
-
-        assertThat(enableKnowledgeBase).isFalse();
-        assertThat(source).isEqualTo("model");
-        assertThat(reason).isEqualTo("routing-model-classifier");
-        assertThat(routingModel).isEqualTo("qwen-plus");
-        assertThat(routingModelOutput).isEqualTo(NO_KB);
-        assertThat(retrievalTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
-        assertThat(disabledTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
-        assertThat(shouldFallback).isFalse();
-        assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isEqualTo(1);
-    }
-
-    @Test
-    void shouldFallbackToNeedKbWhenRoutingModelOutputIsInvalid() throws Exception {
-        probeChatOrchestrator.setRoutingModelOutput("UNKNOWN");
-        AgentProfileVersion profile = new AgentProfileVersion();
-        profile.setRoutingModel("qwen-plus");
-        Object routingDecision = invokePrivateMethod(
-                "routeQuery",
-                new Class<?>[]{String.class, AgentProfileVersion.class},
-                "如何设计幂等接口？",
-                profile
-        );
-
-        boolean enableKnowledgeBase = (boolean) invokeNoArg(routingDecision, "enableKnowledgeBase");
-        String source = (String) invokeNoArg(routingDecision, "source");
-        String reason = (String) invokeNoArg(routingDecision, "reason");
-        String routingModelOutput = (String) invokeNoArg(routingDecision, "routingModelOutput");
-        String retrievalTriggerMode = requiredRoutingTriggerMode(routingDecision);
-        probeChatOrchestrator.setRoutingModelOutput(NO_KB);
-        Object noKbDecision = invokePrivateMethod(
-                "routeQuery",
-                new Class<?>[]{String.class, AgentProfileVersion.class},
-                "如何设计幂等接口？",
-                profile
-        );
-        String noKbTriggerMode = requiredRoutingTriggerMode(noKbDecision);
-        boolean shouldFallback = shouldRunFallbackRetrieval(routingDecision, List.of());
-
-        assertThat(enableKnowledgeBase).isTrue();
-        assertThat(source).isEqualTo("model-fallback");
-        assertThat(reason).isEqualTo("routing-model-invalid-output");
-        assertThat(routingModelOutput).isEqualTo("UNKNOWN");
-        assertThat(retrievalTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
-        assertThat(noKbTriggerMode).isEqualTo(KnowledgeBoxProperties.RetrievalTriggerMode.MODEL_ROUTED.name());
-        assertThat(shouldFallback).isTrue();
-        assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isEqualTo(2);
-    }
-
-    @Test
-    void shouldSkipFallbackWhenAlwaysPreRetrieveModeIsEnabled() throws Exception {
-        properties.getChat().setRetrievalTriggerMode(KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE);
-
-        boolean shouldFallback = shouldRunFallbackRetrieval(
-                new QueryRoutingDecision(
-                        true,
-                        "ALWAYS_PRE_RETRIEVE",
-                        "chat.retrieval-trigger-mode=ALWAYS_PRE_RETRIEVE",
-                        "pre-retrieval",
-                        null,
-                        "NO_HIT",
-                        KnowledgeBoxProperties.RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE
-                ),
-                List.of()
-        );
-
-        assertThat(shouldFallback).isFalse();
-    }
-
-    @Test
-    void shouldSkipKnowledgeBaseRoutingWhenAgentDoesNotBindKnowledgeBaseTool() throws Exception {
+    void shouldSkipKnowledgeBaseWhenAgentDoesNotBindKnowledgeBaseTool() throws Exception {
         AgentProfile profile = new AgentProfile();
         profile.setCode("entry-agent");
         AgentProfileVersion version = new AgentProfileVersion();
         version.setProfile(profile);
-        version.setRoutingModel("qwen-plus");
         java.lang.reflect.Field idField = com.knowledgebox.common.BaseEntity.class.getDeclaredField("id");
         idField.setAccessible(true);
         idField.set(version, 9L);
@@ -253,52 +153,7 @@ class ChatOrchestratorTests {
         assertThat(invokeNoArg(executionPlan, "retrievalAttempted")).isEqualTo(false);
         assertThat(invokeNoArg(routingDecision, "source")).isEqualTo("binding");
         assertThat(invokeNoArg(routingDecision, "matchedRule")).isEqualTo("TOOL_NOT_BOUND");
-        assertThat(probeChatOrchestrator.getInvokeRoutingModelCalls()).isZero();
-    }
-
-    @Test
-    void shouldNotSetThinkingBudgetForDashScopeRoutingClassifierOptions() throws Exception {
-        GenerateOptions options = (GenerateOptions) invokePrivateMethod(
-                "buildRoutingClassifierGenerateOptions",
-                new Class<?>[]{String.class},
-                "qwen-plus"
-        );
-        Map<String, Object> bodyParams = options.getAdditionalBodyParams() == null
-                ? Map.of()
-                : options.getAdditionalBodyParams();
-
-        assertThat(options.getThinkingBudget()).isNull();
-        assertThat(bodyParams).doesNotContainKey("enable_thinking");
-    }
-
-    @Test
-    void shouldKeepCompatibleRoutingClassifierThinkingDisabledWithoutBudget() throws Exception {
-        GenerateOptions options = (GenerateOptions) invokePrivateMethod(
-                "buildRoutingClassifierGenerateOptions",
-                new Class<?>[]{String.class},
-                "qwen3.5-plus"
-        );
-        Map<String, Object> bodyParams = options.getAdditionalBodyParams() == null
-                ? Map.of()
-                : options.getAdditionalBodyParams();
-
-        assertThat(options.getThinkingBudget()).isNull();
-        assertThat(bodyParams).containsEntry("enable_thinking", false);
-    }
-
-    @Test
-    void shouldRequireRoutingModelFromProfileVersion() {
-        AgentProfileVersion profile = new AgentProfileVersion();
-        profile.setRoutingModel(" ");
-
-        assertThatThrownBy(() -> invokePrivateMethod(
-                "routeQuery",
-                new Class<?>[]{String.class, AgentProfileVersion.class},
-                "解释一下 TCP 三次握手",
-                profile
-        ))
-                .hasRootCauseInstanceOf(IllegalStateException.class)
-                .hasRootCauseMessage("Agent profile routingModel is blank: profile=unknown, version=null");
+        assertThat(shouldRunFallbackRetrieval(executionPlan, List.of())).isFalse();
     }
 
     @Test
@@ -541,17 +396,7 @@ class ChatOrchestratorTests {
         return method.invoke(target);
     }
 
-    private String requiredRoutingTriggerMode(Object routingDecision) throws Exception {
-        try {
-            Object value = invokeNoArg(routingDecision, "retrievalTriggerMode");
-            assertThat(value).as("routingDecision.retrievalTriggerMode").isNotNull();
-            return String.valueOf(value);
-        } catch (NoSuchMethodException exception) {
-            throw new AssertionError("QueryRoutingDecision should expose retrievalTriggerMode for pre-retrieval semantics", exception);
-        }
-    }
-
-    private boolean shouldRunFallbackRetrieval(Object routingDecision, List<RetrievedChunk> retrievedChunks) throws Exception {
+    private boolean shouldRunFallbackRetrieval(Object executionPlan, List<RetrievedChunk> retrievedChunks) throws Exception {
         for (Method method : ChatOrchestrator.class.getDeclaredMethods()) {
             if (!"shouldRunFallbackRetrieval".equals(method.getName())) {
                 continue;
@@ -562,13 +407,10 @@ class ChatOrchestratorTests {
                 continue;
             }
             if (parameterTypes[0] == boolean.class || parameterTypes[0] == Boolean.class) {
-                return (boolean) method.invoke(orchestrator, invokeNoArg(routingDecision, "enableKnowledgeBase"), retrievedChunks);
+                return (boolean) method.invoke(orchestrator, invokeNoArg(executionPlan, "enableKnowledgeBaseTool"), retrievedChunks);
             }
-            if (parameterTypes[0] == String.class) {
-                return (boolean) method.invoke(orchestrator, requiredRoutingTriggerMode(routingDecision), retrievedChunks);
-            }
-            if (parameterTypes[0].isInstance(routingDecision)) {
-                return (boolean) method.invoke(orchestrator, routingDecision, retrievedChunks);
+            if (parameterTypes[0].isInstance(executionPlan)) {
+                return (boolean) method.invoke(orchestrator, executionPlan, retrievedChunks);
             }
         }
         throw new AssertionError("Unable to invoke shouldRunFallbackRetrieval with current ChatOrchestrator signature");
@@ -677,52 +519,4 @@ class ChatOrchestratorTests {
         return traceContext;
     }
 
-    private static final class ProbeChatOrchestrator extends ChatOrchestrator {
-        private String routingModelOutput = NEED_KB;
-        private int invokeRoutingModelCalls = 0;
-
-        private ProbeChatOrchestrator(
-                KnowledgeBoxProperties properties,
-                AgentProfileVersionRepository agentProfileVersionRepository,
-                ModelCatalogRepository modelCatalogRepository,
-                ConversationMemoryService conversationMemoryService,
-                AgentExecutionTraceService agentExecutionTraceService,
-                KnowledgeBaseRetrievalService knowledgeBaseRetrievalService,
-                AgentCapabilityAssemblyService agentCapabilityAssemblyService,
-                ChatStreamBroker chatStreamBroker,
-                AgentExecutionTraceQueryService agentExecutionTraceQueryService,
-                ObjectMapper objectMapper,
-                String dashScopeApiKey,
-                String dashScopeBaseUrl
-        ) {
-            super(
-                    properties,
-                    agentProfileVersionRepository,
-                    modelCatalogRepository,
-                    conversationMemoryService,
-                    agentExecutionTraceService,
-                    knowledgeBaseRetrievalService,
-                    agentCapabilityAssemblyService,
-                    chatStreamBroker,
-                    agentExecutionTraceQueryService,
-                    objectMapper,
-                    dashScopeApiKey,
-                    dashScopeBaseUrl
-            );
-        }
-
-        @Override
-        protected String invokeRoutingModel(String query, String routingModelCode) {
-            invokeRoutingModelCalls++;
-            return routingModelOutput;
-        }
-
-        private void setRoutingModelOutput(String routingModelOutput) {
-            this.routingModelOutput = routingModelOutput;
-        }
-
-        private int getInvokeRoutingModelCalls() {
-            return invokeRoutingModelCalls;
-        }
-    }
 }

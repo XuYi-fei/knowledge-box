@@ -32,7 +32,7 @@ class PublishedProfileRoutingModelValidatorTests {
     }
 
     @Test
-    void shouldPassWhenPublishedRoutingModelIsEnabledChatModel() {
+    void shouldPassWhenPublishedChatModelIsEnabled() {
         AgentProfileVersion publishedVersion = version(true, AgentProfileVersionType.MAIN, "default-qa", 1, "qwen-plus");
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(publishedVersion));
         when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("qwen-plus", ModelType.CHAT))
@@ -42,18 +42,18 @@ class PublishedProfileRoutingModelValidatorTests {
     }
 
     @Test
-    void shouldFailWhenPublishedRoutingModelIsBlank() {
+    void shouldFailWhenPublishedChatModelIsBlank() {
         AgentProfileVersion publishedVersion = version(true, AgentProfileVersionType.MAIN, "default-qa", 1, " ");
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(publishedVersion));
 
         assertThatThrownBy(() -> validator.run(null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("empty routingModel");
+                .hasMessageContaining("empty chatModel");
         verifyNoInteractions(modelCatalogRepository);
     }
 
     @Test
-    void shouldFailWhenPublishedRoutingModelIsNotEnabledChatModel() {
+    void shouldFailWhenPublishedChatModelIsNotEnabled() {
         AgentProfileVersion publishedVersion = version(true, AgentProfileVersionType.MAIN, "default-qa", 1, "qwen-unknown");
         when(agentProfileVersionRepository.findAllForAdmin()).thenReturn(List.of(publishedVersion));
         when(modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue("qwen-unknown", ModelType.CHAT))
@@ -61,7 +61,7 @@ class PublishedProfileRoutingModelValidatorTests {
 
         assertThatThrownBy(() -> validator.run(null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("routingModel is invalid")
+                .hasMessageContaining("chatModel is invalid")
                 .hasMessageContaining("qwen-unknown");
     }
 
@@ -91,7 +91,7 @@ class PublishedProfileRoutingModelValidatorTests {
             AgentProfileVersionType agentType,
             String profileCode,
             int versionNumber,
-            String routingModel
+            String chatModel
     ) {
         AgentProfile profile = new AgentProfile();
         profile.setCode(profileCode);
@@ -101,7 +101,7 @@ class PublishedProfileRoutingModelValidatorTests {
         version.setVersionNumber(versionNumber);
         version.setPublished(published);
         version.setAgentType(agentType);
-        version.setRoutingModel(routingModel);
+        version.setChatModel(chatModel);
         return version;
     }
 }

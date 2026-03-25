@@ -39,7 +39,7 @@ public class PublishedProfileRoutingModelValidator implements ApplicationRunner 
         }
         for (AgentProfileVersion version : publishedVersions) {
             validatePublishedEntryType(version);
-            validateRoutingModel(version);
+            validateChatModel(version);
         }
     }
 
@@ -57,26 +57,26 @@ public class PublishedProfileRoutingModelValidator implements ApplicationRunner 
         }
     }
 
-    private void validateRoutingModel(AgentProfileVersion version) {
-        String routingModel = version.getRoutingModel() == null ? "" : version.getRoutingModel().trim();
-        if (routingModel.isBlank()) {
+    private void validateChatModel(AgentProfileVersion version) {
+        String chatModel = version.getChatModel() == null ? "" : version.getChatModel().trim();
+        if (chatModel.isBlank()) {
             throw new IllegalStateException(
-                    "Published agent profile version has empty routingModel: profile="
+                    "Published agent profile version has empty chatModel: profile="
                             + version.getProfile().getCode()
                             + ", version="
                             + version.getVersionNumber()
             );
         }
-        boolean exists = modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue(routingModel, ModelType.CHAT).isPresent();
+        boolean exists = modelCatalogRepository.findByCodeAndModelTypeAndEnabledTrue(chatModel, ModelType.CHAT).isPresent();
         if (!exists) {
             throw new IllegalStateException(
-                    "Published agent profile version routingModel is invalid: profile="
+                    "Published agent profile version chatModel is invalid: profile="
                             + version.getProfile().getCode()
                             + ", version="
                             + version.getVersionNumber()
-                            + ", routingModel="
-                            + routingModel
-                            + ". The routingModel must exist in enabled CHAT model catalog."
+                            + ", chatModel="
+                            + chatModel
+                            + ". The chatModel must exist in enabled CHAT model catalog."
             );
         }
     }

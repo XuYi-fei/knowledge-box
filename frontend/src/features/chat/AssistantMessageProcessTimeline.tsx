@@ -3,9 +3,11 @@ import {
   ClockCircleOutlined,
   CloseCircleOutlined,
   LoadingOutlined,
+  RightOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Tag, Typography } from 'antd';
 import type { ChatMessageStatus, ChatProcessDetail } from '../../lib/types';
 
@@ -290,31 +292,49 @@ export function AssistantMessageProcessTimeline({
     return null;
   }
 
+  const [expanded, setExpanded] = useState(status === 'STREAMING' || status === 'PENDING');
+  const processCount = items.length;
+
   return (
     <div className="message-process-timeline">
-      <div className="message-process-title">
-        <ClockCircleOutlined />
-        <span>本次回复过程</span>
-      </div>
-      <div className="message-process-list">
-        {items.map((item) => (
-          <div key={item.key} className={`message-process-item message-process-item-${item.kind}`}>
-            <div className={`message-process-marker message-process-marker-${item.statusTone}`}>{statusIcon(item.statusTone)}</div>
-            <details className="message-process-card">
-              <summary className="message-process-summary">
-                <div className="message-process-summary-main">
-                  <span className="message-process-step-title">{item.title}</span>
-                  <span className="message-process-step-summary">{item.summary}</span>
-                </div>
-                <Tag className="message-process-status" color={statusTagColor(item.statusTone)}>
-                  {item.statusLabel}
-                </Tag>
-              </summary>
-              <div className="message-process-body">{item.detail}</div>
-            </details>
-          </div>
-        ))}
-      </div>
+      <button
+        type="button"
+        className={`message-process-toggle ${expanded ? 'is-expanded' : ''}`}
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        aria-controls={`${messageId}-process-list`}
+      >
+        <span className="message-process-title">
+          <ClockCircleOutlined />
+          <span>本次回复过程</span>
+        </span>
+        <span className="message-process-toggle-meta">
+          <span className="message-process-toggle-count">{processCount} 个步骤</span>
+          <span className="message-process-toggle-label">{expanded ? '收起' : '展开'}</span>
+          <RightOutlined className="message-process-toggle-icon" />
+        </span>
+      </button>
+      {expanded ? (
+        <div id={`${messageId}-process-list`} className="message-process-list">
+          {items.map((item) => (
+            <div key={item.key} className={`message-process-item message-process-item-${item.kind}`}>
+              <div className={`message-process-marker message-process-marker-${item.statusTone}`}>{statusIcon(item.statusTone)}</div>
+              <details className="message-process-card">
+                <summary className="message-process-summary">
+                  <div className="message-process-summary-main">
+                    <span className="message-process-step-title">{item.title}</span>
+                    <span className="message-process-step-summary">{item.summary}</span>
+                  </div>
+                  <Tag className="message-process-status" color={statusTagColor(item.statusTone)}>
+                    {item.statusLabel}
+                  </Tag>
+                </summary>
+                <div className="message-process-body">{item.detail}</div>
+              </details>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

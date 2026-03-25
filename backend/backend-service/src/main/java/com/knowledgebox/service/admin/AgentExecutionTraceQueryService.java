@@ -483,16 +483,15 @@ public class AgentExecutionTraceQueryService {
                     "这一步本身不产出回答，它负责把后续路由、Agent 执行、工具调用和最终响应都挂到同一条链路上。"
             );
             case "ROUTING" -> new ReadableExplanation(
-                    "判断是否需要知识库",
+                    "准备知识库能力",
                     boolText(output, "enableKnowledgeBase") == null
-                            ? "系统正在分析这个问题是否需要知识库参与。"
-                            : "系统已完成路由判断，本次" + (booleanValue(output, "enableKnowledgeBase") ? "需要" : "不需要") + "调用知识库。",
+                            ? "系统正在判断当前 Agent 是否应启用知识库工具。"
+                            : "系统已完成知识库能力判断，本次" + (booleanValue(output, "enableKnowledgeBase") ? "会" : "不会") + "启用知识库工具。",
                     prefixed("原始问题", truncate(display(input.path("query")), 120)),
                     joinParts(
-                            prefixed("知识库", booleanValue(output, "enableKnowledgeBase") == null ? null : booleanValue(output, "enableKnowledgeBase") ? "开启" : "跳过"),
+                            prefixed("知识库工具", booleanValue(output, "enableKnowledgeBase") == null ? null : booleanValue(output, "enableKnowledgeBase") ? "开启" : "关闭"),
                             prefixed("判定来源", humanizeRoutingSource(display(output.path("source")))),
-                            prefixed("判定依据", humanizeRoutingReason(display(output.path("reason")))),
-                            prefixed("路由模型", display(output.path("routingModel")))
+                            prefixed("判定依据", humanizeRoutingReason(display(output.path("reason"))))
                     )
             );
             case "STREAM" -> new ReadableExplanation(
@@ -568,16 +567,15 @@ public class AgentExecutionTraceQueryService {
                     "后续会继续进行查询路由和 Agent 执行。"
             );
             case "query.routed" -> new ReadableExplanation(
-                    "得到路由结论",
+                    "得到知识库能力结论",
                     booleanValue(payload, "enableKnowledgeBase") == null
-                            ? "系统已经完成路由，但当前未记录是否启用知识库。"
-                            : "系统判定本次" + (booleanValue(payload, "enableKnowledgeBase") ? "需要" : "不需要") + "使用知识库。",
+                            ? "系统已经完成本轮知识库能力判断，但当前未记录是否启用知识库工具。"
+                            : "系统判定本次" + (booleanValue(payload, "enableKnowledgeBase") ? "启用" : "不启用") + "知识库工具。",
                     prefixed("原始问题", truncate(display(payload.path("query")), 120)),
                     joinParts(
-                            prefixed("知识库", booleanValue(payload, "enableKnowledgeBase") == null ? null : booleanValue(payload, "enableKnowledgeBase") ? "开启" : "跳过"),
+                            prefixed("知识库工具", booleanValue(payload, "enableKnowledgeBase") == null ? null : booleanValue(payload, "enableKnowledgeBase") ? "开启" : "关闭"),
                             prefixed("判定来源", humanizeRoutingSource(display(payload.path("source")))),
-                            prefixed("判定依据", humanizeRoutingReason(display(payload.path("reason")))),
-                            prefixed("路由模型输出", display(payload.path("routingModelOutput")))
+                            prefixed("判定依据", humanizeRoutingReason(display(payload.path("reason"))))
                     )
             );
             case "agent.call.start" -> new ReadableExplanation(
@@ -713,16 +711,6 @@ public class AgentExecutionTraceQueryService {
                             prefixed("读取上限", numberText(input, "historyTurns", " 条"))
                     ),
                     prefixed("实际返回", numberText(output, "turnCount", " 条"))
-            );
-            case "KnowledgeBaseRoutingService.routeQuery" -> new ReadableExplanation(
-                    "执行知识库路由判断",
-                    "系统调用专门的路由逻辑，判断这次问题要不要查知识库。",
-                    prefixed("问题", truncate(display(input.path("query")), 120)),
-                    joinParts(
-                            prefixed("知识库", booleanValue(output, "enableKnowledgeBase") == null ? null : booleanValue(output, "enableKnowledgeBase") ? "开启" : "跳过"),
-                            prefixed("判定来源", humanizeRoutingSource(display(output.path("source")))),
-                            prefixed("判定依据", humanizeRoutingReason(display(output.path("reason"))))
-                    )
             );
             case "ChatOrchestrator.createReActAgent" -> new ReadableExplanation(
                     "创建 ReActAgent 实例",

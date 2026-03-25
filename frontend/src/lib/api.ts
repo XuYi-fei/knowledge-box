@@ -36,6 +36,8 @@ import {
   IngestionJob,
   InlineImageUploadResult,
   KnowledgeDocument,
+  KnowledgeIngestionDraft,
+  KnowledgeIngestionOptions,
   McpServer,
   ModelCatalog,
   RuntimeEnvRequirement,
@@ -500,6 +502,55 @@ export const api = {
   },
   async userDebugChatOptions() {
     return requestJson<UserDebugChatOptions>('/api/app/agent-debug/options', undefined, 'user');
+  },
+  async knowledgeIngestionOptions() {
+    return requestJson<KnowledgeIngestionOptions>('/api/app/knowledge-ingestion/options', undefined, 'user');
+  },
+  async createKnowledgeIngestionUploadDraft(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return requestJson<KnowledgeIngestionDraft>(
+      '/api/app/knowledge-ingestion/drafts/upload',
+      {
+        method: 'POST',
+        body: formData,
+      },
+      'user',
+    );
+  },
+  async createKnowledgeIngestionInlineDraft(payload: {
+    content: string;
+    sourceFilename?: string;
+  }) {
+    return requestJson<KnowledgeIngestionDraft>(
+      '/api/app/knowledge-ingestion/drafts/inline',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'user',
+    );
+  },
+  async knowledgeIngestionDraftDetail(draftId: number) {
+    return requestJson<KnowledgeIngestionDraft>(`/api/app/knowledge-ingestion/drafts/${draftId}`, undefined, 'user');
+  },
+  async confirmKnowledgeIngestionDraft(
+    draftId: number,
+    payload: {
+      title?: string;
+      categoryName?: string;
+      columnName?: string;
+      tags?: string[];
+    },
+  ) {
+    return requestJson<KnowledgeIngestionDraft>(
+      `/api/app/knowledge-ingestion/drafts/${draftId}/confirm`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      },
+      'user',
+    );
   },
   async userDebugChatSessions(profileCode: string) {
     return requestJson<UserChatSessionSummary[]>(

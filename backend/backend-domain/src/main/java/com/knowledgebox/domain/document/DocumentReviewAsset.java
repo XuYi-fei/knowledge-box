@@ -3,6 +3,8 @@ package com.knowledgebox.domain.document;
 import com.knowledgebox.common.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -21,6 +23,10 @@ public class DocumentReviewAsset extends BaseEntity {
 
     @Column(nullable = false, length = 512)
     private String storedUrl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private DocumentAssetRole assetRole = DocumentAssetRole.INLINE_ASSET;
 
     @Column(nullable = false, length = 32)
     private String provider = "local";
@@ -56,6 +62,14 @@ public class DocumentReviewAsset extends BaseEntity {
 
     public void setStoredUrl(String storedUrl) {
         this.storedUrl = storedUrl;
+    }
+
+    public DocumentAssetRole getAssetRole() {
+        return assetRole;
+    }
+
+    public void setAssetRole(DocumentAssetRole assetRole) {
+        this.assetRole = assetRole;
     }
 
     public String getProvider() {

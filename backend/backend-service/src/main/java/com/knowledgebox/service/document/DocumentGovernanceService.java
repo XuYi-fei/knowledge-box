@@ -30,6 +30,7 @@ import com.knowledgebox.api.UpdateReviewTaxonomyRequest;
 import com.knowledgebox.common.ApiException;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.document.DocumentAsset;
+import com.knowledgebox.domain.document.DocumentAssetRole;
 import com.knowledgebox.domain.document.DocumentCategory;
 import com.knowledgebox.domain.document.DocumentChunk;
 import com.knowledgebox.domain.document.DocumentColumn;
@@ -408,6 +409,65 @@ public class DocumentGovernanceService {
                 review.getId(),
                 review.getRequestCode()
         );
+    }
+
+    @Transactional
+    public DocumentReviewRequestSummaryView createPreparedPendingReview(PreparedPendingReviewRequest request) {
+        String markdown = request.sourceMarkdown() == null ? "" : request.sourceMarkdown().trim();
+        if (!StringUtils.hasText(markdown)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "SOURCE_MARKDOWN_REQUIRED", "整理后的 Markdown 不能为空");
+        }
+        List<String> selectedTags = normalizeTagNames(request.selectedTags());
+        String normalizedPath = storeNormalizedMarkdown(request.sourceFilename(), markdown);
+
+        DocumentReviewRequest review = new DocumentReviewRequest();
+        review.setRequestCode(UUID.randomUUID().toString());
+        review.setTitle(StringUtils.hasText(request.title()) ? request.title().trim() : deriveTitle(request.sourceFilename(), markdown));
+        review.setSourceFilename(StringUtils.hasText(request.sourceFilename()) ? request.sourceFilename().trim() : "document.md");
+        review.setUploaderType(request.uploaderType() == null ? DocumentUploaderType.ADMIN : request.uploaderType());
+        review.setUploaderUserId(request.uploaderUserId());
+        review.setVisibilityType(request.visibilityType() == null ? DocumentVisibilityType.PUBLIC : request.visibilityType());
+        review.setStatus(DocumentReviewStatus.PROCESSING);
+        review.setStage("PREPARE_REVIEW");
+        review.setProgressPercent(90);
+        review.setSourceMarkdown(markdown);
+        review.setNormalizedMarkdownPath(normalizedPath);
+        review.setExtensionJson(normalizeJsonObject(request.extensionJson()));
+        review.setVectorConfigJson("{}");
+        review.setSuggestedCategoryName(normalizeOptionalName(request.selectedCategoryName()));
+        review.setSuggestedTagsJson(writeJson(selectedTags));
+        review.setSelectedCategoryName(normalizeOptionalName(request.selectedCategoryName()));
+        review.setSelectedColumnName(normalizeOptionalName(request.selectedColumnName()));
+        review.setSelectedTagsJson(writeJson(selectedTags));
+        review.setTaxonomyReasoning(normalizeOptionalName(request.taxonomyReasoning()));
+        review = documentReviewRequestRepository.save(review);
+
+        if (request.sourceAsset() != null) {
+            DocumentReviewAsset asset = new DocumentReviewAsset();
+            asset.setReviewRequest(review);
+            asset.setOriginalPath(request.sourceAsset().originalPath());
+            asset.setStoredUrl(request.sourceAsset().storedUrl());
+            asset.setAssetRole(request.sourceAsset().assetRole());
+            asset.setProvider(request.sourceAsset().provider());
+            asset.setObjectKey(request.sourceAsset().objectKey());
+            asset.setContentType(request.sourceAsset().contentType());
+            asset.setContentLength(request.sourceAsset().contentLength());
+            documentReviewAssetRepository.save(asset);
+        }
+
+        List<DocumentReviewChunk> chunks = splitMarkdown(review, markdown);
+        documentReviewChunkRepository.saveAll(chunks);
+        review.setVectorConfigJson(writeJson(Map.of(
+                "chunkSize", properties.getRetrieval().getChunkSize(),
+                "chunkCount", chunks.size(),
+                "assetCount", request.sourceAsset() == null ? 0 : 1,
+                "vectorTable", properties.getRetrieval().getVectorTable()
+        )));
+        review.setStatus(DocumentReviewStatus.PENDING_REVIEW);
+        review.setStage("PENDING_REVIEW");
+        review.setProgressPercent(100);
+        review.setErrorMessage(null);
+        return toReviewSummaryView(documentReviewRequestRepository.save(review));
     }
 
     public DocumentPastedImageUploadView uploadPastedImage(MultipartFile image) {
@@ -1209,6 +1269,7 @@ public class DocumentGovernanceService {
                     created.setDocument(publishedDocument);
                     created.setOriginalPath(asset.getOriginalPath());
                     created.setStoredUrl(asset.getStoredUrl());
+                    created.setAssetRole(asset.getAssetRole());
                     created.setProvider(asset.getProvider());
                     created.setObjectKey(asset.getObjectKey());
                     created.setContentType(asset.getContentType());
@@ -1559,5 +1620,32 @@ public class DocumentGovernanceService {
                 }
             };
         }
+    }
+
+    public record PreparedPendingReviewRequest(
+            String title,
+            String sourceFilename,
+            DocumentUploaderType uploaderType,
+            Long uploaderUserId,
+            DocumentVisibilityType visibilityType,
+            String sourceMarkdown,
+            String extensionJson,
+            String selectedCategoryName,
+            String selectedColumnName,
+            List<String> selectedTags,
+            String taxonomyReasoning,
+            StoredReviewAsset sourceAsset
+    ) {
+    }
+
+    public record StoredReviewAsset(
+            String originalPath,
+            String storedUrl,
+            DocumentAssetRole assetRole,
+            String provider,
+            String objectKey,
+            String contentType,
+            Long contentLength
+    ) {
     }
 }

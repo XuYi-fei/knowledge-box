@@ -1350,4 +1350,44 @@
                 OR system_prompt = E'You are the main public supervisor agent for the knowledge base.\nIf the searchKnowledgeBase tool is available for this round, you must call it before writing the final answer.\nRewrite the user''s request into a focused retrieval query when needed, use a small topK such as 3 to 6, and base repository-specific facts on retrieved evidence.\nIf the knowledge base does not provide enough evidence, say that clearly instead of fabricating details.\nDo not expose hidden chain-of-thought.\nKeep the final answer concise and structured.';
         ]]></sql>
     </changeSet>
+
+    <changeSet id="it-006-knowledge-ingestion-draft" author="codex">
+        <sql><![CDATA[
+            ALTER TABLE document_asset
+                ADD COLUMN IF NOT EXISTS asset_role VARCHAR(32) NOT NULL DEFAULT 'INLINE_ASSET';
+
+            ALTER TABLE document_review_asset
+                ADD COLUMN IF NOT EXISTS asset_role VARCHAR(32) NOT NULL DEFAULT 'INLINE_ASSET';
+
+            CREATE TABLE IF NOT EXISTS knowledge_ingestion_draft (
+                id BIGSERIAL PRIMARY KEY,
+                draft_code VARCHAR(64) NOT NULL UNIQUE,
+                user_id BIGINT NOT NULL REFERENCES app_user(id),
+                source_type VARCHAR(16) NOT NULL,
+                source_filename VARCHAR(256),
+                source_content TEXT NOT NULL DEFAULT '',
+                source_file_provider VARCHAR(32),
+                source_file_object_key VARCHAR(512),
+                source_file_url VARCHAR(512),
+                source_file_content_type VARCHAR(128),
+                source_file_content_length BIGINT,
+                status VARCHAR(32) NOT NULL DEFAULT 'CREATED',
+                stage VARCHAR(64) NOT NULL DEFAULT 'CREATED',
+                progress_percent INTEGER NOT NULL DEFAULT 0,
+                generated_markdown TEXT,
+                summary_text TEXT,
+                suggested_title VARCHAR(128),
+                suggested_category_name VARCHAR(128),
+                suggested_tags_json TEXT NOT NULL DEFAULT '[]',
+                analysis_reasoning TEXT,
+                error_message TEXT,
+                confirmed_review_request_id BIGINT REFERENCES document_review_request(id),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX idx_knowledge_ingestion_draft_user_status
+                ON knowledge_ingestion_draft(user_id, status, updated_at DESC);
+        ]]></sql>
+    </changeSet>
 </databaseChangeLog>

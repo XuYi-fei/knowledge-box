@@ -771,7 +771,7 @@ export type DocumentReviewRequestSummary = {
   publishedDocumentId: number | null;
   title: string;
   sourceFilename: string;
-  uploaderType: 'ADMIN';
+  uploaderType: 'ADMIN' | 'USER';
   uploaderUserId: number | null;
   visibilityType: 'PUBLIC' | 'AGENT_ONLY';
   status: DocumentReviewStatus;
@@ -825,7 +825,7 @@ export type DocumentReviewRequestDetail = {
   publishedDocumentId: number | null;
   title: string;
   sourceFilename: string;
-  uploaderType: 'ADMIN';
+  uploaderType: 'ADMIN' | 'USER';
   uploaderUserId: number | null;
   visibilityType: 'PUBLIC' | 'AGENT_ONLY';
   status: DocumentReviewStatus;
@@ -862,6 +862,40 @@ export type DocumentIndexRebuildJob = {
   startedAt: string;
   finishedAt: string | null;
   errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeIngestionDraftSourceType = 'INLINE' | 'MARKDOWN' | 'PDF';
+
+export type KnowledgeIngestionDraftStatus = 'CREATED' | 'PROCESSING' | 'AWAITING_CONFIRMATION' | 'CONFIRMED' | 'FAILED';
+
+export type KnowledgeIngestionOptions = {
+  categories: DocumentCategory[];
+  columns: DocumentColumn[];
+  tags: DocumentTag[];
+};
+
+export type KnowledgeIngestionDraft = {
+  id: number;
+  draftCode: string;
+  sourceType: KnowledgeIngestionDraftSourceType;
+  sourceFilename: string | null;
+  sourceFileUrl: string | null;
+  sourceFileContentType: string | null;
+  sourceFileContentLength: number | null;
+  status: KnowledgeIngestionDraftStatus;
+  stage: string;
+  progressPercent: number;
+  generatedMarkdown: string | null;
+  summaryText: string | null;
+  suggestedTitle: string | null;
+  suggestedCategoryName: string | null;
+  suggestedTagsJson: string;
+  analysisReasoning: string | null;
+  errorMessage: string | null;
+  confirmedReviewRequestId: number | null;
+  confirmedReviewRequestCode: string | null;
   createdAt: string;
   updatedAt: string;
 };

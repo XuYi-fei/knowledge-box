@@ -1,4 +1,4 @@
-import { BookOutlined, BugOutlined, InfoCircleOutlined, LoginOutlined, ReadOutlined, ToolOutlined } from '@ant-design/icons';
+import { BookOutlined, BugOutlined, FileAddOutlined, InfoCircleOutlined, LoginOutlined, ReadOutlined, ToolOutlined } from '@ant-design/icons';
 import type { WorkspaceTab } from '../components/WorkspaceHeader';
 
 export function buildUserWorkspaceTabs(): WorkspaceTab[] {
@@ -16,6 +16,13 @@ export function buildUserWorkspaceTabs(): WorkspaceTab[] {
       path: '/articles',
       icon: <ReadOutlined />,
       matches: (pathname) => pathname.startsWith('/articles'),
+    },
+    {
+      key: 'ingest',
+      label: '知识入库',
+      path: '/ingest',
+      icon: <FileAddOutlined />,
+      matches: (pathname) => pathname.startsWith('/ingest'),
     },
     {
       key: 'tools',

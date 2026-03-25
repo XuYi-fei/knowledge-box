@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="065-001-about-release-note-knowledge-ingestion" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                highlighted
+            )
+            VALUES (
+                'v0.1.0',
+                '新增用户侧知识入库工作台',
+                '支持用户上传 Markdown 或文本型 PDF，由 Agent 自动整理草稿并在确认标题、分类、标签后提交待审核单。',
+                E'- 用户侧新增“知识入库”入口，可上传 Markdown / 文本型 PDF 或直接粘贴内容。\n- 服务端会保留原始上传文件，并通过 Agent 生成建议标题、分类、标签与整理后的 Markdown。\n- 用户确认后不会直接发布，而是进入现有文档审核链路，便于继续运营审核。',
+                CURRENT_TIMESTAMP,
+                FALSE
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

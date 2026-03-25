@@ -68,4 +68,6 @@
     <include file="db/changelog/db.changelog-061-chat-process-details.xml"/>
     <include file="db/changelog/db.changelog-062-chat-process-details-release-note.xml"/>
     <include file="db/changelog/db.changelog-063-main-agent-image-dedup-prompt.xml"/>
+    <include file="db/changelog/db.changelog-064-knowledge-ingestion-draft.xml"/>
+    <include file="db/changelog/db.changelog-065-knowledge-ingestion-release-note.xml"/>
 </databaseChangeLog>

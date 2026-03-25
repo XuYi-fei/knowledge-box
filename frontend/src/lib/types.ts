@@ -876,6 +876,61 @@ export type KnowledgeIngestionOptions = {
   tags: DocumentTag[];
 };
 
+export type KnowledgeIngestionUploadResult =
+  | { mode: 'draft'; draftId: number }
+  | { mode: 'task'; taskId: number };
+
+export type KnowledgeIngestionTaskStatus = 'QUEUED' | 'RUNNING' | 'CANCELLING' | 'CANCELLED' | 'COMPLETED' | 'PARTIAL_FAILED' | 'FAILED';
+
+export type KnowledgeIngestionTaskStageStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export type KnowledgeIngestionTaskStage = {
+  id: number;
+  name: string;
+  status: KnowledgeIngestionTaskStageStatus;
+  progressPercent: number;
+  message: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+export type KnowledgeIngestionTaskDocumentStatus = 'PLANNED' | 'GENERATING' | 'PENDING_REVIEW_CREATED' | 'FAILED' | 'CANCELLED';
+
+export type KnowledgeIngestionTaskDocumentSummary = {
+  id: number;
+  documentCode: string;
+  title: string;
+  categoryName: string | null;
+  pageRange: string | null;
+  status: KnowledgeIngestionTaskDocumentStatus;
+  stage: string;
+  summary: string | null;
+  createdAt: string;
+};
+
+export type KnowledgeIngestionTaskDocumentDetail = KnowledgeIngestionTaskDocumentSummary & {
+  generatedMarkdown: string | null;
+  confirmedReviewRequestCode: string | null;
+  errorMessage: string | null;
+};
+
+export type KnowledgeIngestionTask = {
+  id: number;
+  taskCode: string;
+  sourceFilename: string;
+  sourceFileUrl: string | null;
+  pageCount: number | null;
+  status: KnowledgeIngestionTaskStatus;
+  stage: string;
+  progressPercent: number;
+  cancelRequested: boolean;
+  failureReason: string | null;
+  stages: KnowledgeIngestionTaskStage[];
+  documents: KnowledgeIngestionTaskDocumentSummary[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type KnowledgeIngestionDraft = {
   id: number;
   draftCode: string;

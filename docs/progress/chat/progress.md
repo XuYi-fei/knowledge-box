@@ -8,6 +8,7 @@
 
 - 用户侧已具备登录后的知识库问答、会话持久化、历史恢复、删除会话与 SSE 流式输出。
 - 用户侧工作区已新增“知识入库”入口，支持独立上传/粘贴工作台、草稿轮询、Agent 建议确认，以及提交到文档审核链路。
+- 知识入库大文件自动分流到 `/ingest/tasks/:taskId`，新增任务总览、阶段进度、子产物列表与详情预览 UI，并可实时取消任务或查看部分完成文档。
 - 聊天主链路已切到 AgentScope Java ReActAgent，支持前置知识检索、tool calling、reasoning/tool/citation 展示与 trace。
 - 聊天链路现已支持通过 AgentScope `SubAgentTool` 调用绑定的原子子 Agent；子 Agent 自身仍可装配 Tool / MCP / Skill，并在统一 trace 中留下独立执行过程。
 - 聊天链路现已支持 Agent 版本级运行时环境变量；Tool 执行、MCP 占位符解析和子 Agent 装配都可按当前 Agent 版本注入 `INLINE / PROCESS_ENV` 配置。
@@ -51,6 +52,7 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天页与 Agent 调试页对结构化 `processDetails` 的消费，以及展开态思考/工具详情展示。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖移除 optimistic 假思考节点后，聊天页与 `Agent 调试` 页只展示真实 reasoning/tool 过程。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖“回复过程”整体折叠开关、步骤计数展示，以及聊天页与 `Agent 调试` 页的共用时间线组件回归。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖知识入库上传自动分流、`/ingest/tasks/:taskId` 任务页、阶段/子产物列表与 Markdown 预览回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖聊天共享工作区拆分后 `PublicChatPage` / `AgentDebugPage` 的页面瘦身、会话恢复、SSE 消费与通用布局回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖聊天编排与引用链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖知识库 Tool 绑定判定、`systemPrompt` 直传和相关运行时装配回归。

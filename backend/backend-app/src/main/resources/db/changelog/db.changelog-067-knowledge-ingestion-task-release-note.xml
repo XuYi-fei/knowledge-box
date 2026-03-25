@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="067-001-about-release-note-knowledge-ingestion-task" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                highlighted
+            )
+            VALUES (
+                'v0.1.0',
+                '知识入库支持大 PDF 异步拆解',
+                '大体量文本型 PDF 现可自动转为异步任务，边生成边沉淀待审核知识文档，并支持任务进度查看与取消。',
+                E'- 上传大页数或大体积的文本型 PDF 后，系统会自动创建异步拆解任务，而不是只生成单份草稿。\n- 任务页会持续展示阶段进度、已规划子文档和实时生成中的 Markdown 预览。\n- 每个已生成子文档都会立即进入现有待审核链路；取消任务时会保留已产出的审核文档与原始 PDF。',
+                CURRENT_TIMESTAMP,
+                FALSE
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

@@ -11,7 +11,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildErrorSummary } from '../../lib/errors';
-import type { DocumentCategory, DocumentColumn, DocumentTag, KnowledgeIngestionDraft, KnowledgeIngestionDraftStatus } from '../../lib/types';
+import type {
+  DocumentCategory,
+  DocumentColumn,
+  DocumentTag,
+  KnowledgeIngestionDraft,
+  KnowledgeIngestionDraftStatus,
+  KnowledgeIngestionUploadResult,
+} from '../../lib/types';
 import { MarkdownWorkbench } from '../admin/components/MarkdownWorkbench';
 
 type DraftMode = 'file' | 'inline';
@@ -95,9 +102,14 @@ export function KnowledgeIngestionPage() {
       }
       return api.createKnowledgeIngestionUploadDraft(current);
     },
-    onSuccess: (draft) => {
-      message.success('文件已上传，正在生成知识草稿');
-      void navigate(`/ingest/${draft.id}`);
+    onSuccess: (result) => {
+      if (result.mode === 'draft') {
+        message.success('文件已上传，正在生成知识草稿');
+        void navigate(`/ingest/${result.draftId}`);
+        return;
+      }
+      message.success('大文件已进入任务拆解，稍后在任务页查看子产物');
+      void navigate(`/ingest/tasks/${result.taskId}`);
     },
     onError: (error) => {
       message.error(buildErrorSummary(error, '上传失败，请稍后重试'));
@@ -106,9 +118,14 @@ export function KnowledgeIngestionPage() {
 
   const inlineMutation = useMutation({
     mutationFn: (values: { content: string; sourceFilename?: string }) => api.createKnowledgeIngestionInlineDraft(values),
-    onSuccess: (draft) => {
-      message.success('内容已提交，正在生成知识草稿');
-      void navigate(`/ingest/${draft.id}`);
+    onSuccess: (result) => {
+      if (result.mode === 'draft') {
+        message.success('内容已提交，正在生成知识草稿');
+        void navigate(`/ingest/${result.draftId}`);
+        return;
+      }
+      message.success('内容已进入大文件任务拆解，稍后在任务页查看子产物');
+      void navigate(`/ingest/tasks/${result.taskId}`);
     },
     onError: (error) => {
       message.error(buildErrorSummary(error, '创建草稿失败，请稍后重试'));
@@ -201,9 +218,9 @@ export function KnowledgeIngestionPage() {
               <Button type="primary" onClick={() => uploadMutation.mutate()} loading={uploadMutation.isPending} disabled={!fileList.length}>
                 上传并生成草稿
               </Button>
-            </Space>
-          ) : (
-            <Form layout="vertical" form={inlineForm} onFinish={(values) => inlineMutation.mutate(values)}>
+           </Space>
+         ) : (
+           <Form layout="vertical" form={inlineForm} onFinish={(values) => inlineMutation.mutate(values)}>
               <Form.Item name="sourceFilename" label="来源文件名（可选）">
                 <Input placeholder="例如：redis-multiplexing-notes.md" />
               </Form.Item>
@@ -212,9 +229,14 @@ export function KnowledgeIngestionPage() {
               </Form.Item>
               <Button type="primary" htmlType="submit" loading={inlineMutation.isPending}>
                 生成草稿
-              </Button>
-            </Form>
-          )}
+             </Button>
+           </Form>
+         )}
+       </Card>
+        <Card className="chat-panel chat-card" title="大文件任务说明">
+          <Typography.Paragraph>
+            当上传大体量 PDF（如超过一定页数/大小）时，它会自动进入异步任务页面，您可以在任务页 `/ingest/tasks/:taskId` 实时查看阶段进度与子产物，不必等到所有内容处理完再看结果。
+          </Typography.Paragraph>
         </Card>
 
         {draftId && !detail && detailQuery.isLoading ? (

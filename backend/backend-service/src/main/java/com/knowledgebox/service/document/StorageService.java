@@ -10,6 +10,8 @@ public interface StorageService {
         return store(category, file);
     }
 
+    byte[] read(String objectKey);
+
     record StoredObject(
             String provider,
             String objectKey,

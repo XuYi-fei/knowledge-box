@@ -38,6 +38,9 @@ import {
   KnowledgeDocument,
   KnowledgeIngestionDraft,
   KnowledgeIngestionOptions,
+  KnowledgeIngestionTask,
+  KnowledgeIngestionTaskDocumentDetail,
+  KnowledgeIngestionUploadResult,
   McpServer,
   ModelCatalog,
   RuntimeEnvRequirement,
@@ -179,6 +182,151 @@ type BlobResponse = {
   blob: Blob;
   fileName: string | null;
 };
+
+type RawKnowledgeIngestionUploadResult = {
+  mode: 'SYNC_DRAFT' | 'ASYNC_TASK';
+  draft?: { id: number } | null;
+  task?: { id: number } | null;
+};
+
+type RawKnowledgeIngestionTaskStage = {
+  id: number;
+  stageCode: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  progressPercent: number;
+  message: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type RawKnowledgeIngestionTaskDocumentSummary = {
+  id: number;
+  documentCode: string;
+  segmentIndex: number;
+  pageFromNumber: number | null;
+  pageToNumber: number | null;
+  status: 'PLANNED' | 'GENERATING' | 'PENDING_REVIEW_CREATED' | 'FAILED' | 'CANCELLED';
+  suggestedTitle: string | null;
+  suggestedCategoryName: string | null;
+  summaryText: string | null;
+  errorMessage: string | null;
+  reviewRequestCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type RawKnowledgeIngestionTask = {
+  id: number;
+  taskCode: string;
+  sourceFilename: string;
+  sourceFileUrl: string | null;
+  sourcePageCount: number | null;
+  status: KnowledgeIngestionTask['status'];
+  stage: string;
+  progressPercent: number;
+  cancelRequested: boolean;
+  errorMessage: string | null;
+  stages: RawKnowledgeIngestionTaskStage[];
+  documents: RawKnowledgeIngestionTaskDocumentSummary[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+type RawKnowledgeIngestionTaskDocumentDetail = RawKnowledgeIngestionTaskDocumentSummary & {
+  suggestedTagsJson: string;
+  analysisReasoning: string | null;
+  generatedMarkdown: string | null;
+};
+
+const ingestionStageNameMap: Record<string, string> = {
+  UPLOAD_STORED: '保存原文件',
+  PAGE_SCAN: '扫描页数',
+  TEXT_EXTRACTION: '提取文本',
+  SEGMENT_PLANNING: '规划拆解',
+  DOCUMENT_GENERATION: '生成文档',
+  FINALIZING: '收尾汇总',
+};
+
+function formatIngestionPageRange(pageFromNumber: number | null, pageToNumber: number | null) {
+  if (pageFromNumber == null && pageToNumber == null) {
+    return null;
+  }
+  if (pageFromNumber != null && pageToNumber != null) {
+    return pageFromNumber === pageToNumber ? `第 ${pageFromNumber} 页` : `第 ${pageFromNumber}-${pageToNumber} 页`;
+  }
+  return `第 ${pageFromNumber ?? pageToNumber} 页`;
+}
+
+function normalizeKnowledgeIngestionUploadResult(raw: RawKnowledgeIngestionUploadResult): KnowledgeIngestionUploadResult {
+  if (raw.mode === 'ASYNC_TASK') {
+    return {
+      mode: 'task',
+      taskId: raw.task?.id ?? 0,
+    };
+  }
+  return {
+    mode: 'draft',
+    draftId: raw.draft?.id ?? 0,
+  };
+}
+
+function normalizeKnowledgeIngestionTaskDocumentSummary(
+  raw: RawKnowledgeIngestionTaskDocumentSummary,
+): KnowledgeIngestionTaskDocumentDetail {
+  return {
+    id: raw.id,
+    documentCode: raw.documentCode,
+    title: raw.suggestedTitle ?? `文档 ${raw.segmentIndex}`,
+    categoryName: raw.suggestedCategoryName,
+    pageRange: formatIngestionPageRange(raw.pageFromNumber, raw.pageToNumber),
+    status: raw.status,
+    stage: raw.status,
+    summary: raw.summaryText,
+    createdAt: raw.createdAt,
+    generatedMarkdown: null,
+    confirmedReviewRequestCode: raw.reviewRequestCode,
+    errorMessage: raw.errorMessage,
+  };
+}
+
+function normalizeKnowledgeIngestionTask(raw: RawKnowledgeIngestionTask): KnowledgeIngestionTask {
+  return {
+    id: raw.id,
+    taskCode: raw.taskCode,
+    sourceFilename: raw.sourceFilename,
+    sourceFileUrl: raw.sourceFileUrl,
+    pageCount: raw.sourcePageCount,
+    status: raw.status,
+    stage: raw.stage,
+    progressPercent: raw.progressPercent,
+    cancelRequested: raw.cancelRequested,
+    failureReason: raw.errorMessage,
+    stages: (raw.stages ?? []).map((stage) => ({
+      id: stage.id,
+      name: ingestionStageNameMap[stage.stageCode] ?? stage.stageCode,
+      status: stage.status,
+      progressPercent: stage.progressPercent,
+      message: stage.message,
+      startedAt: stage.createdAt,
+      finishedAt: ['COMPLETED', 'FAILED', 'CANCELLED'].includes(stage.status) ? stage.updatedAt : null,
+    })),
+    documents: (raw.documents ?? []).map((document) => normalizeKnowledgeIngestionTaskDocumentSummary(document)),
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  };
+}
+
+function normalizeKnowledgeIngestionTaskDocumentDetail(
+  raw: RawKnowledgeIngestionTaskDocumentDetail,
+): KnowledgeIngestionTaskDocumentDetail {
+  return {
+    ...normalizeKnowledgeIngestionTaskDocumentSummary(raw),
+    stage: raw.status,
+    generatedMarkdown: raw.generatedMarkdown,
+    confirmedReviewRequestCode: raw.reviewRequestCode,
+    errorMessage: raw.errorMessage,
+  };
+}
 
 export function buildApiUrl(path: string) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -509,27 +657,29 @@ export const api = {
   async createKnowledgeIngestionUploadDraft(file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    return requestJson<KnowledgeIngestionDraft>(
-      '/api/app/knowledge-ingestion/drafts/upload',
+    const result = await requestJson<RawKnowledgeIngestionUploadResult>(
+      '/api/app/knowledge-ingestion/uploads',
       {
         method: 'POST',
         body: formData,
       },
       'user',
     );
+    return normalizeKnowledgeIngestionUploadResult(result);
   },
   async createKnowledgeIngestionInlineDraft(payload: {
     content: string;
     sourceFilename?: string;
   }) {
-    return requestJson<KnowledgeIngestionDraft>(
-      '/api/app/knowledge-ingestion/drafts/inline',
+    const result = await requestJson<RawKnowledgeIngestionUploadResult>(
+      '/api/app/knowledge-ingestion/inline',
       {
         method: 'POST',
         body: JSON.stringify(payload),
       },
       'user',
     );
+    return normalizeKnowledgeIngestionUploadResult(result);
   },
   async knowledgeIngestionDraftDetail(draftId: number) {
     return requestJson<KnowledgeIngestionDraft>(`/api/app/knowledge-ingestion/drafts/${draftId}`, undefined, 'user');
@@ -548,6 +698,31 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify(payload),
+      },
+      'user',
+    );
+  },
+  async listKnowledgeIngestionTasks() {
+    const result = await requestJson<RawKnowledgeIngestionTask[]>('/api/app/knowledge-ingestion/tasks', undefined, 'user');
+    return result.map((item) => normalizeKnowledgeIngestionTask(item));
+  },
+  async knowledgeIngestionTaskDetail(taskId: number) {
+    const result = await requestJson<RawKnowledgeIngestionTask>(`/api/app/knowledge-ingestion/tasks/${taskId}`, undefined, 'user');
+    return normalizeKnowledgeIngestionTask(result);
+  },
+  async knowledgeIngestionTaskDocument(taskId: number, documentId: number) {
+    const result = await requestJson<RawKnowledgeIngestionTaskDocumentDetail>(
+      `/api/app/knowledge-ingestion/tasks/${taskId}/documents/${documentId}`,
+      undefined,
+      'user',
+    );
+    return normalizeKnowledgeIngestionTaskDocumentDetail(result);
+  },
+  async cancelKnowledgeIngestionTask(taskId: number) {
+    return requestJson<void>(
+      `/api/app/knowledge-ingestion/tasks/${taskId}/cancel`,
+      {
+        method: 'POST',
       },
       'user',
     );

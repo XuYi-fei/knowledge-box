@@ -3,6 +3,7 @@ package com.knowledgebox.service.document;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -35,6 +36,15 @@ public class LocalStorageService implements StorageService {
         return storeLocal(category, safeName, file, true);
     }
 
+    @Override
+    public byte[] read(String objectKey) {
+        try {
+            return Files.readAllBytes(resolveObjectPath(objectKey));
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Failed to read file from local storage: " + objectKey, exception);
+        }
+    }
+
     private StoredObject storeLocal(String category, String safeName, MultipartFile file, boolean skipIfExists) {
         Path baseDir = Path.of(properties.getStorage().getLocalBasePath()).resolve(category);
         String objectKey = category + "/" + safeName;
@@ -64,5 +74,13 @@ public class LocalStorageService implements StorageService {
             throw new IllegalArgumentException("Invalid object name for deterministic storage");
         }
         return safeName;
+    }
+
+    private Path resolveObjectPath(String objectKey) {
+        String safeKey = StringUtils.cleanPath(objectKey == null ? "" : objectKey);
+        if (!StringUtils.hasText(safeKey) || safeKey.contains("..")) {
+            throw new IllegalArgumentException("Invalid object key for local storage read");
+        }
+        return Path.of(properties.getStorage().getLocalBasePath()).resolve(safeKey);
     }
 }

@@ -70,4 +70,6 @@
     <include file="db/changelog/db.changelog-063-main-agent-image-dedup-prompt.xml"/>
     <include file="db/changelog/db.changelog-064-knowledge-ingestion-draft.xml"/>
     <include file="db/changelog/db.changelog-065-knowledge-ingestion-release-note.xml"/>
+    <include file="db/changelog/db.changelog-066-knowledge-ingestion-task.xml"/>
+    <include file="db/changelog/db.changelog-067-knowledge-ingestion-task-release-note.xml"/>
 </databaseChangeLog>

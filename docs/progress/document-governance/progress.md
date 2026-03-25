@@ -8,6 +8,7 @@
 
 - 已落地文档上传、审核流、分类/标签、Markdown 预览编辑、图片转存、向量写入、索引重建与 bootstrap 初始化导入。
 - 已新增用户侧“知识入库工作台”首版：登录用户可上传 Markdown / 文本型 PDF 或直接粘贴内容，系统会保留原始文件、生成待确认草稿，并在确认后创建 `PENDING_REVIEW` 审核单复用现有治理链路。
+- 已补齐大 PDF 异步入库链路：当文本型 PDF 超过页数或体积阈值时，上传会自动切到异步任务；系统会保留原始 PDF、规划多个子文档、边生成边创建真实 `PENDING_REVIEW` 审核单，并允许中途取消后续生成。
 - 管理端文档审核已支持批量审核通过。
 - 文档导入与审核已支持“专栏”能力；bootstrap 与运行时 `init-review` 可指定分类/专栏，审核页也可编辑专栏。
 - 导入判重已升级为“双重判定”：除 `importKey` 幂等外，还会按正文内容指纹拦截跨来源重复内容。
@@ -20,7 +21,9 @@
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖用户侧知识入库页、工作区路由与导航接线。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 可通过，已覆盖审核、专栏、重复治理与导入链路。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionSourceToolTests,KnowledgeIngestionServiceTests test` 可通过，已覆盖知识入库 source tool、草稿分析状态流转与确认入审核单链路。
+- 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionServiceTests,KnowledgeIngestionTaskServiceTests test` 可通过，已覆盖大 PDF 自动分流、异步任务拆解、任务取消保留已产出审核单，以及 Liquibase/服务层编译回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests package` 与 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18082` 可通过，已验证知识入库 064/065 Liquibase 迁移在本地库上可正常执行启动。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖 `/ingest` 自动分流上传、`/ingest/tasks/:taskId` 任务页、阶段列表、子文档预览与取消按钮编译回归。
 - 后端：`mvn -q -pl backend/backend-app -am -Dtest=DocumentBootstrapImportRunnerTests -Dsurefire.failIfNoSpecifiedTests=false test` 可通过，已验证 bootstrap seed 会带入 `categoryName/columnName`。
 - 脚本：`python3 scripts/cleanup_duplicate_documents.py --help` 与 `python3 scripts/cleanup_stuck_bootstrap_reviews.py --help` 可执行。
 
@@ -29,6 +32,7 @@
 - 继续细化审核权限颗粒度、审核原因规范化与失败可观测性。
 - 持续清理和治理历史导入遗留数据，降低重复内容和卡单对运营的影响。
 - 继续补齐用户侧知识入库在真实 OSS、模型和审核运营场景下的联调，评估 PDF OCR 与入口 Agent/Tool 配置化是否需要进一步落地。
+- 继续补齐超大 PDF 在线联调体验，例如任务列表检索、进度恢复、失败重试与更细粒度的阶段提示。
 - 补齐真实模型、邮件和对象存储参与下的完整审核运维闭环。
 
 ## 关键注意点
@@ -36,6 +40,7 @@
 - 审核/生成异步线程要在 `afterCommit` 后启动，避免子线程读不到未提交数据。
 - Liquibase 已执行过的初始化 changeSet 不能直接改；像知识入库这类新增表、字段或 about 更新都必须走增量 changelog。
 - 当前项目的用户表名是 `user_account`；新增文档治理/用户侧入库表若需要引用用户外键，不能误写成不存在的 `app_user`。
+- 大 PDF 异步任务不要依赖请求期 `MultipartFile` 生命周期；后台生成阶段应通过存储层 `read(objectKey)` 重新读取已保留的原始 PDF。
 - 标签绑定写入前要去重；删旧绑定优先 bulk delete 或显式 flush，避免唯一键冲突。
 - DashScope embedding 单批上限按 `10` 控制。
 - bootstrap 导入不能只依赖 `importKey`；当来源系统会生成不同 `importKey` 时，还要结合正文内容指纹判重。

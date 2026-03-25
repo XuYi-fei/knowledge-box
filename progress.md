@@ -8,7 +8,7 @@
 ## 当前重点
 
 - 文档治理闭环继续收口：审核策略、失败可观测性、重复治理和导入运维仍是近期主线。
-- 用户侧知识入库工作台已接上首版闭环：当前支持上传 Markdown / 文本型 PDF 或直接粘贴内容生成草稿，后续重点转向真实 OSS、模型与审核运营联调。
+- 用户侧知识入库工作台已接上同步草稿 + 大 PDF 异步任务双链路：当前支持上传 Markdown / 小型文本型 PDF 或直接粘贴内容生成草稿，也支持大体量文本型 PDF 异步拆解为多个待审核文档，后续重点转向真实 OSS、模型与审核运营联调。
 - 用户体验继续打磨：聊天流式细节、公开文库阅读体验和用户工具扩展仍有持续迭代空间。
 - 聊天停止链路已补齐：当前支持用户主动停止回答并以 `CANCELLED` 持久化，后续重点转向真实模型调用下的中断时延观察。
 - 用户侧多入口调试已补齐：当前支持独立 `Agent 调试` 工作区，后续重点转向真实环境下不同 Entry Agent 的联调与可用性反馈。
@@ -42,6 +42,7 @@
 - `mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `npm --prefix frontend run build` 已通过，覆盖知识库分类路由移除、Agent 配置页去除路由模型显式配置，以及示例 bundle/seed 同步收口。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=ChatOrchestratorTests,AdminCommandServiceTests,PublishedProfileRoutingModelValidatorTests,AgentConfigAdminServiceTests,ConfigBundleAdminServiceTests test` 已通过，覆盖“绑定 KB tool 即启用 `searchKnowledgeBase`”、发布入口改校验 `chatModel`，以及 Agent/Bundle 导入导出对历史 `routingModel` 字段的兼容回填。
 - `npm --prefix frontend run build` 与 `mvn -q -pl backend/backend-app -am -DskipTests compile` 已通过，覆盖管理端移除知识库模板字段、MAIN 默认 `systemPrompt` 收口，以及 Agent/Bundle/seed 示例同步。
+- `mvn -q -pl backend/backend-app -am -DskipTests compile`、`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionServiceTests,KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖大 PDF 自动分流、异步任务拆解、取消保留已产出审核单，以及 `/ingest/tasks/:taskId` 任务页编译回归。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。
 
@@ -50,7 +51,7 @@
 - `application-local.yml` 仅在 `local` profile 生效，且视为用户本地敏感配置，不要覆盖。
 - 模块任务先读根 `progress.md`，再读对应 `docs/progress/<module>/progress.md`；根文档只保留索引与共享状态。
 - “关于”tab 的更新日志来自数据库；独立功能完成后要补增量 changelog 往 `about_release_note` 写数据。
-- 用户侧知识入库首版当前只支持文本型 PDF，不做 OCR；上传源文件会保留并随草稿进入待审核链路。
+- 用户侧知识入库当前只支持文本型 PDF，不做 OCR；上传源文件会保留，小文件走单草稿确认链路，大文件则进入异步拆解任务并保留已生成的待审核文档。
 - Git 提交默认使用中文“简短标题 + 详细正文”；正文尽量完整说明对应 bug/优化/功能、问题背景和解决办法。
 - 每次提交后都要回到对应模块 progress 检查并补齐当前进度；若进度因此变更，也要继续提交这些文档更新。
 - 发布包中的语雀 bootstrap seed 若通过 `sourceMarkdownPath` 指向 `tmp/yuque-batch/full-*` 正文，不能只打包 `bootstrap-seeds/`，必须保留整棵 `tmp/yuque-batch/`。

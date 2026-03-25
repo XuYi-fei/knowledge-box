@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="066-001-knowledge-ingestion-task" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS knowledge_ingestion_task (
+                id BIGSERIAL PRIMARY KEY,
+                task_code VARCHAR(64) NOT NULL UNIQUE,
+                user_id BIGINT NOT NULL REFERENCES user_account(id),
+                source_filename VARCHAR(256) NOT NULL,
+                source_file_provider VARCHAR(32),
+                source_file_object_key VARCHAR(512),
+                source_file_url VARCHAR(512),
+                source_file_content_type VARCHAR(128),
+                source_file_content_length BIGINT,
+                source_file_content_hash VARCHAR(64) NOT NULL,
+                source_page_count INTEGER NOT NULL DEFAULT 0,
+                status VARCHAR(32) NOT NULL DEFAULT 'QUEUED',
+                stage VARCHAR(64) NOT NULL DEFAULT 'UPLOAD_STORED',
+                progress_percent INTEGER NOT NULL DEFAULT 0,
+                cancel_requested BOOLEAN NOT NULL DEFAULT FALSE,
+                error_message TEXT,
+                planned_document_count INTEGER NOT NULL DEFAULT 0,
+                generated_document_count INTEGER NOT NULL DEFAULT 0,
+                failed_document_count INTEGER NOT NULL DEFAULT 0,
+                cancelled_document_count INTEGER NOT NULL DEFAULT 0,
+                summary_text TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_ingestion_task_user_updated
+                ON knowledge_ingestion_task(user_id, updated_at DESC, id DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_ingestion_task_user_hash
+                ON knowledge_ingestion_task(user_id, source_file_content_hash, updated_at DESC, id DESC);
+
+            CREATE TABLE IF NOT EXISTS knowledge_ingestion_task_stage (
+                id BIGSERIAL PRIMARY KEY,
+                task_id BIGINT NOT NULL REFERENCES knowledge_ingestion_task(id) ON DELETE CASCADE,
+                stage_code VARCHAR(32) NOT NULL,
+                status VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                progress_percent INTEGER NOT NULL DEFAULT 0,
+                message TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uk_knowledge_ingestion_task_stage_task_code UNIQUE (task_id, stage_code)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_ingestion_task_stage_task_sort
+                ON knowledge_ingestion_task_stage(task_id, sort_order, id);
+
+            CREATE TABLE IF NOT EXISTS knowledge_ingestion_task_document (
+                id BIGSERIAL PRIMARY KEY,
+                task_id BIGINT NOT NULL REFERENCES knowledge_ingestion_task(id) ON DELETE CASCADE,
+                document_code VARCHAR(64) NOT NULL UNIQUE,
+                segment_index INTEGER NOT NULL DEFAULT 0,
+                page_from_number INTEGER,
+                page_to_number INTEGER,
+                status VARCHAR(32) NOT NULL DEFAULT 'PLANNED',
+                suggested_title VARCHAR(256),
+                suggested_category_name VARCHAR(128),
+                suggested_tags_json TEXT NOT NULL DEFAULT '[]',
+                summary_text TEXT,
+                analysis_reasoning TEXT,
+                generated_markdown TEXT,
+                error_message TEXT,
+                review_request_id BIGINT REFERENCES document_review_request(id),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_knowledge_ingestion_task_document_task_segment
+                ON knowledge_ingestion_task_document(task_id, segment_index, id);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

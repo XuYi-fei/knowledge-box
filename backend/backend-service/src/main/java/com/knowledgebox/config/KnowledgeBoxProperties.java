@@ -355,8 +355,6 @@ public class KnowledgeBoxProperties {
         private int historyTurns = 12;
         private boolean stubResponses = false;
         private Duration streamDelay = Duration.ofMillis(150);
-        private RetrievalTriggerMode retrievalTriggerMode = RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE;
-        private final KnowledgeBaseRouting knowledgeBaseRouting = new KnowledgeBaseRouting();
         private final DashScopeCompatible dashScopeCompatible = new DashScopeCompatible();
 
         public int getTopK() {
@@ -391,28 +389,9 @@ public class KnowledgeBoxProperties {
             this.streamDelay = streamDelay;
         }
 
-        public RetrievalTriggerMode getRetrievalTriggerMode() {
-            return retrievalTriggerMode;
-        }
-
-        public void setRetrievalTriggerMode(RetrievalTriggerMode retrievalTriggerMode) {
-            this.retrievalTriggerMode = retrievalTriggerMode == null
-                    ? RetrievalTriggerMode.ALWAYS_PRE_RETRIEVE
-                    : retrievalTriggerMode;
-        }
-
-        public KnowledgeBaseRouting getKnowledgeBaseRouting() {
-            return knowledgeBaseRouting;
-        }
-
         public DashScopeCompatible getDashScopeCompatible() {
             return dashScopeCompatible;
         }
-    }
-
-    public enum RetrievalTriggerMode {
-        ALWAYS_PRE_RETRIEVE,
-        MODEL_ROUTED
     }
 
     public static class DashScopeCompatible {
@@ -441,48 +420,6 @@ public class KnowledgeBoxProperties {
             // AgentScope 1.0.9 DashScopeHttpClient endpoint heuristics do not cover this naming.
             patterns.add("(?i)^qwen3\\.5-.*$");
             return patterns;
-        }
-    }
-
-    public static class KnowledgeBaseRouting {
-        private boolean enabled = true;
-
-        /**
-         * Regexes that force enabling knowledge base tool/fallback for the query.
-         * Evaluated before {@link #forceDisableRegexes} and before model-based routing.
-         * Keep rules explicit and business-oriented to reduce false negatives.
-         */
-        private List<String> forceEnableRegexes = new ArrayList<>();
-
-        /**
-         * Regexes that force disabling knowledge base tool/fallback for the query.
-         * Keep this list small and intention-revealing. It should only short-circuit
-         * obvious generic questions, while uncertain queries should fall back to model routing.
-         */
-        private List<String> forceDisableRegexes = new ArrayList<>();
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public List<String> getForceEnableRegexes() {
-            return forceEnableRegexes;
-        }
-
-        public void setForceEnableRegexes(List<String> forceEnableRegexes) {
-            this.forceEnableRegexes = forceEnableRegexes;
-        }
-
-        public List<String> getForceDisableRegexes() {
-            return forceDisableRegexes;
-        }
-
-        public void setForceDisableRegexes(List<String> forceDisableRegexes) {
-            this.forceDisableRegexes = forceDisableRegexes;
         }
     }
 
@@ -564,6 +501,7 @@ public class KnowledgeBoxProperties {
     public static class Document {
         private final Taxonomy taxonomy = new Taxonomy();
         private final Bootstrap bootstrap = new Bootstrap();
+        private final Ingestion ingestion = new Ingestion();
 
         public Taxonomy getTaxonomy() {
             return taxonomy;
@@ -571,6 +509,10 @@ public class KnowledgeBoxProperties {
 
         public Bootstrap getBootstrap() {
             return bootstrap;
+        }
+
+        public Ingestion getIngestion() {
+            return ingestion;
         }
     }
 
@@ -680,6 +622,54 @@ public class KnowledgeBoxProperties {
 
         public void setOperatorUsername(String operatorUsername) {
             this.operatorUsername = operatorUsername;
+        }
+    }
+
+    public static class Ingestion {
+        private int largePdfPageThreshold = 80;
+        private int largePdfSizeThresholdMb = 20;
+        private int pageBatchSize = 12;
+        private int maxGeneratedDocuments = 12;
+        private int previewCharsPerPage = 480;
+
+        public int getLargePdfPageThreshold() {
+            return largePdfPageThreshold;
+        }
+
+        public void setLargePdfPageThreshold(int largePdfPageThreshold) {
+            this.largePdfPageThreshold = largePdfPageThreshold;
+        }
+
+        public int getLargePdfSizeThresholdMb() {
+            return largePdfSizeThresholdMb;
+        }
+
+        public void setLargePdfSizeThresholdMb(int largePdfSizeThresholdMb) {
+            this.largePdfSizeThresholdMb = largePdfSizeThresholdMb;
+        }
+
+        public int getPageBatchSize() {
+            return pageBatchSize;
+        }
+
+        public void setPageBatchSize(int pageBatchSize) {
+            this.pageBatchSize = pageBatchSize;
+        }
+
+        public int getMaxGeneratedDocuments() {
+            return maxGeneratedDocuments;
+        }
+
+        public void setMaxGeneratedDocuments(int maxGeneratedDocuments) {
+            this.maxGeneratedDocuments = maxGeneratedDocuments;
+        }
+
+        public int getPreviewCharsPerPage() {
+            return previewCharsPerPage;
+        }
+
+        public void setPreviewCharsPerPage(int previewCharsPerPage) {
+            this.previewCharsPerPage = previewCharsPerPage;
         }
     }
 

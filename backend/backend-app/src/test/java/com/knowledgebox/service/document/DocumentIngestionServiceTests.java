@@ -26,13 +26,23 @@ class DocumentIngestionServiceTests {
 
     @BeforeEach
     void setUp() {
-        StorageService storageService = (category, file) -> new StorageService.StoredObject(
-                "local",
-                category + "/" + file.getOriginalFilename(),
-                "/uploads/" + category + "/" + file.getOriginalFilename(),
-                file.getContentType(),
-                file.getSize()
-        );
+        StorageService storageService = new StorageService() {
+            @Override
+            public StoredObject store(String category, org.springframework.web.multipart.MultipartFile file) {
+                return new StoredObject(
+                        "local",
+                        category + "/" + file.getOriginalFilename(),
+                        "/uploads/" + category + "/" + file.getOriginalFilename(),
+                        file.getContentType(),
+                        file.getSize()
+                );
+            }
+
+            @Override
+            public byte[] read(String objectKey) {
+                return new byte[0];
+            }
+        };
         KnowledgeDocumentRepository knowledgeDocumentRepository = mock(KnowledgeDocumentRepository.class);
         DocumentChunkRepository documentChunkRepository = mock(DocumentChunkRepository.class);
         IngestionJobRepository ingestionJobRepository = mock(IngestionJobRepository.class);

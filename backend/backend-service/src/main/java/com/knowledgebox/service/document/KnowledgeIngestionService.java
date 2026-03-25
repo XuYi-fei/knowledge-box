@@ -5,8 +5,11 @@ import com.knowledgebox.api.ConfirmKnowledgeIngestionDraftRequest;
 import com.knowledgebox.api.CreateKnowledgeIngestionInlineDraftRequest;
 import com.knowledgebox.api.KnowledgeIngestionDraftView;
 import com.knowledgebox.api.KnowledgeIngestionOptionsView;
+import com.knowledgebox.api.KnowledgeIngestionUploadMode;
+import com.knowledgebox.api.KnowledgeIngestionUploadResultView;
 import com.knowledgebox.api.DocumentReviewRequestSummaryView;
 import com.knowledgebox.common.ApiException;
+import com.knowledgebox.config.KnowledgeBoxProperties;
 import com.knowledgebox.domain.document.DocumentAssetRole;
 import com.knowledgebox.domain.document.DocumentReviewRequest;
 import com.knowledgebox.domain.document.DocumentUploaderType;
@@ -45,21 +48,27 @@ public class KnowledgeIngestionService {
     private final DocumentReviewRequestRepository documentReviewRequestRepository;
     private final DocumentGovernanceService documentGovernanceService;
     private final KnowledgeIngestionAgentService ingestionAgentService;
+    private final KnowledgeIngestionTaskService taskService;
+    private final KnowledgeBoxProperties properties;
     private final StorageService storageService;
     private final ObjectMapper objectMapper;
 
     public KnowledgeIngestionService(
+            KnowledgeBoxProperties properties,
             KnowledgeIngestionDraftRepository draftRepository,
             DocumentReviewRequestRepository documentReviewRequestRepository,
             DocumentGovernanceService documentGovernanceService,
             KnowledgeIngestionAgentService ingestionAgentService,
+            KnowledgeIngestionTaskService taskService,
             StorageService storageService,
             ObjectMapper objectMapper
     ) {
+        this.properties = properties;
         this.draftRepository = draftRepository;
         this.documentReviewRequestRepository = documentReviewRequestRepository;
         this.documentGovernanceService = documentGovernanceService;
         this.ingestionAgentService = ingestionAgentService;
+        this.taskService = taskService;
         this.storageService = storageService;
         this.objectMapper = objectMapper;
     }
@@ -111,6 +120,26 @@ public class KnowledgeIngestionService {
     }
 
     @Transactional
+    public KnowledgeIngestionUploadResultView createUploadSubmission(MultipartFile file, Long userId) {
+        if (file == null || file.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INGESTION_FILE_REQUIRED", "请上传 Markdown 或 PDF 文件");
+        }
+        String sourceFilename = StringUtils.cleanPath(file.getOriginalFilename() == null ? "document" : file.getOriginalFilename());
+        KnowledgeIngestionDraftSourceType sourceType = resolveSourceType(sourceFilename, file.getContentType());
+        if (sourceType == KnowledgeIngestionDraftSourceType.PDF && shouldUseAsyncPdfFlow(file, sourceFilename)) {
+            return taskService.createUploadTask(file, userId);
+        }
+        KnowledgeIngestionDraftView draft = createUploadDraft(file, userId);
+        return new KnowledgeIngestionUploadResultView(
+                KnowledgeIngestionUploadMode.SYNC_DRAFT,
+                draft,
+                null,
+                "文件已上传，正在生成知识草稿。",
+                false
+        );
+    }
+
+    @Transactional
     public KnowledgeIngestionDraftView createInlineDraft(CreateKnowledgeIngestionInlineDraftRequest request, Long userId) {
         String content = request.content() == null ? "" : request.content().trim();
         if (!StringUtils.hasText(content)) {
@@ -130,6 +159,18 @@ public class KnowledgeIngestionService {
 
         startAnalysisPipeline(draft.getId());
         return toView(draft);
+    }
+
+    @Transactional
+    public KnowledgeIngestionUploadResultView createInlineSubmission(CreateKnowledgeIngestionInlineDraftRequest request, Long userId) {
+        KnowledgeIngestionDraftView draft = createInlineDraft(request, userId);
+        return new KnowledgeIngestionUploadResultView(
+                KnowledgeIngestionUploadMode.SYNC_DRAFT,
+                draft,
+                null,
+                "内容已提交，正在生成知识草稿。",
+                false
+        );
     }
 
     @Transactional(readOnly = true)
@@ -316,6 +357,20 @@ public class KnowledgeIngestionService {
             throw exception;
         } catch (IOException exception) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INGESTION_PDF_PARSE_FAILED", "无法解析 PDF 文件: " + filename);
+        }
+    }
+
+    private boolean shouldUseAsyncPdfFlow(MultipartFile file, String sourceFilename) {
+        byte[] bytes = readBytes(file);
+        long sizeMb = (long) Math.ceil(bytes.length / (1024D * 1024D));
+        KnowledgeBoxProperties.Ingestion ingestion = properties.getDocument().getIngestion();
+        if (sizeMb >= Math.max(1, ingestion.getLargePdfSizeThresholdMb())) {
+            return true;
+        }
+        try (PDDocument document = Loader.loadPDF(bytes)) {
+            return document.getNumberOfPages() >= Math.max(1, ingestion.getLargePdfPageThreshold());
+        } catch (IOException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INGESTION_PDF_PARSE_FAILED", "无法解析 PDF 文件: " + sourceFilename);
         }
     }
 

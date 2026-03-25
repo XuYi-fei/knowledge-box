@@ -4,6 +4,8 @@ import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.knowledgebox.config.KnowledgeBoxProperties;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -35,6 +37,23 @@ public class OssStorageService implements StorageService {
         KnowledgeBoxProperties.Oss oss = properties.getStorage().getOss();
         String safeName = sanitizeObjectName(objectName);
         return storeToOss(oss, category, safeName, file, true);
+    }
+
+    @Override
+    public byte[] read(String objectKey) {
+        KnowledgeBoxProperties.Oss oss = properties.getStorage().getOss();
+        String endpoint = require(oss.getEndpoint(), "knowledge-box.storage.oss.endpoint");
+        String bucket = require(oss.getBucket(), "knowledge-box.storage.oss.bucket");
+        String accessKeyId = require(oss.getAccessKeyId(), "knowledge-box.storage.oss.access-key-id");
+        String accessKeySecret = require(oss.getAccessKeySecret(), "knowledge-box.storage.oss.access-key-secret");
+        OSS client = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
+        try (InputStream inputStream = client.getObject(bucket, objectKey).getObjectContent()) {
+            return inputStream.readAllBytes();
+        } catch (IOException exception) {
+            throw new UncheckedIOException("Failed to read file from OSS: " + objectKey, exception);
+        } finally {
+            client.shutdown();
+        }
     }
 
     private StoredObject storeToOss(

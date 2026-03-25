@@ -91,7 +91,6 @@ body {
 }
 
 .app-shell {
-  height: 100dvh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -116,10 +115,18 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.app-shell-main > * {
+.app-shell-main-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-main-content > * {
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -230,7 +237,6 @@ body {
 }
 
 .app-shell-footer {
-  margin-top: auto;
   padding: 8px 12px 12px;
   text-align: center;
   font-size: 12px;

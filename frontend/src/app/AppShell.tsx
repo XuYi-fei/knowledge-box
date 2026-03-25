@@ -108,12 +108,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           />
         </div>
       ) : null}
-      <main className="app-shell-main">{children}</main>
-      <footer className="app-shell-footer">
-        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">
-          备案号:冀ICP备2023036490号-1
-        </a>
-      </footer>
+      <main className="app-shell-main">
+        <div className="app-shell-main-content">{children}</div>
+        <footer className="app-shell-footer">
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noreferrer">
+            备案号:冀ICP备2023036490号-1
+          </a>
+        </footer>
+      </main>
     </div>
   );
 }

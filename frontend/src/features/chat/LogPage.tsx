@@ -4,18 +4,18 @@ import { api } from '../../lib/api';
 import type { AboutReleaseNote } from '../../lib/types';
 import { MarkdownMessage } from './MarkdownMessage';
 
-export function AboutPage() {
-  const aboutReleaseNotesQuery = useQuery({
-    queryKey: ['aboutReleaseNotes'],
-    queryFn: api.aboutReleaseNotes,
+export function LogPage() {
+  const releaseNotesQuery = useQuery({
+    queryKey: ['releaseNotes'],
+    queryFn: api.releaseNotes,
     staleTime: 5 * 60 * 1000,
   });
 
-  const releaseNotes = aboutReleaseNotesQuery.data ?? [];
+  const releaseNotes = releaseNotesQuery.data ?? [];
 
   return (
     <div className="chat-shell about-page-shell">
-      <Card className="chat-panel chat-card" title="关于 Knowledge Box">
+      <Card className="chat-panel chat-card" title="更新日志">
         <div className="about-panel">
           <div className="about-panel-intro">
             <Typography.Title level={4}>项目更新日志</Typography.Title>
@@ -24,7 +24,7 @@ export function AboutPage() {
             </Typography.Paragraph>
           </div>
 
-          {aboutReleaseNotesQuery.isLoading ? (
+          {releaseNotesQuery.isLoading ? (
             <div className="chat-empty-state">
               <Spin />
             </div>

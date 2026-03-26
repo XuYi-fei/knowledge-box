@@ -7,6 +7,7 @@
 ## 已完成
 
 - 管理端已接入模型目录、Agent Profile Version、Hooks、Trace、文档治理，以及动态 Tool/MCP/Skill 绑定管理。
+- 管理端现已新增“关于作者”配置页：管理员可维护公开作者主页的结构化资料，并上传作者照片；用户侧 `/author` 会直接消费这一配置。
 - Agent Profile Version 现已支持 `MAIN / ENTRY / ORCHESTRATOR / ATOMIC` 四种类型，并可按“具体版本”绑定允许调用的原子子 Agent。
 - 管理端现已支持新增普通 Agent、删除非主入口 Agent，并对唯一 `MAIN` 主入口提供删除保护。
 - Agent 版本现已新增 `publicDebug` 开关；只有 `ENTRY + PUBLISHED + publicDebug=true` 的版本会暴露给用户侧 `Agent 调试` 页。
@@ -29,10 +30,12 @@
 ## 已验证范围
 
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 Trace 管理页、后台布局滚动修复和相关运营页面。
+- 前端：`npm --prefix frontend run build` 可通过，已覆盖后台 `/admin/author-profile` 编辑页、实时预览、照片上传入口与新菜单项回归。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 Agent 配置页导出 JSON、导入预览 Modal、冲突动作选择与提交调用链。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖统一配置 Bundle 的导入导出入口、通用资源预览表格、运行时环境变量 JSON 编辑与冲突处理。
 - 前端：`npm --prefix frontend run build` 可通过，已覆盖 Agent 管理页的 `publicDebug` 开关、调试入口标签与新的用户侧 `Agent 调试` tab。
 - 后端：`mvn -q -pl backend/backend-app -am -DskipTests compile` 与 `package` 可通过，已覆盖 Trace、Agent 配置与后台管理接口。
+- 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AuthorProfileAdminServiceTests test` 可通过，已覆盖作者资料结构化保存、空配置读取、照片上传与替换旧文件回归。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentProfileBindingServiceTests,AgentProfileVersionPolicyServiceTests,AgentCapabilityAssemblyServiceTests,ChatOrchestratorTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖 Agent 类型约束、子 Agent 绑定与运行时装配。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests,PublishedProfileRoutingModelValidatorTests test` 可通过，已覆盖 Agent 创建删除、`MAIN` 唯一性和主入口校验。
 - 后端：`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AgentConfigAdminServiceTests,AdminCommandServiceTests,AgentProfileVersionPolicyServiceTests test` 可通过，已覆盖 Agent JSON 导入预览、覆盖提交与启动期跳过策略。
@@ -51,6 +54,7 @@
 
 - 继续提升 Trace 时间线与后台执行信息的可读性，降低排障门槛。
 - 收口后台运营页之间的状态一致性、删除保护与异常提示。
+- 继续优化作者主页后台表单的录入体验，例如更细的字段校验、拖拽排序与内容预置模板。
 - 持续补齐模型配置、Agent Profile 和动态集成管理的运维体验。
 
 ## 关键注意点

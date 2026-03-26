@@ -73,4 +73,6 @@
     <include file="db/changelog/db.changelog-066-knowledge-ingestion-task.xml"/>
     <include file="db/changelog/db.changelog-067-knowledge-ingestion-task-release-note.xml"/>
     <include file="db/changelog/db.changelog-068-knowledge-ingestion-task-management-release-note.xml"/>
+    <include file="db/changelog/db.changelog-069-author-profile.xml"/>
+    <include file="db/changelog/db.changelog-070-author-profile-release-note.xml"/>
 </databaseChangeLog>

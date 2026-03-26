@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="069-001-create-author-profile" author="codex">
+        <sql><![CDATA[
+            CREATE TABLE IF NOT EXISTS author_profile (
+                id BIGSERIAL PRIMARY KEY,
+                profile_key VARCHAR(64) NOT NULL UNIQUE,
+                name VARCHAR(128),
+                gender VARCHAR(32),
+                email VARCHAR(128),
+                phone VARCHAR(64),
+                age INTEGER,
+                photo_provider VARCHAR(32),
+                photo_object_key VARCHAR(512),
+                photo_url VARCHAR(1024),
+                photo_content_type VARCHAR(128),
+                photo_content_length BIGINT,
+                education_json TEXT,
+                skill_json TEXT,
+                work_experience_json TEXT,
+                internship_experience_json TEXT,
+                project_experience_json TEXT,
+                custom_section_json TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

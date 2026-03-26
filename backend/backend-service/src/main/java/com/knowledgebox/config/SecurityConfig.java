@@ -86,8 +86,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/error", "/actuator/health").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/author-profile").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/chat/options").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/documents/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/log/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/system/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/public/auth/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

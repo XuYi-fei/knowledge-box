@@ -39,11 +39,18 @@ export function buildUserWorkspaceTabs(): WorkspaceTab[] {
       matches: (pathname) => pathname.startsWith('/agent-debug'),
     },
     {
-      key: 'about',
-      label: '关于',
-      path: '/about',
+      key: 'author',
+      label: '关于作者',
+      path: '/author',
       icon: <InfoCircleOutlined />,
-      matches: (pathname) => pathname === '/about',
+      matches: (pathname) => pathname === '/author',
+    },
+    {
+      key: 'log',
+      label: '更新日志',
+      path: '/log',
+      icon: <InfoCircleOutlined />,
+      matches: (pathname) => pathname === '/log' || pathname === '/about',
     },
   ];
 }
@@ -59,6 +66,20 @@ export function buildPublicWorkspaceTabs(isAuthenticated: boolean): WorkspaceTab
       path: '/articles',
       icon: <ReadOutlined />,
       matches: (pathname) => pathname.startsWith('/articles'),
+    },
+    {
+      key: 'author',
+      label: '关于作者',
+      path: '/author',
+      icon: <InfoCircleOutlined />,
+      matches: (pathname) => pathname === '/author',
+    },
+    {
+      key: 'log',
+      label: '更新日志',
+      path: '/log',
+      icon: <InfoCircleOutlined />,
+      matches: (pathname) => pathname === '/log' || pathname === '/about',
     },
     {
       key: 'login',

@@ -7,6 +7,7 @@ import { UserWorkspaceLayout } from '../layouts/UserWorkspaceLayout';
 
 const AdminLayout = lazy(() => import('../layouts/AdminLayout').then((module) => ({ default: module.AdminLayout })));
 const AdminLoginPage = lazy(() => import('../features/admin/AdminLoginPage').then((module) => ({ default: module.AdminLoginPage })));
+const AuthorProfilePage = lazy(() => import('../features/admin/AuthorProfilePage').then((module) => ({ default: module.AuthorProfilePage })));
 const DashboardPage = lazy(() => import('../features/admin/DashboardPage').then((module) => ({ default: module.DashboardPage })));
 const ProfileVersionsPage = lazy(() => import('../features/admin/ProfileVersionsPage').then((module) => ({ default: module.ProfileVersionsPage })));
 const DocumentsPage = lazy(() => import('../features/admin/DocumentsPage').then((module) => ({ default: module.DocumentsPage })));
@@ -18,7 +19,8 @@ const IntegrationsPage = lazy(() => import('../features/admin/IntegrationsPage')
 const HooksPage = lazy(() => import('../features/admin/HooksPage').then((module) => ({ default: module.HooksPage })));
 const TracesPage = lazy(() => import('../features/admin/TracesPage').then((module) => ({ default: module.TracesPage })));
 const TraceDetailPage = lazy(() => import('../features/admin/TraceDetailPage').then((module) => ({ default: module.TraceDetailPage })));
-const AboutPage = lazy(() => import('../features/chat/AboutPage').then((module) => ({ default: module.AboutPage })));
+const AuthorPage = lazy(() => import('../features/chat/AuthorPage').then((module) => ({ default: module.AuthorPage })));
+const LogPage = lazy(() => import('../features/chat/LogPage').then((module) => ({ default: module.LogPage })));
 const AgentDebugPage = lazy(() => import('../features/chat/AgentDebugPage').then((module) => ({ default: module.AgentDebugPage })));
 const KnowledgeIngestionPage = lazy(() => import('../features/chat/KnowledgeIngestionPage').then((module) => ({ default: module.KnowledgeIngestionPage })));
 const KnowledgeIngestionTasksPage = lazy(() => import('../features/chat/KnowledgeIngestionTasksPage').then((module) => ({ default: module.KnowledgeIngestionTasksPage })));
@@ -59,6 +61,20 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    path: '/author',
+    element: withSuspense(<PublicWorkspaceLayout />),
+    children: [{ index: true, element: withSuspense(<AuthorPage />) }],
+  },
+  {
+    path: '/log',
+    element: withSuspense(<PublicWorkspaceLayout />),
+    children: [{ index: true, element: withSuspense(<LogPage />) }],
+  },
+  {
+    path: '/about',
+    element: <Navigate to="/log" replace />,
+  },
+  {
     path: '/',
     element: withSuspense(
       <RequireUserAuth>
@@ -74,7 +90,7 @@ export const router = createBrowserRouter([
       { path: 'agent-debug', element: withSuspense(<AgentDebugPage />) },
       { path: 'agent-debug/:profileCode', element: withSuspense(<AgentDebugPage />) },
       { path: 'tools', element: withSuspense(<UserToolsPage />) },
-      { path: 'about', element: withSuspense(<AboutPage />) },
+      { path: 'about', element: <Navigate to="/log" replace /> },
       { path: 'documents/:documentId', element: withSuspense(<UserDocumentDetailPage />) },
     ],
   },
@@ -100,6 +116,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/admin/dashboard" replace /> },
       { path: 'dashboard', element: withSuspense(<DashboardPage />) },
+      { path: 'author-profile', element: withSuspense(<AuthorProfilePage />) },
       { path: 'profiles', element: withSuspense(<ProfileVersionsPage />) },
       { path: 'documents', element: withSuspense(<DocumentsPage />) },
       { path: 'document-reviews', element: withSuspense(<DocumentReviewsPage />) },

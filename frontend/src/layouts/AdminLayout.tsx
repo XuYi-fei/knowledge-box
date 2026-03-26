@@ -29,6 +29,7 @@ export function AdminLayout() {
 
   const menuItems = [
     { path: '/admin/dashboard', name: '概览' },
+    { path: '/admin/author-profile', name: '关于作者' },
     { path: '/admin/profiles', name: 'Agent 配置' },
     { path: '/admin/documents', name: '知识文档' },
     { path: '/admin/document-reviews', name: '文档审核' },

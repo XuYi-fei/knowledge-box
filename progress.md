@@ -10,6 +10,7 @@
 - 文档治理闭环继续收口：审核策略、失败可观测性、重复治理和导入运维仍是近期主线。
 - 用户侧知识入库工作台已接上同步草稿 + 大 PDF 异步任务双链路：当前支持上传 Markdown / 小型文本型 PDF 或直接粘贴内容生成草稿，也支持大体量文本型 PDF 异步拆解为多个待审核文档；任务中心入口、审核跳转按钮、分类临时新建、草稿链接高亮，以及非运行中任务删除与源文件查看已补齐，后续重点转向真实 OSS、模型与审核运营联调。
 - 用户体验继续打磨：聊天流式细节、公开文库阅读体验和用户工具扩展仍有持续迭代空间。
+- 公开信息页已扩展：当前新增公开“关于作者”个人主页，原“关于”已改为“更新日志”并迁到 `/log`，后续重点转向真实内容填充、移动端排版与 SEO/对外展示细节联调。
 - 聊天停止链路已补齐：当前支持用户主动停止回答并以 `CANCELLED` 持久化，后续重点转向真实模型调用下的中断时延观察。
 - 用户侧多入口调试已补齐：当前支持独立 `Agent 调试` 工作区，后续重点转向真实环境下不同 Entry Agent 的联调与可用性反馈。
 - 真实环境联调继续补齐：Redis、邮件、OSS、模型配置与部署链路仍需持续验证。
@@ -46,6 +47,7 @@
 - `npm --prefix frontend run build` 已通过，覆盖知识入库任务中心 `/ingest/tasks`、确认后前往审核页按钮、分类临时新建，以及 Markdown 草稿链接高亮回归。
 - `mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖大 PDF 文本提取逐页进度更新、当前页片段预览、任务页摘要展示与更高频轮询回归。
 - `mvn -q -pl backend/backend-app -am -DskipTests compile`、`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KnowledgeIngestionTaskServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖知识入库任务删除接口、源文件删除抽象、任务中心/详情页删除入口，以及已完成任务查看源文件回归。
+- `mvn -q -pl backend/backend-app -am -DskipTests compile`、`mvn -q -pl backend/backend-app -am -DfailIfNoTests=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=AuthorProfileAdminServiceTests test` 与 `npm --prefix frontend run build` 已通过，覆盖作者主页表结构、公开 `/author` / `/log` 路由、后台作者资料编辑与照片上传回归。
 - 本地 `java -jar backend/backend-app/target/knowledge-box-backend-app-0.1.0-SNAPSHOT.jar --spring.profiles.active=local --server.port=18081` 已验证可启动，`/api/public/system/availability` 返回 `UP`。
 - 当前沙箱下全量 PostgreSQL 集成测试仍可能因本机数据库连接受限失败；这属于环境限制，不是最近文档拆分导致的行为回归。
 
@@ -54,6 +56,7 @@
 - `application-local.yml` 仅在 `local` profile 生效，且视为用户本地敏感配置，不要覆盖。
 - 模块任务先读根 `progress.md`，再读对应 `docs/progress/<module>/progress.md`；根文档只保留索引与共享状态。
 - “关于”tab 的更新日志来自数据库；独立功能完成后要补增量 changelog 往 `about_release_note` 写数据。
+- 公开“关于作者”页当前使用结构化表单数据 + Markdown 渲染，不直接托管整页 HTML；管理员编辑入口在 `/admin/author-profile`，用户侧公开入口为 `/author`。
 - 用户侧知识入库当前只支持文本型 PDF，不做 OCR；上传源文件会保留，小文件走单草稿确认链路，大文件则进入异步拆解任务并保留已生成的待审核文档。
 - Git 提交默认使用中文“简短标题 + 详细正文”；正文尽量完整说明对应 bug/优化/功能、问题背景和解决办法。
 - 每次提交后都要回到对应模块 progress 检查并补齐当前进度；若进度因此变更，也要继续提交这些文档更新。

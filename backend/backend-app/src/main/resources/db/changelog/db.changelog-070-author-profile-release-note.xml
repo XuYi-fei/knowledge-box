@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="070-001-about-release-note-author-profile" author="codex">
+        <sql><![CDATA[
+            INSERT INTO about_release_note (
+                version_label,
+                title,
+                summary,
+                content_markdown,
+                published_at,
+                display_order,
+                highlighted
+            )
+            SELECT
+                '2026.03.26',
+                '新增关于作者主页与独立更新日志页',
+                '用户侧新增公开可访问的“关于作者”个人主页，管理员可维护结构化简历信息；原关于页改名为更新日志并迁移到 /log。',
+                E'## 本次更新\n\n- 新增公开的关于作者页面，支持头像、基本信息、教育信息、技能、工作/实习/项目经历和自定义模块渲染\n- 管理后台新增关于作者编辑页，管理员可通过结构化表单维护资料并上传照片\n- 原“关于”页重命名为“更新日志”，路由切换为 `/log`，并保留旧地址兼容跳转',
+                TIMESTAMPTZ '2026-03-26 23:59:00+08',
+                -22,
+                FALSE
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM about_release_note
+                 WHERE version_label = '2026.03.26'
+                   AND title = '新增关于作者主页与独立更新日志页'
+            );
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

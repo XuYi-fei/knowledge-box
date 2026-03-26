@@ -1,5 +1,7 @@
 import {
   AboutReleaseNote,
+  AuthorProfile,
+  AuthorProfilePhotoUploadResult,
   BatchDocumentReviewActionResult,
   AgentProfileImportCommitRequest,
   AgentProfileImportCommitResult,
@@ -594,8 +596,11 @@ export const api = {
   async currentUser() {
     return requestJson<UserView>('/api/app/me', undefined, 'user');
   },
-  async aboutReleaseNotes() {
-    return requestJson<AboutReleaseNote[]>('/api/app/about/release-notes', undefined, 'user');
+  async publicAuthorProfile() {
+    return requestJson<AuthorProfile>('/api/public/author-profile');
+  },
+  async releaseNotes() {
+    return requestJson<AboutReleaseNote[]>('/api/public/log/release-notes');
   },
   async appToolsCatalog() {
     return requestJson<AppToolCatalogItem[]>('/api/app/tools', undefined, 'user');
@@ -832,6 +837,43 @@ export const api = {
       {
         method: 'POST',
         body: JSON.stringify({ currentPassword, newPassword }),
+      },
+      'admin',
+    );
+  },
+  async adminAuthorProfile() {
+    return requestJson<AuthorProfile>('/api/admin/author-profile', undefined, 'admin');
+  },
+  async updateAuthorProfile(payload: AuthorProfile) {
+    return requestJson<AuthorProfile>(
+      '/api/admin/author-profile',
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: payload.name,
+          gender: payload.gender,
+          email: payload.email,
+          phone: payload.phone,
+          age: payload.age,
+          educations: payload.educations,
+          skills: payload.skills,
+          workExperiences: payload.workExperiences,
+          internshipExperiences: payload.internshipExperiences,
+          projectExperiences: payload.projectExperiences,
+          customSections: payload.customSections,
+        }),
+      },
+      'admin',
+    );
+  },
+  async uploadAuthorProfilePhoto(image: File) {
+    const formData = new FormData();
+    formData.append('image', image);
+    return requestJson<AuthorProfilePhotoUploadResult>(
+      '/api/admin/author-profile/photo',
+      {
+        method: 'POST',
+        body: formData,
       },
       'admin',
     );

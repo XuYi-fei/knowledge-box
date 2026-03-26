@@ -21,6 +21,64 @@ export type AboutReleaseNote = {
   highlighted: boolean;
 };
 
+export type AuthorEducationItem = {
+  stageLabel: string | null;
+  schoolName: string;
+  periodText: string | null;
+  major: string | null;
+  honors: string[];
+};
+
+export type AuthorSkillItem = {
+  label: string;
+  descriptionMarkdown: string | null;
+};
+
+export type AuthorExperienceItem = {
+  name: string;
+  periodText: string | null;
+  summaryMarkdown: string | null;
+  responsibilityItems: string[];
+  techStacks: string[];
+};
+
+export type AuthorCustomSectionItem = {
+  itemTitle: string | null;
+  periodText: string | null;
+  descriptionMarkdown: string | null;
+};
+
+export type AuthorCustomSection = {
+  sectionTitle: string | null;
+  items: AuthorCustomSectionItem[];
+};
+
+export type AuthorProfile = {
+  configured: boolean;
+  name: string | null;
+  gender: string | null;
+  email: string | null;
+  phone: string | null;
+  age: number | null;
+  photoUrl: string | null;
+  photoContentType: string | null;
+  photoContentLength: number | null;
+  educations: AuthorEducationItem[];
+  skills: AuthorSkillItem[];
+  workExperiences: AuthorExperienceItem[];
+  internshipExperiences: AuthorExperienceItem[];
+  projectExperiences: AuthorExperienceItem[];
+  customSections: AuthorCustomSection[];
+};
+
+export type AuthorProfilePhotoUploadResult = {
+  provider: string;
+  objectKey: string;
+  url: string;
+  contentType: string | null;
+  contentLength: number | null;
+};
+
 export type UserAuthAction = 'REGISTERED' | 'AUTO_REGISTERED' | 'LOGGED_IN';
 
 export type UserAuthResponse = {
